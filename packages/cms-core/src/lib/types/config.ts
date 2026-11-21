@@ -177,6 +177,32 @@ export type DocumentLimitResolver = (context: {
 	type: string;
 }) => DocumentLimit | null | undefined | Promise<DocumentLimit | null | undefined>;
 
+/** A cap on the bytes of media an organization may keep. See `CMSConfig.storageLimits`. */
+export interface StorageLimit {
+	/** Total size of every asset the organization keeps, in bytes. */
+	maxBytes: number;
+	/** What the person sees when an upload would go over it. */
+	message?: string;
+}
+
+/** Decides the storage limit for one organization; `null` for none. */
+export type StorageLimitResolver = (context: {
+	organizationId: string;
+}) => StorageLimit | null | undefined | Promise<StorageLimit | null | undefined>;
+
+/** A cap on an organization's members, pending invitations included. See `CMSConfig.memberLimits`. */
+export interface MemberLimit {
+	/** Members allowed, the owner included. */
+	max: number;
+	/** What the person sees when they reach it. */
+	message?: string;
+}
+
+/** Decides the member limit for one organization; `null` for none. */
+export type MemberLimitResolver = (context: {
+	organizationId: string;
+}) => MemberLimit | null | undefined | Promise<MemberLimit | null | undefined>;
+
 export interface InvitationEmailTemplate {
 	from?: string;
 	getSubject?: (organizationName: string) => string;
@@ -531,6 +557,26 @@ export interface CMSConfig {
 	 * ```
 	 */
 	documentLimits?: DocumentLimitResolver;
+	/**
+	 * How many bytes of media an organization may keep, such as a plan's "250 MB".
+	 * Checked on every upload (the studio, REST, direct uploads and MCP): one that
+	 * would take the organization's total over `maxBytes` is refused with a 413.
+	 * Return `null` for no limit.
+	 *
+	 * @example
+	 * ```ts
+	 * storageLimits: async ({ organizationId }) =>
+	 *   (await planFor(organizationId)) === 'free' ? { maxBytes: 250 * 1024 * 1024 } : null
+	 * ```
+	 */
+	storageLimits?: StorageLimitResolver;
+	/**
+	 * How many members an organization may have, such as a plan's "3 people".
+	 * Checked when an invitation is made (members plus invitations still pending)
+	 * and when one is accepted, so a full organization can't be joined. Return
+	 * `null` for no limit.
+	 */
+	memberLimits?: MemberLimitResolver;
 	/**
 	 * Cache adapter for published data queries.
 	 * - `undefined` or `null`: no caching (default)

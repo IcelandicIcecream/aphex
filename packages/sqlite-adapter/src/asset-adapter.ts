@@ -356,7 +356,7 @@ export class SQLiteAssetAdapter implements AssetAdapter {
 				.from(this.tables.assets)
 				.where(eq(this.tables.assets.organizationId, organizationId));
 
-			return result[0]?.totalSize || 0;
+			return Number(result[0]?.totalSize ?? 0) || 0;
 		} catch {
 			return 0;
 		}

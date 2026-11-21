@@ -1,3 +1,4 @@
+import { assertMemberLimit, isLimitError } from '../../../local-api/limits';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
@@ -148,6 +149,29 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 					} catch (error) {
 						cmsLogger.warn('Failed to clear expired invitation:', error);
 					}
+				}
+
+				// `config.memberLimits`: a seat for everyone already in, and everyone invited.
+				try {
+					await assertMemberLimit(
+						c.var.aphexCMS.config.memberLimits,
+						auth.organizationId,
+						databaseAdapter,
+						existingInvitations.filter((inv) => isPendingInvitation(inv)).length
+					);
+				} catch (error) {
+					if (isLimitError(error)) {
+						return c.json(
+							{
+								success: false,
+								error: error.message,
+								message: error.message,
+								code: 'limit_reached'
+							},
+							402
+						);
+					}
+					throw error;
 				}
 
 				const token = crypto.randomUUID();

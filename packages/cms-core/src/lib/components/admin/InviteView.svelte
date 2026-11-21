@@ -48,6 +48,17 @@
 				<p class="text-muted-foreground text-center">This invitation has already been accepted.</p>
 				<Button class="mt-6 w-full" onclick={() => goto('/admin')}>Go to Dashboard</Button>
 			</Card.Content>
+		{:else if data.status === 'full'}
+			<Card.Header class="space-y-1">
+				<Card.Title class="text-center text-2xl font-bold">No Room Yet</Card.Title>
+			</Card.Header>
+			<Card.Content>
+				<p class="text-muted-foreground text-center">
+					{data.organization?.name ?? 'This organization'} is full. {data.message ?? ''} Ask whoever invited
+					you to make room, then follow the link again.
+				</p>
+				<Button class="mt-6 w-full" onclick={() => goto('/admin')}>Go to Dashboard</Button>
+			</Card.Content>
 		{:else if data.status === 'email_mismatch'}
 			<Card.Header class="space-y-1">
 				<Card.Title class="text-center text-2xl font-bold">Wrong Account</Card.Title>

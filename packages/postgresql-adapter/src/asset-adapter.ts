@@ -393,7 +393,8 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.from(this.tables.assets)
 				.where(eq(this.tables.assets.organizationId, organizationId));
 
-			return result[0]?.totalSize || 0;
+			// `sum` of a bigint comes back as a string from postgres-js.
+			return Number(result[0]?.totalSize ?? 0) || 0;
 		} catch {
 			return 0;
 		}

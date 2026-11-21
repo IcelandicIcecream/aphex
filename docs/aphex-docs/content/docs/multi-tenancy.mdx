@@ -261,6 +261,30 @@ It's checked on every create: the studio, the Local API, REST, GraphQL and MCP, 
 - Return `null` for no limit.
 - System writes (`overrideAccess`, as in `systemContext`) aren't limited: seeds, migrations and jobs act for the instance, not on a plan. Neither are singletons.
 
+### Storage and team size
+
+Two more limits work the same way: a function core asks for the organization it's checking, returning the limit or `null` for none.
+
+```ts title="aphex.config.ts"
+export default createCMSConfig({
+	// …
+	storageLimits: async ({ organizationId }) =>
+		(await planFor(organizationId)) === 'free'
+			? { maxBytes: 250 * 1024 * 1024, message: 'The free plan includes 250 MB. Upgrade for more.' }
+			: null,
+	memberLimits: async ({ organizationId }) =>
+		(await planFor(organizationId)) === 'free' ? { max: 1 } : { max: 10 }
+});
+```
+
+- **`storageLimits`** is checked on every upload: the studio, REST, direct-to-storage uploads (the bytes are discarded) and MCP's `upload_asset`. An upload that would take the organization's total size over `maxBytes` throws `StorageLimitError`.
+- **`memberLimits`** is checked when an invitation is made, counting members and invitations still pending, and when one is accepted, from the API or an invite link. At the limit, the members page shows `message` in place of the invite form, and the invite link page says the organization is full.
+- REST answers both with 402 and `code: 'limit_reached'`, like `documentLimits`. `isLimitError(error)` matches any of the three.
+
+### Creates made for someone outside the organization
+
+A visitor's form submission is saved as the system, so `documentLimits` wouldn't apply to it by itself. `@aphexcms/plugin-forms` asks for it on the visitor's behalf, with `localAPI.checkDocumentLimit(organizationId, 'formSubmission')`, so a limit on `formSubmission` caps a site's messages, such as 50 a month. At the limit the submission endpoint answers 402 with `code: 'limit_reached'`, and the form can tell the visitor another way to get in touch. A plugin of your own that writes as the system for someone else can do the same.
+
 Keep the plan itself somewhere the organization can't edit, such as [a table of your own](#your-own-tables) your billing webhook writes, not its `metadata`.
 
 ## Your own tables

@@ -1668,6 +1668,8 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(await adapter.countAssets(orgA.id)).toBe(1);
 		expect((await adapter.countAssetsByType(orgA.id)).image).toBe(1);
 		expect(await adapter.getTotalAssetsSize(orgA.id)).toBe(1000);
+		// A number, per organization: storage limits add to it.
+		expect(await adapter.getTotalAssetsSize(orgB.id)).toBe(0);
 
 		// global lookup: no org scoping (public asset serving)
 		const global = await adapter.findAssetByIdGlobal(asset.id);

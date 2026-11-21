@@ -195,7 +195,8 @@ export function createCMSHook(config: CMSConfigInput): Handle {
 				storageAdapter,
 				databaseAdapter,
 				resolveImageConfig(currentConfig.images),
-				resolveGlobalAllowedMimeTypes({ config: currentConfig })
+				resolveGlobalAllowedMimeTypes({ config: currentConfig }),
+				currentConfig.storageLimits
 			);
 			const cmsEngine = createCMS(currentConfig, databaseAdapter);
 			const rolesService = new RolesService(databaseAdapter, currentConfig.cache ?? null);

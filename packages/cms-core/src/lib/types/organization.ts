@@ -155,6 +155,11 @@ export interface PendingInvitationView {
  */
 export interface OrganizationTeam {
 	currentUserId: string;
+	/**
+	 * `config.memberLimits` for this organization: `used` counts members and pending
+	 * invitations. Null when it has none.
+	 */
+	memberLimit: { max: number; used: number; message: string } | null;
 	members: OrganizationMemberWithUser[];
 	invitations: PendingInvitationView[];
 	/** Roles a member can be invited as — owner is excluded (ownership is transferred, not invited). */

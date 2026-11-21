@@ -30,6 +30,7 @@ import { getPendingInvitations } from '../queries/pending-invitations';
 import { loadOAuthConsent, loadOAuthLogin, loadOAuthSite } from './oauth';
 import { isApiDocsEnabled, API_DOCS_PATH } from '../../api/docs-ui';
 import { isInstanceUnclaimed } from '../../auth/bootstrap';
+import { assertMemberLimit, isLimitError } from '../../local-api/limits';
 
 /**
  * The single SSR load behind the embedded `/admin/[...path]` catch-all. It
@@ -574,6 +575,16 @@ async function loadInvite(locals: App.Locals, url: URL, token: string): Promise<
 	if (auth && auth.type !== 'api_key') {
 		if (auth.user.email.toLowerCase() !== invitation.email.toLowerCase()) {
 			return { ...details, status: 'email_mismatch' };
+		}
+		try {
+			await assertMemberLimit(
+				locals.aphexCMS.config.memberLimits,
+				invitation.organizationId,
+				databaseAdapter
+			);
+		} catch (error) {
+			if (isLimitError(error)) return { ...details, status: 'full', message: error.message };
+			throw error;
 		}
 		await databaseAdapter.acceptInvitation(token, auth.user.id);
 		await databaseAdapter.updateUserSession(auth.user.id, invitation.organizationId);

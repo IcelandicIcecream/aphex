@@ -180,6 +180,15 @@ export class LocalAPI {
 	/** `config.documentLimits`, checked before every create. Set in the constructor. */
 	private limitGuard: DocumentLimitGuard | undefined;
 
+	/**
+	 * `config.documentLimits` for a create made for someone outside the
+	 * organization, such as a visitor's form submission, which is written as the
+	 * system and so isn't limited by itself. Throws `DocumentLimitError` at the limit.
+	 */
+	async checkDocumentLimit(organizationId: string, type: string): Promise<void> {
+		await this.limitGuard?.({ organizationId }, type, this.systemAdapter ?? this.userAdapter);
+	}
+
 	/** Hooks read through the collections, so a hook sees what its writer may see, and nothing else. */
 	private hookReader = (context: LocalAPIContext) =>
 		createDocumentHookReader((name) => this.getCollection(name), context);
@@ -407,6 +416,6 @@ export {
 	type SingletonCollection
 } from './collection-api';
 export { PermissionChecker, PermissionError } from './permissions';
-export { DocumentLimitError } from './limits';
+export { DocumentLimitError, StorageLimitError, MemberLimitError, isLimitError } from './limits';
 export type { LocalAPIContext, CreateOptions, UpdateOptions } from './types';
 export { authToContext, requireAuth, systemContext } from './auth-helpers';

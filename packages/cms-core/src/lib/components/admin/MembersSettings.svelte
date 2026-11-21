@@ -70,6 +70,9 @@
 	const pendingInvitations = $derived(team?.invitations ?? []);
 	const inviteRoles = $derived(team?.inviteRoles ?? []);
 	const emailConfigured = $derived(team?.emailConfigured ?? true);
+	// `config.memberLimits`: at it, the invite form gives way to the reason.
+	const memberLimit = $derived(team?.memberLimit ?? null);
+	const full = $derived(memberLimit !== null && memberLimit.used >= memberLimit.max);
 
 	let inviteEmail = $state('');
 	let inviteRole = $state<string>('editor');
@@ -354,42 +357,46 @@
 					</Card.Description>
 				</Card.Header>
 				<Card.Content>
-					<div class="flex flex-col gap-3 lg:flex-row lg:items-end">
-						<div class="flex-1">
-							<Input
-								id="invite-email"
-								type="email"
-								bind:value={inviteEmail}
-								placeholder="email@example.com"
-							/>
+					{#if full && memberLimit}
+						<p class="text-muted-foreground text-sm">{memberLimit.message}</p>
+					{:else}
+						<div class="flex flex-col gap-3 lg:flex-row lg:items-end">
+							<div class="flex-1">
+								<Input
+									id="invite-email"
+									type="email"
+									bind:value={inviteEmail}
+									placeholder="email@example.com"
+								/>
+							</div>
+							<div class="lg:w-[170px]">
+								<Select.Root type="single" name="role" bind:value={inviteRole}>
+									<Select.Trigger>
+										<span class="capitalize">{formatRole(inviteRole)}</span>
+									</Select.Trigger>
+									<Select.Content>
+										{#each inviteRoles as option (option.name)}
+											<Select.Item value={option.name} label={option.name}>
+												<div>
+													<div class="font-medium capitalize">{formatRole(option.name)}</div>
+													{#if option.description}
+														<div class="text-muted-foreground text-xs">{option.description}</div>
+													{/if}
+												</div>
+											</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
+							</div>
+							<Button class="lg:w-auto" onclick={inviteMember} disabled={isInviting}>
+								{#if emailConfigured}
+									{isInviting ? 'Sending...' : 'Send invite'}
+								{:else}
+									{isInviting ? 'Creating...' : 'Create invite link'}
+								{/if}
+							</Button>
 						</div>
-						<div class="lg:w-[170px]">
-							<Select.Root type="single" name="role" bind:value={inviteRole}>
-								<Select.Trigger>
-									<span class="capitalize">{formatRole(inviteRole)}</span>
-								</Select.Trigger>
-								<Select.Content>
-									{#each inviteRoles as option (option.name)}
-										<Select.Item value={option.name} label={option.name}>
-											<div>
-												<div class="font-medium capitalize">{formatRole(option.name)}</div>
-												{#if option.description}
-													<div class="text-muted-foreground text-xs">{option.description}</div>
-												{/if}
-											</div>
-										</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Root>
-						</div>
-						<Button class="lg:w-auto" onclick={inviteMember} disabled={isInviting}>
-							{#if emailConfigured}
-								{isInviting ? 'Sending...' : 'Send invite'}
-							{:else}
-								{isInviting ? 'Creating...' : 'Create invite link'}
-							{/if}
-						</Button>
-					</div>
+					{/if}
 				</Card.Content>
 			</Card.Root>
 		{/if}

@@ -24,10 +24,11 @@ export async function getOrganizationTeam(
 
 	const canInvite = hasCapability(auth, 'member.invite');
 
-	const [memberRows, invitationRows, roles] = await Promise.all([
+	const [memberRows, invitationRows, roles, limit] = await Promise.all([
 		databaseAdapter.findOrganizationMembers(auth.organizationId),
 		databaseAdapter.findOrganizationInvitations(auth.organizationId),
-		rolesService.listRoles(auth.organizationId)
+		rolesService.listRoles(auth.organizationId),
+		config.memberLimits?.({ organizationId: auth.organizationId }) ?? null
 	]);
 
 	// The user table belongs to the auth provider, not the CMS, so profiles
@@ -60,17 +61,27 @@ export async function getOrganizationTeam(
 		(a, b) => new Date(a.member.createdAt).getTime() - new Date(b.member.createdAt).getTime()
 	);
 
+	const pending = invitationRows.filter((inv) => isPendingInvitation(inv));
+	const seats = memberRows.length + pending.length;
+
 	return {
 		currentUserId: auth.user.id,
+		memberLimit: limit
+			? {
+					max: limit.max,
+					used: seats,
+					message:
+						limit.message ??
+						`This organization has room for ${limit.max} ${limit.max === 1 ? 'person' : 'people'}, invitations included.`
+				}
+			: null,
 		members,
-		invitations: invitationRows
-			.filter((inv) => isPendingInvitation(inv))
-			.map((inv) => ({
-				id: inv.id,
-				email: inv.email,
-				role: inv.role,
-				...(canInvite ? { inviteUrl: invitationUrl(config, origin, inv.token) } : {})
-			})),
+		invitations: pending.map((inv) => ({
+			id: inv.id,
+			email: inv.email,
+			role: inv.role,
+			...(canInvite ? { inviteUrl: invitationUrl(config, origin, inv.token) } : {})
+		})),
 		inviteRoles: roles
 			.filter((r) => r.name !== 'owner')
 			.map((r) => ({ name: r.name, description: r.description })),

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { isAccepted, isExpired } from '../../../auth/invitation-status';
 import { cmsLogger } from '../../../utils/logger';
+import { assertMemberLimit, isLimitError } from '../../../local-api/limits';
 import { getPendingInvitations } from '../../queries/pending-invitations';
 import type { AphexEnv } from '../index';
 
@@ -45,6 +46,21 @@ export const invitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Invitation has expired' }, 400);
 			}
 
+			try {
+				await assertMemberLimit(
+					c.var.aphexCMS.config.memberLimits,
+					invitation.organizationId,
+					databaseAdapter
+				);
+			} catch (error) {
+				if (isLimitError(error)) {
+					return c.json(
+						{ success: false, error: error.message, message: error.message, code: 'limit_reached' },
+						402
+					);
+				}
+				throw error;
+			}
 			await databaseAdapter.acceptInvitation(invitation.token, auth.user.id);
 			return c.json({
 				success: true,

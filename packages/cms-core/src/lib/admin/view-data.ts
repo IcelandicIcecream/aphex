@@ -73,7 +73,9 @@ export interface AdminInvitationsData {
 export interface AdminInviteData {
 	view: 'invite';
 	token: string;
-	status: 'open' | 'invalid' | 'expired' | 'already_accepted' | 'email_mismatch';
+	status: 'open' | 'invalid' | 'expired' | 'already_accepted' | 'email_mismatch' | 'full';
+	/** Why the organization can't be joined, with `full` (`config.memberLimits`). */
+	message?: string;
 	invitation: { email: string; role: string } | null;
 	organization: { name: string; slug: string } | null;
 	branding: LoginBranding | null;

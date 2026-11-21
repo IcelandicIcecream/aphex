@@ -16,6 +16,8 @@ import {
 } from '../images/variants';
 import { DEFAULT_ALLOWED_MIME_TYPES, isAcceptedFileType } from '../utils/file-accept';
 import { validateFile } from '../utils/mime-detect';
+import type { StorageLimitResolver } from '../types/config';
+import { assertStorageLimit } from '../local-api/limits';
 
 /**
  * Maximum asset ids per `IN (...)` when resolving refs for injection.
@@ -110,7 +112,9 @@ export class AssetService {
 		private storage: StorageAdapter,
 		private database: DatabaseAdapter,
 		private images: ImageConfig | null = null,
-		private allowedMimeTypes: readonly string[] = DEFAULT_ALLOWED_MIME_TYPES
+		private allowedMimeTypes: readonly string[] = DEFAULT_ALLOWED_MIME_TYPES,
+		/** `config.storageLimits`, checked before every upload is kept. */
+		private storageLimits?: StorageLimitResolver
 	) {}
 
 	/**
@@ -121,6 +125,7 @@ export class AssetService {
 			allowedMimeTypes: this.allowedMimeTypes
 		});
 		if (!validation.valid) throw new Error(validation.error);
+		await assertStorageLimit(this.storageLimits, organizationId, data.size, this.database);
 		const safeMimeType = validation.detectedMimeType || data.mimeType;
 
 		// Determine asset type
@@ -283,6 +288,13 @@ export class AssetService {
 		const finalPath = this.storage.resolvePath(intent.finalKey);
 		const pendingAssetPath = `${finalPath}.unverified`;
 		const uploadSize = await this.verifyUploadedObject(uploadPath, extras.maxBytes);
+		// The signed PUT already happened, so the bytes are discarded if they'd go over.
+		try {
+			await assertStorageLimit(this.storageLimits, organizationId, uploadSize, this.database);
+		} catch (error) {
+			await this.storage.delete(uploadPath).catch(() => false);
+			throw error;
+		}
 		const initialMetadata: AssetMetadata = {
 			...(intent.schemaType ? { schemaType: intent.schemaType } : {}),
 			...(intent.fieldPath ? { fieldPath: intent.fieldPath } : {}),

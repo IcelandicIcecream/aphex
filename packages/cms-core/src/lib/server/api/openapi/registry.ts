@@ -571,6 +571,15 @@ export const ROUTE_REGISTRY: RouteMeta[] = [
 	},
 	{
 		path: '/api/settings/connected-apps/:clientId',
+		method: 'PATCH',
+		summary: 'Choose what a connected app may do beyond drafts',
+		description:
+			'Switches publishing or deleting on or off for one connected app. It can never administer.',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/settings/connected-apps/:clientId',
 		method: 'DELETE',
 		summary: 'Disconnect an app',
 		description: 'Removes the grant and every token issued under it, effective at once.',

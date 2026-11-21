@@ -223,6 +223,20 @@ export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
 		? `${labels.get(first.field) ?? first.field}: ${first.value}`
 		: 'Submission';
 
+	/*
+	 * The site's own limit (`config.documentLimits` for `formSubmission`, such as a
+	 * plan's messages a month). The write below is the system's, which limits
+	 * don't apply to, so it's asked for here on the visitor's behalf.
+	 */
+	try {
+		await aphexCMS.localAPI.checkDocumentLimit(organizationId, 'formSubmission');
+	} catch (error) {
+		if (error instanceof Error && error.name === 'DocumentLimitError') {
+			return c.json({ success: false, error: error.message, code: 'limit_reached' }, 402);
+		}
+		throw error;
+	}
+
 	const submissionId = crypto.randomUUID();
 	const notificationEmails = (formDoc.emails ?? [])
 		.filter((email) => typeof email.to === 'string' && email.to.trim().length > 0)

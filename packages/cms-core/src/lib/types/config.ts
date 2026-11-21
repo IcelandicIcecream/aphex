@@ -578,6 +578,22 @@ export interface CMSConfig {
 	 */
 	memberLimits?: MemberLimitResolver;
 	/**
+	 * Runs when an owner deletes an organization, after the permission check and
+	 * before anything is erased. Throw to stop the delete: nothing is changed, and
+	 * the owner sees the error's message. For what the app keeps outside the CMS,
+	 * such as a billing subscription that would otherwise outlive its organization.
+	 *
+	 * @example
+	 * ```ts
+	 * beforeOrganizationDelete: ({ organizationId }) => cancelSubscription(organizationId)
+	 * ```
+	 */
+	beforeOrganizationDelete?: (args: {
+		organizationId: string;
+		/** The owner deleting it. */
+		userId: string;
+	}) => Promise<void> | void;
+	/**
 	 * Cache adapter for published data queries.
 	 * - `undefined` or `null`: no caching (default)
 	 * - `CacheAdapter` instance: caches published-perspective reads, invalidated on publish/unpublish

@@ -287,6 +287,19 @@ A visitor's form submission is saved as the system, so `documentLimits` wouldn't
 
 Keep the plan itself somewhere the organization can't edit, such as [a table of your own](#your-own-tables) your billing webhook writes, not its `metadata`.
 
+### When an organization is deleted
+
+Deleting an organization erases its files and everything in the database that belongs to it, your own tables included when they reference it with `onDelete: 'cascade'`. What lives outside the CMS, such as a billing subscription, doesn't know. `beforeOrganizationDelete` runs after the owner's permission is checked and before anything is erased:
+
+```ts
+beforeOrganizationDelete: async ({ organizationId }) => {
+	// Throw to stop the delete: nothing is changed, and the owner sees the message.
+	await cancelSubscription(organizationId);
+}
+```
+
+If it throws, the API answers 409 with the error's message and the organization is left exactly as it was, so a subscription that couldn't be cancelled never outlives the organization it was paying for.
+
 ## Your own tables
 
 Pass your Drizzle tables to the database adapter. They're managed alongside Aphex's (SQLite creates them on boot, and Postgres applies them with your migrations):

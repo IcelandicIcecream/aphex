@@ -46,7 +46,7 @@
 		try {
 			const result = await organizations.remove(id);
 			if (!result.success) {
-				throw new Error(result.error || result.message || 'Could not delete this workspace');
+				throw new Error(result.message || result.error || 'Could not delete this workspace');
 			}
 
 			// The server moves everyone still signed in onto another workspace, or clears

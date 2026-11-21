@@ -337,6 +337,27 @@ export const organizationsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				);
 			}
 
+			// The app's own cleanup first (a billing subscription), while nothing has been
+			// touched: if it can't be done, the organization stays as it was.
+			try {
+				await c.var.aphexCMS.config?.beforeOrganizationDelete?.({
+					organizationId: id,
+					userId: auth.user.id
+				});
+			} catch (error) {
+				return c.json(
+					{
+						success: false,
+						error: 'Could not delete organization',
+						message:
+							error instanceof Error && error.message
+								? error.message
+								: 'The organization could not be deleted. Try again.'
+					},
+					409
+				);
+			}
+
 			const members = await databaseAdapter.findOrganizationMembers(id);
 			for (const member of members) {
 				const userSession = await databaseAdapter.findUserSession(member.userId);

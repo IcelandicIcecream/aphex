@@ -42,6 +42,14 @@ export const updateOrganizationRequest = z
 		message: 'At least one field (name, slug, metadata) is required'
 	});
 
+// ---------- PUT /organizations/[id]/capabilities ----------
+
+// The organization capabilities it should have, all of them: the route checks each
+// against `organizationCapabilities.ids`.
+export const setOrganizationCapabilitiesRequest = z.object({
+	capabilities: z.array(z.string().min(1).max(200)).max(200)
+});
+
 // ---------- POST /organizations/switch ----------
 
 export const switchOrganizationRequest = z.object({
@@ -81,6 +89,7 @@ export type InvitableRoleSchema = z.infer<typeof invitableRoleSchema>;
 
 export type CreateOrganizationRequest = z.infer<typeof createOrganizationRequest>;
 export type UpdateOrganizationRequest = z.infer<typeof updateOrganizationRequest>;
+export type SetOrganizationCapabilitiesRequest = z.infer<typeof setOrganizationCapabilitiesRequest>;
 export type SwitchOrganizationRequest = z.infer<typeof switchOrganizationRequest>;
 export type InviteMemberRequest = z.infer<typeof inviteMemberRequest>;
 export type CancelInvitationRequest = z.infer<typeof cancelInvitationRequest>;

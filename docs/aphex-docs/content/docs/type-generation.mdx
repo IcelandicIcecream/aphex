@@ -219,7 +219,7 @@ import { authToContext } from '@aphexcms/cms-core/server';
 
 export const GET = async ({ locals }) => {
 	const api = locals.aphexCMS.localAPI;
-	const context = authToContext(locals.auth);
+	const context = authToContext(locals.aphexAuth);
 
 	// api.collections.page is typed as CollectionAPI<Page>
 	const result = await api.collections.page.find(context, {
@@ -255,7 +255,7 @@ import { authToContext } from '@aphexcms/cms-core/server';
 
 export const GET = async ({ params, locals }) => {
 	const api = locals.aphexCMS.localAPI;
-	const context = authToContext(locals.auth);
+	const context = authToContext(locals.aphexAuth);
 
 	// depth: 1 resolves the refs into full docs
 	const menu = (await api.collections.menu.get(context, {
@@ -270,7 +270,9 @@ export const GET = async ({ params, locals }) => {
 
 <Callout type="info">
 	At depth=1, only the outer document's references are resolved. Refs inside the resolved targets
-	stay raw. That's why `MenuResolved.items` is `MenuItem[]` (not `MenuItemResolved[]`).
+	stay raw. That's why `MenuResolved.items` is `MenuItem[]` (not `MenuItemResolved[]`). A target is
+	read as the caller, so one the caller can't read, or a missing one, stays `{ _type: 'reference',
+	_ref }`: the `*Resolved` types describe the readable case.
 </Callout>
 
 ## Block content types

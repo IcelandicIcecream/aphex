@@ -37,7 +37,13 @@ export type AgentStreamEvent =
 			 * locally, appends `tool` messages, and re-POSTs to resume — see
 			 * `server/api/routes/agent-chat.ts` and `AgentChat.svelte`.
 			 */
-			finishReason: 'stop' | 'tool_calls' | 'length' | 'error' | 'awaiting_workspace_tool';
+			finishReason:
+				| 'stop'
+				| 'tool_calls'
+				| 'length'
+				| 'refusal'
+				| 'error'
+				| 'awaiting_workspace_tool';
 			/**
 			 * The complete running conversation, including every intermediate
 			 * `assistant`(toolCalls)/`tool` message this turn produced — not just the final

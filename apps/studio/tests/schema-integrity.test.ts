@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
-import { db } from '../src/lib/server/db';
+import { db } from './helpers/db';
 import cmsConfig from './fixtures/config';
 import { TEST_ORG_ID } from './helpers/test-constants';
-import type { InferFields } from '@aphexcms/cms-core';
+import { defineType, type InferFields } from '@aphexcms/cms-core';
 
 // Integrity of the *content model itself*: deep reference chains, hook ordering,
 // validation of nested shapes, and what happens to data the schema never
@@ -44,15 +44,14 @@ describe('Deeply nested references', () => {
 		const found = await localAPI.collections.chainNode.findByID(ctx, a.id, { depth: 5 });
 		expect(found).toBeTruthy();
 
-		// Walk down whatever the resolver returned, tolerating either a resolved
-		// object or a raw reference at each hop.
+		// Walk down the resolved chain: every hop within depth is a document.
 		let cursor: any = found;
 		const titles: string[] = [];
 		for (let i = 0; i < 5 && cursor; i++) {
 			titles.push(cursor.title);
 			cursor = cursor.next?._ref ? null : cursor.next;
 		}
-		expect(titles[0]).toBe('level-1');
+		expect(titles).toEqual(['level-1', 'level-2', 'level-3', 'level-4', 'level-5']);
 	});
 
 	it('survives a reference cycle without hanging', async () => {
@@ -258,6 +257,16 @@ describe('Schema hooks (beforeValidate)', () => {
 
 		expect(updated.document.shoutTitle).toBe('AFTER');
 	});
+
+	it('reads other documents through `read`', async () => {
+		const before = await localAPI.collections.hookedDoc.count(ctx);
+		const { document } = await localAPI.collections.hookedDoc.create(ctx, {
+			title: 'Numbered'
+		} as never);
+		created.push(document.id);
+
+		expect(document.sequence).toBe(before + 1);
+	});
 });
 
 describe('TypeScript inference', () => {
@@ -283,5 +292,60 @@ describe('TypeScript inference', () => {
 		// @ts-expect-error — `nothing` is not a declared field.
 		const unknownKey: Fields = { nothing: true };
 		expect(unknownKey).toBeTruthy();
+	});
+
+	it('types array and object fields in a hook, as generated types do', () => {
+		const seen: Array<number | string | undefined> = [];
+		const probe = defineType({
+			type: 'document',
+			name: 'inferenceProbe',
+			title: 'Inference Probe',
+			fields: [
+				{
+					name: 'lines',
+					type: 'array',
+					title: 'Lines',
+					of: [
+						{
+							type: 'object',
+							name: 'line',
+							fields: [
+								{ name: 'label', type: 'string', title: 'Label' },
+								{ name: 'qty', type: 'number', title: 'Quantity' }
+							]
+						}
+					]
+				},
+				{ name: 'tags', type: 'array', title: 'Tags', of: [{ type: 'string' }] },
+				{
+					name: 'related',
+					type: 'array',
+					title: 'Related',
+					of: [{ type: 'reference', to: [{ type: 'page' }] }]
+				},
+				{
+					name: 'address',
+					type: 'object',
+					title: 'Address',
+					fields: [{ name: 'city', type: 'string', title: 'City' }]
+				}
+			],
+			hooks: {
+				beforeValidate: [
+					({ data }) => {
+						const qty: number | undefined = data.lines?.[0]?.qty;
+						const key: string | undefined = data.lines?.[0]?._key;
+						const tag: string | undefined = data.tags?.[0];
+						const ref: string | undefined = data.related?.[0]?._ref;
+						const city: string | undefined = data.address?.city;
+						// @ts-expect-error — `qty` is a number.
+						const wrong: string | undefined = data.lines?.[0]?.qty;
+						seen.push(qty, key, tag, ref, city, wrong);
+						return data;
+					}
+				]
+			}
+		});
+		expect(probe.name).toBe('inferenceProbe');
 	});
 });

@@ -1,0 +1,295 @@
+---
+title: Add to an Existing App
+description: Run Aphex inside the SvelteKit app you already have, with the admin at /admin and your content in the same database and deployment.
+icon: PackagePlus
+---
+
+Aphex runs inside your SvelteKit app rather than beside it. You install a few packages, write one config file, and add two route files that you never need to edit again. Your existing pages and routes keep working.
+
+The quickest way is to run this inside your app:
+
+```bash
+pnpm create aphex
+```
+
+It asks which database, storage and email to use, shows every file it will change, and makes the steps below for you. It never overwrites a file you already have. Add `--dry-run` to see the changes without making them.
+
+To do it by hand, follow the rest of this guide. It uses SQLite, which needs no setup. [Switching to Postgres](#use-postgres) takes a few extra steps.
+
+<Callout type="warn" title="SvelteKit 2 only for now">
+	Aphex supports `@sveltejs/kit` 2.49 or newer within version 2. A new `npx sv create` app now gets
+	SvelteKit 3, so check the version in your `package.json` first. Kit 3 support is planned.
+</Callout>
+
+## 1. Install the packages
+
+```bash
+pnpm add @aphexcms/cms-core @aphexcms/auth @aphexcms/sqlite-adapter sharp graphql@16
+pnpm add -D drizzle-kit tailwindcss @tailwindcss/vite
+```
+
+## 2. Set the environment variables
+
+```bash title=".env"
+DATABASE_URL=file:.aphex/app.db
+AUTH_SECRET=replace-with-the-output-of-openssl-rand-base64-32
+AUTH_URL=http://localhost:5173
+```
+
+Add `.aphex` to your `.gitignore`.
+
+## 3. Write the config
+
+This is the file you'll keep editing. Everything else in this guide is set up once.
+
+```ts title="aphex.config.ts"
+import { env } from '$env/dynamic/private';
+import { dev } from '$app/environment';
+import { createCMSConfig } from '@aphexcms/cms-core/server';
+import { aphexAuth } from '@aphexcms/auth';
+import { sqliteAdapter } from '@aphexcms/sqlite-adapter';
+import { schemaTypes } from './src/lib/schemaTypes';
+
+export default createCMSConfig({
+	schemaTypes,
+	database: sqliteAdapter({ url: env.DATABASE_URL }),
+	auth: aphexAuth({ secret: env.AUTH_SECRET, baseURL: env.AUTH_URL }),
+	jobs: { embedded: dev },
+	customization: { branding: { title: 'My App' } }
+});
+```
+
+Nothing here connects when the file loads. Aphex connects to the database on the first request and creates its tables then, so `vite build` works with none of these variables set.
+
+## 4. Define a content type
+
+```ts title="src/lib/schemaTypes/index.ts"
+import type { SchemaType } from '@aphexcms/cms-core';
+
+const post: SchemaType = {
+	name: 'post',
+	type: 'document',
+	title: 'Post',
+	fields: [
+		{ name: 'title', type: 'string', title: 'Title', validation: (Rule) => Rule.required() },
+		{ name: 'slug', type: 'slug', title: 'Slug', source: 'title' }
+	]
+};
+
+export const schemaTypes = [post];
+```
+
+[Schemas](/schemas) covers the field types.
+
+## 5. Connect it to SvelteKit
+
+Add the two Vite plugins. If your app already uses Tailwind 4, `tailwindcss()` will already be there.
+
+```ts title="vite.config.ts"
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
+import { aphex } from '@aphexcms/cms-core/vite';
+
+export default defineConfig({
+	plugins: [sveltekit(), tailwindcss(), aphex()]
+});
+```
+
+Add the hook:
+
+```ts title="src/hooks.server.ts"
+import { createCMSHook } from '@aphexcms/cms-core/server';
+import cmsConfig from '../aphex.config';
+
+export const handle = createCMSHook(cmsConfig);
+```
+
+If you already have a `handle`, combine them with `sequence(createCMSHook(cmsConfig), yourHandle)` from `@sveltejs/kit/hooks`. Aphex has to come first so that your hook can use `locals.aphexCMS`. Aphex answers `/api` and `/media` itself, so those requests don't reach `yourHandle`.
+
+Add the types to `src/app.d.ts`:
+
+```ts title="src/app.d.ts"
+import type { CMSInstances, Auth } from '@aphexcms/cms-core/server';
+import '@aphexcms/cms-core/app-augment';
+
+declare global {
+	namespace App {
+		interface Locals {
+			aphexCMS: CMSInstances;
+			aphexAuth?: Auth;
+		}
+	}
+}
+
+export {};
+```
+
+## 6. Add the admin route
+
+These two files mount the whole admin at `/admin`, sidebar and sign-in pages included. You can copy them as they are, and you shouldn't need to edit them again.
+
+```ts title="src/routes/admin/[...path]/+page.server.ts"
+import { createAdminLoad } from '@aphexcms/cms-core/server';
+
+export const load = createAdminLoad();
+```
+
+```svelte title="src/routes/admin/[...path]/+page.svelte"
+<script lang="ts">
+	import '@aphexcms/cms-core/admin.css';
+	import { AphexStudio } from '@aphexcms/cms-core/client';
+	import { aphexClient } from '$lib/aphex.client';
+
+	let { data } = $props();
+</script>
+
+<AphexStudio {data} config={aphexClient} />
+```
+
+The admin's styles are imported here, so they only load on admin pages and don't affect the rest of your site.
+
+You don't need route files for `/api` or `/media`, because the hook answers them. Your own routes still win, so an existing `src/routes/api/orders/+server.ts` keeps working.
+
+### Client config
+
+The admin's browser side needs your schemas and an auth client, so it has its own small config:
+
+```ts title="src/lib/aphex.client.ts"
+import type { AphexClientConfig } from '@aphexcms/cms-core/client';
+import { adminAuthClient } from '@aphexcms/auth/client';
+import { schemaTypes } from '$lib/schemaTypes';
+
+export const aphexClient: AphexClientConfig = {
+	schemas: schemaTypes,
+	adminAuthClient
+};
+```
+
+## 7. Run it
+
+```bash
+pnpm dev
+```
+
+Open [http://localhost:5173/admin](http://localhost:5173/admin) and sign up. The first person to sign up owns the instance, and sign-up closes behind them.
+
+To read your content from a page, see [Frontend](/frontend).
+
+## Add the rest of your team
+
+Invite people from **Settings → Members**. Sign-up is invite-only after the first account, so this is how anyone else gets in.
+
+With an [email adapter](#going-to-production), the invitation is emailed. Without one, the members page gives you the link to share yourself.
+
+Invitations, password resets and two-factor sign-in all have their pages under `/admin`, so there's nothing to add for them.
+
+## Going to production
+
+**Durable uploads.** Without `storage`, uploads go to `./storage/assets` on local disk. That's fine on a server with a persistent disk, but on Vercel or anywhere else with a temporary filesystem, use a bucket:
+
+```bash
+pnpm add @aphexcms/storage-s3
+```
+
+```ts
+import { s3Storage } from '@aphexcms/storage-s3';
+
+export default createCMSConfig({
+	// ...
+	storage: s3Storage({
+		bucket: env.S3_BUCKET,
+		endpoint: env.S3_ENDPOINT,
+		accessKeyId: env.S3_ACCESS_KEY_ID,
+		secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+		publicUrl: env.S3_PUBLIC_URL
+	})
+});
+```
+
+**Email.** Invitations, password resets and two-factor codes need an adapter with a sender address:
+
+```bash
+pnpm add @aphexcms/resend-adapter
+```
+
+```ts
+import { resendAdapter } from '@aphexcms/resend-adapter';
+
+export default createCMSConfig({
+	// ...
+	email: resendAdapter({ apiKey: env.RESEND_API_KEY, from: 'My App <hello@example.com>' })
+});
+```
+
+To change how they look, pass your own templates: `invitationEmail` in the config, and `email` in `aphexAuth()` for the auth emails.
+
+**SQLite migrations.** SQLite updates its tables on boot using `drizzle-kit`, so move it from `devDependencies` to `dependencies`.
+
+**Prerendered pages.** These work, and they can read published content if `DATABASE_URL` points at a database with content in it during the build. Aphex doesn't run migrations during a build.
+
+## Use Postgres
+
+```bash
+pnpm add @aphexcms/postgresql-adapter postgres
+```
+
+In `aphex.config.ts`, swap the adapter:
+
+```ts
+import { postgresAdapter } from '@aphexcms/postgresql-adapter';
+
+export default createCMSConfig({
+	// ...
+	database: postgresAdapter({ connectionString: env.DATABASE_URL })
+});
+```
+
+Unlike SQLite, Postgres applies migrations that you generate and commit. Point `drizzle-kit` at the Aphex tables:
+
+```ts title="drizzle.config.ts"
+import { defineConfig } from 'drizzle-kit';
+
+export default defineConfig({
+	dialect: 'postgresql',
+	schema: [
+		'./node_modules/@aphexcms/postgresql-adapter/dist/schema.js',
+		'./node_modules/@aphexcms/auth/dist/schema/pg.js'
+	],
+	out: './drizzle'
+});
+```
+
+```bash
+pnpm exec drizzle-kit generate
+```
+
+Commit the `drizzle` folder. Aphex applies it on boot, and it's safe to run several replicas because they take turns using a database lock. Run `generate` again after upgrading Aphex.
+
+## Use a different auth system
+
+`aphexAuth()` returns a plain object, so you can replace it with your own, for example for SSO. Your provider implements the `AuthProvider` interface from `@aphexcms/cms-core/server`:
+
+```ts
+export default createCMSConfig({
+	// ...
+	auth: {
+		provider: ({ database }) => createMySsoProvider({ database, issuer: env.SSO_ISSUER }),
+		loginUrl: '/sso/login'
+	}
+});
+```
+
+In `aphex.client.ts`, replace `adminAuthClient` with your own object implementing the `AdminAuthClient` interface from `@aphexcms/cms-core/client`, so the admin's login and account panels call your system. Then remove `@aphexcms/auth`. Core doesn't import Better Auth, so nothing else changes. See [Authentication](/authentication).
+
+With your own `loginUrl`, your system owns sign-in and password reset, and invitation links point at `/invite/<token>` for you to handle.
+
+## Generate types
+
+To get TypeScript types for your schemas:
+
+```bash
+pnpm exec aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts
+```
+
+See [Type Generation](/type-generation).

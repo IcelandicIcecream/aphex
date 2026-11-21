@@ -161,7 +161,10 @@ describe('generateOpenApiDocument', () => {
 	});
 
 	it('emits named object types as components reachable by $ref', () => {
-		expect(components.PostData.properties.blocks.items.$ref).toBe('#/components/schemas/Callout');
+		// Wrapped in allOf, beside the `_type` every object array item must carry.
+		expect(components.PostData.properties.blocks.items.allOf[0].$ref).toBe(
+			'#/components/schemas/Callout'
+		);
 		expect(components.Callout).toBeDefined();
 	});
 

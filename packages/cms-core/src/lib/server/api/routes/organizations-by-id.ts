@@ -1,7 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
-import { updateOrganizationRequest } from '../../../api/schemas/organizations';
+import {
+	setOrganizationCapabilitiesRequest,
+	updateOrganizationRequest
+} from '../../../api/schemas/organizations';
+import { grantedOrganizationCapabilities } from '../../../auth/organization-capabilities';
 import { isInstanceRole } from '../../../types/capabilities';
 import type { AphexEnv } from '../index';
 
@@ -112,6 +116,77 @@ export const organizationsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			);
 		}
 	})
+	// A super admin turns an organization's features on or off (God Mode). Only where
+	// the config can store them (`organizationCapabilities.set`); an organization's
+	// own owner never can, or they could give themselves a paid feature.
+	.put(
+		'/:id/capabilities',
+		zValidator('json', setOrganizationCapabilitiesRequest, (result, c) => {
+			if (!result.success) {
+				return c.json(
+					{ success: false, error: 'Invalid request body', issues: result.error.issues },
+					400
+				);
+			}
+		}),
+		async (c) => {
+			const auth = c.var.auth;
+			if (!auth || auth.type !== 'session') {
+				return c.json(
+					{ success: false, error: 'Unauthorized', message: 'Session authentication required' },
+					401
+				);
+			}
+			if (auth.user.role !== 'super_admin') {
+				return c.json(
+					{
+						success: false,
+						error: 'Forbidden',
+						message: "Only super admins can change an organization's features"
+					},
+					403
+				);
+			}
+			const { config, databaseAdapter } = c.var.aphexCMS;
+			const declared = config.organizationCapabilities;
+			if (!declared?.set) {
+				return c.json(
+					{
+						success: false,
+						error: 'Not supported',
+						message:
+							'organizationCapabilities.set is not configured, so features are decided elsewhere'
+					},
+					404
+				);
+			}
+			const id = c.req.param('id');
+			if (!(await databaseAdapter.findOrganizationById(id))) {
+				return c.json({ success: false, error: 'Organization not found' }, 404);
+			}
+			const ids = [...new Set(c.req.valid('json').capabilities)];
+			const known = new Set(declared.ids);
+			const unknown = ids.filter((capability) => !known.has(capability));
+			if (unknown.length > 0) {
+				return c.json(
+					{
+						success: false,
+						error: 'Unknown capability',
+						message: `Not in organizationCapabilities.ids: ${unknown.join(', ')}`
+					},
+					400
+				);
+			}
+			try {
+				await declared.set({ organizationId: id, ids, databaseAdapter });
+				const capabilities = await grantedOrganizationCapabilities(declared, id, databaseAdapter);
+				return c.json({ success: true, data: { capabilities } });
+			} catch (error) {
+				cmsLogger.error('Failed to set organization capabilities:', error);
+				return c.json({ success: false, error: "Failed to save the organization's features" }, 500);
+			}
+		}
+	)
 	.patch(
 		'/:id',
 		zValidator('json', updateOrganizationRequest, (result, c) => {
@@ -259,6 +334,27 @@ export const organizationsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						message: 'Only owners can delete an organization'
 					},
 					403
+				);
+			}
+
+			// The app's own cleanup first (a billing subscription), while nothing has been
+			// touched: if it can't be done, the organization stays as it was.
+			try {
+				await c.var.aphexCMS.config?.beforeOrganizationDelete?.({
+					organizationId: id,
+					userId: auth.user.id
+				});
+			} catch (error) {
+				return c.json(
+					{
+						success: false,
+						error: 'Could not delete organization',
+						message:
+							error instanceof Error && error.message
+								? error.message
+								: 'The organization could not be deleted. Try again.'
+					},
+					409
 				);
 			}
 

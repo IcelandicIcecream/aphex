@@ -2,7 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 
 	if (!auth || auth.type !== 'session') {
 		throw redirect(302, '/login');

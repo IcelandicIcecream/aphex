@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
-import { db } from '$lib/server/db';
+import { db } from './helpers/db';
 import cmsConfig from './fixtures/config';
 import { TEST_ORG_ID } from './helpers/test-constants';
 import { Hono } from 'hono';
@@ -615,51 +615,42 @@ describe('GET /api/aphex-health', () => {
 // ============================================================
 
 describe('version restore capability check', () => {
-	function makeVersionsApp(_versionService: any) {
-		const app = new Hono<AphexEnv>();
-		app.use('*', async (c, next) => {
-			c.set('aphexCMS', c.env.aphexCMS);
-			c.set('auth', c.env.auth);
-			await next();
-		});
-		app.route('/documents', documentVersionsRouter);
-		return app;
+	// The check lives in the collection now, so these run against the real Local
+	// API: a mocked one would only test that the route forwards the call.
+	const api = createLocalAPI(cmsConfig, db);
+	const app = new Hono<AphexEnv>();
+	app.use('*', async (c, next) => {
+		c.set('aphexCMS', c.env.aphexCMS);
+		c.set('auth', c.env.auth);
+		await next();
+	});
+	app.route('/documents', documentVersionsRouter);
+
+	const inTestOrg = (auth: any) => ({
+		...auth,
+		organizationId: TEST_ORG_ID,
+		user: { ...auth.user, id: 'user-1' }
+	});
+
+	async function restore(auth: any) {
+		const { document } = await api.collections.page.create(
+			{ organizationId: TEST_ORG_ID, overrideAccess: true },
+			{ title: 'Restore audit', slug: `restore-audit-${Math.random().toString(36).slice(2)}` }
+		);
+		return app.fetch(
+			new Request(`http://localhost/documents/${document.id}/versions/1/restore`, {
+				method: 'POST'
+			}),
+			{ aphexCMS: { localAPI: api, databaseAdapter: db, auth: null }, auth: inTestOrg(auth) } as any
+		);
 	}
 
 	it('returns 403 for viewer on version restore', async () => {
-		const aphexCMS = {
-			localAPI: {
-				versionService: {
-					restoreVersion: async () => ({ id: 'doc-1' })
-				}
-			},
-			databaseAdapter: {},
-			auth: null
-		};
-
-		const res = await makeVersionsApp(aphexCMS.localAPI.versionService).fetch(
-			new Request('http://localhost/documents/doc-1/versions/1/restore', { method: 'POST' }),
-			{ aphexCMS, auth: makeViewerAuth() } as any
-		);
-		expect(res.status).toBe(403);
+		expect((await restore(makeViewerAuth())).status).toBe(403);
 	});
 
 	it('allows admin to restore version', async () => {
-		const aphexCMS = {
-			localAPI: {
-				versionService: {
-					restoreVersion: async () => ({ id: 'doc-1', type: 'page' })
-				}
-			},
-			databaseAdapter: {},
-			auth: null
-		};
-
-		const res = await makeVersionsApp(aphexCMS.localAPI.versionService).fetch(
-			new Request('http://localhost/documents/doc-1/versions/1/restore', { method: 'POST' }),
-			{ aphexCMS, auth: makeAdminAuth() } as any
-		);
-		expect(res.status).toBe(200);
+		expect((await restore(makeAdminAuth())).status).toBe(200);
 	});
 });
 

@@ -7,11 +7,15 @@
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import type { ArrayField as ArrayFieldType, Field, SchemaType } from '../../../types/schemas';
 	import { getArrayTypes, getSchemaByName } from '../../../schema-utils/utils';
+	import { hasRequiredCapabilities } from '../../../schema-utils/required-capabilities';
+	import { findPermissions } from '../../../permissions-context.svelte';
 	import { getSchemaContext } from '../../../schema-context.svelte';
 	import ObjectModal from '../ObjectModal.svelte';
 	import ImageField from './ImageField.svelte';
 	import ReferenceField from './ReferenceField.svelte';
 	import FieldInput from './FieldInput.svelte';
+	import InsertMenu from './InsertMenu.svelte';
+	import TagsInput from './TagsInput.svelte';
 	import { getDefaultValueForFieldType } from '../../../utils/field-defaults';
 	import { DragDropProvider } from '@dnd-kit/svelte';
 	import { createSortable, isSortable } from '@dnd-kit/svelte/sortable';
@@ -22,8 +26,10 @@
 		Pencil,
 		Trash2,
 		FileText,
+		CircleAlert,
 		Plus,
 		Upload,
+		X,
 		Image as ImageIcon
 	} from '@lucide/svelte';
 	import { assets } from '../../../api/assets';
@@ -51,6 +57,11 @@
 		 * never resolved anywhere inside an array.
 		 */
 		documentData?: Record<string, any>;
+		/**
+		 * What's wrong inside each item, by index, as sentences: shown on the item's
+		 * row (SchemaField keeps them out of the alerts above the list).
+		 */
+		itemProblems?: Map<number, string[]>;
 	}
 
 	let {
@@ -60,8 +71,15 @@
 		onOpenReference,
 		readonly = false,
 		organizationId,
-		documentData
+		documentData,
+		itemProblems
 	}: Props = $props();
+
+	/** An item's problems for its row; none for the one open in the editor, which shows its own. */
+	function problemsOf(index: number): string[] {
+		if (modalOpen && editingIndex === index) return [];
+		return itemProblems?.get(index) ?? [];
+	}
 
 	const schemas = getSchemaContext();
 
@@ -76,6 +94,7 @@
 				name: inlineDef.name || typeName,
 				title: inlineDef.title || typeName,
 				fields: inlineDef.fields,
+				fieldsets: inlineDef.fieldsets,
 				icon: inlineDef.icon,
 				preview: inlineDef.preview
 			};
@@ -103,7 +122,28 @@
 			!getSchemaByName(schemas, field.of[0].type)
 	);
 	const primitiveType = $derived(isPrimitiveArray ? field.of?.[0]?.type : null);
-	const availableTypes = $derived(getArrayTypes(schemas, field));
+	// What can be added: a type the organization doesn't have (`requiredCapabilities`)
+	// is left out, as the server refuses it. Items already here still open and edit.
+	const permissions = findPermissions();
+	const availableTypes = $derived(
+		getArrayTypes(schemas, field).filter((type) =>
+			hasRequiredCapabilities(type, permissions?.capabilities ?? [])
+		)
+	);
+	let insertMenuOpen = $state(false);
+	/**
+	 * What the add button says: the field's name for one of its items ("Add block"
+	 * for Blocks, "Add section" for Sections), rather than "Add item…".
+	 */
+	const addLabel = $derived.by(() => {
+		const title = (field.title || field.name || '').trim();
+		const one = /ies$/i.test(title)
+			? title.replace(/ies$/i, 'y')
+			: /[^s]s$/i.test(title)
+				? title.slice(0, -1)
+				: '';
+		return one ? `Add ${one.toLowerCase()}` : 'Add';
+	});
 
 	// The item's field spec, used to render each primitive item through the shared
 	// FieldInput resolver (so a rich type or a plugin `input` widget works per item).
@@ -441,12 +481,16 @@
 		const newArray = [...keyedItems, newItem];
 		onUpdate(newArray);
 
+		revealOnOpen = false;
 		editingIndex = newArray.length - 1;
 		editingType = selectedType;
 		editingSchema = schema;
 		editingValue = newItem;
 		modalOpen = true;
 	}
+
+	/** Whether the item being opened was flagged on its row, so its editor shows why. */
+	let revealOnOpen = $state(false);
 
 	function handleEditItem(index: number) {
 		const item = keyedItems[index];
@@ -455,6 +499,7 @@
 		const schema = getSchemaForType(item._type);
 		if (!schema) return;
 
+		revealOnOpen = problemsOf(index).length > 0;
 		editingIndex = index;
 		editingType = item._type;
 		editingSchema = schema;
@@ -468,13 +513,28 @@
 		onUpdate(newArray);
 	}
 
-	// Reference array — append an empty reference row. The row renders the
-	// ReferenceField empty state (search picker), so the user picks the target
-	// document inline without an extra modal step.
+	// Reference array — "Add" opens an empty row with the search picker, so the
+	// user picks the target inline. The row stays here, out of the document,
+	// until something is picked: a reference with no `_ref` isn't a reference,
+	// and saved into the draft it failed every save of the whole document.
+	let pendingReferenceKeys = $state<string[]>([]);
+
 	function handleAddReference() {
 		if (readonly) return;
-		const newItem = { _type: 'reference', _key: generateKey(), _ref: null };
-		onUpdate([...keyedItems, newItem]);
+		pendingReferenceKeys = [...pendingReferenceKeys, generateKey()];
+	}
+
+	function dropPendingReference(key: string) {
+		pendingReferenceKeys = pendingReferenceKeys.filter((k) => k !== key);
+	}
+
+	function handlePickPendingReference(
+		key: string,
+		newRef: { _type: 'reference'; _ref: string } | null
+	) {
+		if (readonly || !newRef?._ref) return;
+		dropPendingReference(key);
+		onUpdate([...keyedItems, { _type: 'reference', _key: key, _ref: newRef._ref }]);
 	}
 
 	function handleUpdateReference(
@@ -617,6 +677,28 @@
 		{/key}
 	{/if}
 	{#if !readonly}
+		{#each pendingReferenceKeys as key (key)}
+			<div class="mt-1 flex items-center gap-1">
+				<div class="w-7 shrink-0"></div>
+				<div class="min-w-0 flex-1">
+					<ReferenceField
+						field={referenceFieldShape}
+						value={null}
+						onUpdate={(newRef) => handlePickPendingReference(key, newRef)}
+						{onOpenReference}
+						onRemove={() => dropPendingReference(key)}
+					/>
+				</div>
+				<button
+					class="text-muted-foreground hover:text-foreground flex h-9 w-7 shrink-0 items-center justify-center rounded transition-colors"
+					aria-label="Discard this row"
+					title="Discard this row"
+					onclick={() => dropPendingReference(key)}
+				>
+					<X class="h-4 w-4" />
+				</button>
+			</div>
+		{/each}
 		<button
 			class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 mt-1 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
 			onclick={handleAddReference}
@@ -625,6 +707,14 @@
 			Add reference...
 		</button>
 	{/if}
+{:else if isPrimitiveArray && primitiveType === 'string' && field.options?.layout === 'tags'}
+	<TagsInput
+		id={field.name}
+		value={arrayValue.filter((item: unknown): item is string => typeof item === 'string')}
+		onUpdate={(tags) => onUpdate(tags)}
+		placeholder={field.placeholder}
+		{readonly}
+	/>
 {:else if isPrimitiveArray}
 	<!-- Primitive array UI with DnD -->
 	{#if arrayValue.length === 0}
@@ -953,7 +1043,7 @@
 				onclick={handleAddPrimitive}
 			>
 				<Plus class="h-4 w-4" />
-				Add item...
+				{addLabel}
 			</button>
 		{/if}
 	{/if}
@@ -1014,6 +1104,20 @@
 										>
 									{/if}
 								</span>
+								{#if problemsOf(index).length}
+									{@const problems = problemsOf(index)}
+									<span
+										class="text-destructive flex shrink-0 items-center gap-1 text-xs"
+										title={problems.join('\n')}
+									>
+										<CircleAlert class="size-4" aria-hidden="true" />
+										<span class="sr-only sm:not-sr-only"
+											>{problems.length === 1
+												? '1 thing to fix'
+												: `${problems.length} things to fix`}</span
+										>
+									</span>
+								{/if}
 							</button>
 
 							<!-- Context menu -->
@@ -1053,15 +1157,32 @@
 	{/if}
 
 	<!-- Add item button -->
-	{#if !readonly}
+	{#if !readonly && availableTypes.length > 0}
 		{#if availableTypes.length === 1}
 			<button
 				class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
 				onclick={() => handleTypeSelected(availableTypes[0]!.name)}
 			>
 				<Plus class="h-4 w-4" />
-				Add item...
+				Add {(availableTypes[0]!.title || availableTypes[0]!.name).toLowerCase()}
 			</button>
+		{:else if field.options?.insertMenu}
+			<button
+				type="button"
+				class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
+				onclick={() => (insertMenuOpen = true)}
+			>
+				<Plus class="h-4 w-4" />
+				{addLabel}
+			</button>
+			<InsertMenu
+				open={insertMenuOpen}
+				title={field.title || field.name}
+				types={availableTypes}
+				menu={field.options.insertMenu}
+				onSelect={handleTypeSelected}
+				onOpenChange={(v) => (insertMenuOpen = v)}
+			/>
 		{:else}
 			<DropdownMenu.Root>
 				<DropdownMenu.Trigger>
@@ -1071,7 +1192,7 @@
 							class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
 						>
 							<Plus class="h-4 w-4" />
-							Add item...
+							{addLabel}
 						</button>
 					{/snippet}
 				</DropdownMenu.Trigger>
@@ -1105,6 +1226,7 @@
 		{readonly}
 		{organizationId}
 		{documentData}
+		revealErrors={revealOnOpen}
 	/>
 {/if}
 

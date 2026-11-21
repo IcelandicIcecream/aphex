@@ -23,28 +23,11 @@ export function readPath(item: any, path: string): unknown {
 	let current: any = item;
 	for (const segment of path.split('.')) {
 		if (current == null) return undefined;
-		// A reference resolved with `depth > 0` arrives as the raw row
-		// (`{ id, type, draftData, publishedData, ... }`), not a flattened
-		// document. Step through to its data so `voice.name` reads the
-		// voice's name rather than a column that doesn't exist.
-		if (isResolvedRow(current) && !(segment in current)) {
-			current = current.draftData ?? current.publishedData;
-			if (current == null) return undefined;
-		}
+		// A reference resolved with `depth > 0` is the target document itself
+		// (`{ id, ...fields, _meta }`), so `voice.name` reads straight through.
 		current = current[segment];
 	}
 	return current;
-}
-
-function isResolvedRow(
-	value: unknown
-): value is { type: string; draftData?: unknown; publishedData?: unknown } {
-	return (
-		!!value &&
-		typeof value === 'object' &&
-		typeof (value as { type?: unknown }).type === 'string' &&
-		('draftData' in value || 'publishedData' in value)
-	);
 }
 
 /**
@@ -87,6 +70,27 @@ function toPreviewString(value: unknown): string | null {
  * — the first non-empty string wins.
  */
 const DEFAULT_TITLE_FIELDS = ['title', 'heading', 'name', 'label'];
+
+/**
+ * The top-level field a typed name belongs in — what "Create \"Acme\"" from a
+ * reference picker fills, so the new document previews as the name the editor
+ * typed rather than as its type name. Follows `resolvePreviewTitle`'s order:
+ * `preview.select.title` when it names a plain string field of this schema, else
+ * the first conventional title field the schema declares. `null` when there is no
+ * such field (the title comes from `prepare`, a nested path or a reference), in
+ * which case the caller creates the document empty.
+ */
+export function titleFieldName(schema: SchemaType | null | undefined): string | null {
+	if (!schema) return null;
+	const isText = (name: string) =>
+		schema.fields.some((f) => f.name === name && (f.type === 'string' || f.type === 'text'));
+	const selected = schema.preview?.select?.title;
+	if (typeof selected === 'string' && !selected.includes('.') && !/^['"]/.test(selected)) {
+		return isText(selected) ? selected : null;
+	}
+	if (schema.preview?.prepare || schema.preview?.title) return null;
+	return DEFAULT_TITLE_FIELDS.find(isText) ?? null;
+}
 
 /**
  * Run `preview.prepare` if defined: resolve every dot-path in `select`,
@@ -153,4 +157,31 @@ export function resolvePreviewSubtitle(item: any, schema: PreviewSource): string
 	const configured = schema?.preview?.select?.subtitle;
 	if (!configured) return null;
 	return toPreviewString(readPath(item, configured));
+}
+
+/** The asset id in an image value (`{ asset: { _ref } }`), or the string when it's one. */
+function assetRefOf(value: unknown): string | null {
+	if (typeof value === 'string') return value || null;
+	const ref = (value as { asset?: { _ref?: unknown } } | null)?.asset?._ref;
+	return typeof ref === 'string' && ref ? ref : null;
+}
+
+/**
+ * The picture to show for an item (a custom block's card in rich text), as an asset
+ * id. Precedence: `preview.prepare().media` → `select.media` dot-path → the item's
+ * first image (a top-level field holding `{ asset: { _ref } }`), so a block with a
+ * photo shows it without any preview config. Null when it has none.
+ */
+export function resolvePreviewMedia(item: any, schema: PreviewSource): string | null {
+	const prepared = runPrepare(item, schema);
+	if (prepared?.media) return assetRefOf(prepared.media);
+	const configured = schema?.preview?.select?.media;
+	if (configured) return assetRefOf(readPath(item, configured));
+	if (!item || typeof item !== 'object') return null;
+	for (const [key, value] of Object.entries(item)) {
+		if (key.startsWith('_') || typeof value !== 'object') continue;
+		const ref = assetRefOf(value);
+		if (ref) return ref;
+	}
+	return null;
 }

@@ -13,7 +13,6 @@ import type {
 } from '@aphexcms/cms-core/server';
 import { createHashForPublishing, RevisionConflictError } from '@aphexcms/cms-core/server';
 import type { CMSSchema } from './schema';
-import { resolveReferences } from './utils/reference-resolver';
 import { parseWhere, parseSort } from './filter-parser';
 
 // Default values
@@ -443,7 +442,6 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 			offset = DEFAULT_OFFSET,
 			sort,
 			search,
-			depth = 0,
 			perspective = 'draft',
 			filterOrganizationIds
 		} = options;
@@ -535,20 +533,12 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 			docs = await query.limit(limit).offset(offset);
 		}
 
-		// Resolve references if depth > 0
-		let finalDocs: Document[] = docs as Document[];
-		if (depth > 0) {
-			finalDocs = (await Promise.all(
-				docs.map((doc) => resolveReferences(doc as Document, this, organizationId, { depth }))
-			)) as Document[];
-		}
-
 		// Calculate pagination metadata
 		const totalPages = Math.ceil(totalDocs / limit);
 		const currentPage = Math.floor(offset / limit) + 1;
 
 		return {
-			docs: finalDocs,
+			docs: docs as Document[],
 			totalDocs,
 			limit,
 			offset,
@@ -567,7 +557,7 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 		id: string,
 		options: Partial<FindOptions> = {}
 	): Promise<Document | null> {
-		const { depth = 0, filterOrganizationIds } = options;
+		const { filterOrganizationIds } = options;
 
 		// Build conditions
 		const baseConditions = [eq(this.tables.documents.id, id)];
@@ -591,14 +581,7 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 			return null;
 		}
 
-		let doc: Document = result[0] as Document;
-
-		// Resolve references if depth > 0
-		if (depth > 0) {
-			doc = (await resolveReferences(doc, this, organizationId, { depth })) as Document;
-		}
-
-		return doc;
+		return result[0] as Document;
 	}
 
 	/**

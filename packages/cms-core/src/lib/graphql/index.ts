@@ -1,6 +1,5 @@
 import type { CMSInstances } from '../hooks';
 import type { SchemaType } from '../types/schemas';
-import type { Auth } from '../types/auth';
 import type { RequestEvent } from '@sveltejs/kit';
 import { generateGraphQLSchema } from './schema';
 import { createResolvers } from './resolvers';
@@ -73,7 +72,7 @@ export async function createGraphQLHandler(
 		fetchAPI: { Response },
 		context: async (event: RequestEvent) => {
 			// Extract auth and localAPI from event.locals (set by auth hook)
-			const auth = (event.locals as { auth?: Auth }).auth;
+			const auth = event.locals.aphexAuth;
 			const localAPI = event.locals.aphexCMS?.localAPI;
 
 			if (!auth || auth.type === 'partial_session') {

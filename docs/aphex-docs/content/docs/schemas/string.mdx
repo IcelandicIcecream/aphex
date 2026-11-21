@@ -38,14 +38,15 @@ import type { StringField } from '@aphexcms/cms-core';
 
 ## Options
 
-| Option      | Type                              | Default      | Description                         |
-| ----------- | --------------------------------- | ------------ | ----------------------------------- |
-| `layout`    | `'dropdown' \| 'radio' \| 'tabs'` | `'dropdown'` | How to render the list of options.  |
-| `direction` | `'horizontal' \| 'vertical'`      | `'vertical'` | Layout direction for radio buttons. |
+| Option       | Type                              | Default      | Description                                                          |
+| ------------ | --------------------------------- | ------------ | -------------------------------------------------------------------- |
+| `layout`     | `'dropdown' \| 'radio' \| 'tabs'` | `'dropdown'` | How to render the list of options.                                   |
+| `direction`  | `'horizontal' \| 'vertical'`      | `'vertical'` | Layout direction for radio buttons.                                  |
+| `showTitles` | `boolean`                         | `false`      | Tabs with icons: show each title beside its icon, not only on hover. |
 
 ### List item icons
 
-List items in the title/value form accept an optional `icon` (any [Lucide](https://lucide.dev) icon component). Icons render in the `'tabs'` layout, turning the control into a compact icon picker. This also works for dependent-list options.
+List items in the title/value form accept an optional `icon` (any [Lucide](https://lucide.dev) icon component). In the `'tabs'` layout the icon replaces the title, turning the control into a compact icon picker; set `options.showTitles: true` to show both, for choices an icon can't name on its own ("Compact", "Airy"). Dropdowns and radio buttons show the icon beside the title. This also works for dependent-list options.
 
 ```ts
 import { AlignLeft, AlignCenter, AlignRight } from '@lucide/svelte';

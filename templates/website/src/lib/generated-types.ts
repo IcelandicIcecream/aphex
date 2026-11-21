@@ -104,8 +104,8 @@ export interface Page {
 		richText?: PortableTextBlock[];
 		align?: string;
 		links?: {
+			_type: 'linkItem';
 			_key?: string;
-			_type?: string;
 			linkType?: string;
 			label?: string;
 			reference?: Reference<Page | Post>;
@@ -118,7 +118,61 @@ export interface Page {
 	/**
 	 * The page body, block by block.
 	 */
-	layout?: unknown[];
+	layout?: Array<
+		| {
+				_type: 'cta';
+				_key?: string;
+				richText?: PortableTextBlock[];
+				links?: {
+					_type: 'linkItem';
+					_key?: string;
+					linkType?: string;
+					label?: string;
+					reference?: Reference<Page | Post>;
+					url?: string;
+					newTab?: boolean;
+					appearance?: string;
+				}[];
+		  }
+		| {
+				_type: 'content';
+				_key?: string;
+				columns?: {
+					_type: 'column';
+					_key?: string;
+					size?: string;
+					richText?: PortableTextBlock[];
+					enableLink?: boolean;
+					linkType?: string;
+					label?: string;
+					reference?: Reference<Page | Post>;
+					url?: string;
+					newTab?: boolean;
+					appearance?: string;
+				}[];
+		  }
+		| {
+				_type: 'mediaBlock';
+				_key?: string;
+				media: ImageValue;
+				caption?: string;
+		  }
+		| {
+				_type: 'archive';
+				_key?: string;
+				introContent?: PortableTextBlock[];
+				populateBy?: string;
+				categories?: Reference<Category>[];
+				limit?: number;
+				selectedDocs?: Reference<Post>[];
+		  }
+		| {
+				_type: 'formBlock';
+				_key?: string;
+				form: Reference<Form>;
+				introContent?: PortableTextBlock[];
+		  }
+	>;
 	/**
 	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
 	 */
@@ -218,8 +272,8 @@ export interface Header {
 	 * Six is already too many. Internal links follow their document’s slug.
 	 */
 	navItems?: {
+		_type: 'linkItem';
 		_key?: string;
-		_type?: string;
 		linkType?: string;
 		label?: string;
 		reference?: Reference<Page | Post>;
@@ -244,8 +298,8 @@ export interface Footer {
 	/** Document ID */
 	id: string;
 	navItems?: {
+		_type: 'linkItem';
 		_key?: string;
-		_type?: string;
 		linkType?: string;
 		label?: string;
 		reference?: Reference<Page | Post>;
@@ -314,7 +368,75 @@ export interface Form {
 	 * Internal name, and the default heading where the form is embedded.
 	 */
 	title: string;
-	fields: unknown[];
+	fields: Array<
+		| {
+				_type: 'formText';
+				_key?: string;
+				name: string;
+				label: string;
+				required?: boolean;
+				width?: string;
+				placeholder?: string;
+				defaultValue?: string;
+		  }
+		| {
+				_type: 'formEmail';
+				_key?: string;
+				name: string;
+				label: string;
+				required?: boolean;
+				width?: string;
+				placeholder?: string;
+		  }
+		| {
+				_type: 'formTextarea';
+				_key?: string;
+				name: string;
+				label: string;
+				required?: boolean;
+				width?: string;
+				placeholder?: string;
+				rows?: number;
+		  }
+		| {
+				_type: 'formSelect';
+				_key?: string;
+				name: string;
+				label: string;
+				required?: boolean;
+				width?: string;
+				options: {
+					_type: 'option';
+					_key?: string;
+					label: string;
+					value?: string;
+				}[];
+		  }
+		| {
+				_type: 'formCheckbox';
+				_key?: string;
+				name: string;
+				label: string;
+				required?: boolean;
+				width?: string;
+				defaultValue?: boolean;
+		  }
+		| {
+				_type: 'formNumber';
+				_key?: string;
+				name: string;
+				label: string;
+				required?: boolean;
+				width?: string;
+				min?: number;
+				max?: number;
+		  }
+		| {
+				_type: 'formMessage';
+				_key?: string;
+				message?: PortableTextBlock[];
+		  }
+	>;
 	submitButtonLabel?: string;
 	confirmationType?: string;
 	confirmationMessage?: PortableTextBlock[];
@@ -326,8 +448,8 @@ export interface Form {
 	 * Sent after a submission is stored. Reference an answer with {{fieldName}}; {{allFields}} expands to the whole submission.
 	 */
 	emails?: {
+		_type: 'notification';
 		_key?: string;
-		_type?: string;
 		to: string;
 		replyTo?: string;
 		subject: string;
@@ -357,22 +479,22 @@ export interface FormSubmission {
 	 */
 	submittedAt?: string;
 	submissionData?: {
+		_type: 'answer';
 		_key?: string;
-		_type?: string;
 		field?: string;
 		value?: string;
 	}[];
 	notificationEmails?: {
+		_type: 'submissionNotification';
 		_key?: string;
-		_type?: string;
 		to?: string;
 		replyTo?: string;
 		subject?: string;
 		message?: string;
 	}[];
 	notificationFieldLabels?: {
+		_type: 'submissionFieldLabel';
 		_key?: string;
-		_type?: string;
 		field?: string;
 		label?: string;
 	}[];
@@ -416,8 +538,8 @@ export interface PageResolved {
 		richText?: PortableTextBlock[];
 		align?: string;
 		links?: {
+			_type: 'linkItem';
 			_key?: string;
-			_type?: string;
 			linkType?: string;
 			label?: string;
 			reference?: Page | Post;
@@ -430,7 +552,61 @@ export interface PageResolved {
 	/**
 	 * The page body, block by block.
 	 */
-	layout?: unknown[];
+	layout?: Array<
+		| {
+				_type: 'cta';
+				_key?: string;
+				richText?: PortableTextBlock[];
+				links?: {
+					_type: 'linkItem';
+					_key?: string;
+					linkType?: string;
+					label?: string;
+					reference?: Page | Post;
+					url?: string;
+					newTab?: boolean;
+					appearance?: string;
+				}[];
+		  }
+		| {
+				_type: 'content';
+				_key?: string;
+				columns?: {
+					_type: 'column';
+					_key?: string;
+					size?: string;
+					richText?: PortableTextBlock[];
+					enableLink?: boolean;
+					linkType?: string;
+					label?: string;
+					reference?: Page | Post;
+					url?: string;
+					newTab?: boolean;
+					appearance?: string;
+				}[];
+		  }
+		| {
+				_type: 'mediaBlock';
+				_key?: string;
+				media: ImageValue;
+				caption?: string;
+		  }
+		| {
+				_type: 'archive';
+				_key?: string;
+				introContent?: PortableTextBlock[];
+				populateBy?: string;
+				categories?: Category[];
+				limit?: number;
+				selectedDocs?: Post[];
+		  }
+		| {
+				_type: 'formBlock';
+				_key?: string;
+				form: Form;
+				introContent?: PortableTextBlock[];
+		  }
+	>;
 	/**
 	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
 	 */
@@ -501,8 +677,8 @@ export interface HeaderResolved {
 	 * Six is already too many. Internal links follow their document’s slug.
 	 */
 	navItems?: {
+		_type: 'linkItem';
 		_key?: string;
-		_type?: string;
 		linkType?: string;
 		label?: string;
 		reference?: Page | Post;
@@ -527,8 +703,8 @@ export interface FooterResolved {
 	/** Document ID */
 	id: string;
 	navItems?: {
+		_type: 'linkItem';
 		_key?: string;
-		_type?: string;
 		linkType?: string;
 		label?: string;
 		reference?: Page | Post;
@@ -563,22 +739,22 @@ export interface FormSubmissionResolved {
 	 */
 	submittedAt?: string;
 	submissionData?: {
+		_type: 'answer';
 		_key?: string;
-		_type?: string;
 		field?: string;
 		value?: string;
 	}[];
 	notificationEmails?: {
+		_type: 'submissionNotification';
 		_key?: string;
-		_type?: string;
 		to?: string;
 		replyTo?: string;
 		subject?: string;
 		message?: string;
 	}[];
 	notificationFieldLabels?: {
+		_type: 'submissionFieldLabel';
 		_key?: string;
-		_type?: string;
 		field?: string;
 		label?: string;
 	}[];

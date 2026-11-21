@@ -2,7 +2,8 @@
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Alert from '@aphexcms/ui/shadcn/alert';
 	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
-	import { Info } from '@lucide/svelte';
+	import { ChevronRight, CircleAlert, Info, RotateCcw } from '@lucide/svelte';
+	import { toast } from 'svelte-sonner';
 	import type {
 		Field,
 		DateField as DateFieldType,
@@ -12,9 +13,19 @@
 		isFieldRequired,
 		validateField,
 		getValidationClasses,
+		humanizeValidationMessage,
+		itemIndexOfMessage,
 		type ValidationError
 	} from '../../field-validation/utils';
 	import { isFieldVisible } from '../../schema-utils/visibility';
+	import {
+		describeValue,
+		inheritedValue,
+		isEmptyValue,
+		overriddenFields
+	} from '../../schema-utils/inherit';
+	import { filledCount, layoutFields } from '../../schema-utils/fieldsets';
+	import FieldsetSection from './FieldsetSection.svelte';
 	import { cmsLogger } from '../../utils/logger';
 	import { useFieldComponents } from '../../admin/field-components.svelte';
 	import {
@@ -87,8 +98,37 @@
 	// Validation state for the wrapper (displays errors and status)
 	let validationErrors = $state<ValidationError[]>([]);
 
-	// Real-time validation for wrapper display
-	export async function performValidation(currentValue: any, context: any = {}) {
+	/**
+	 * Whether this field may show its errors yet. Not until someone has changed it
+	 * and left it, or the editor asks to see every problem (the footer's "needs
+	 * attention" link, a refused publish). The editor validates every field on load
+	 * and after each autosave, and showing those results at once meant a brand-new
+	 * document opened with "This is required." under every required field before
+	 * anyone had typed — red on the happy path. The errors are still worked out;
+	 * Publish stays blocked on them either way.
+	 *
+	 * Changed, not merely visited: focus leaves an empty field on the way to
+	 * something else all the time (clicking a reference field's Create, which fills
+	 * it a moment later), and that is no reason to call it wrong.
+	 */
+	let revealed = $state(false);
+	let changed = false;
+	const shownErrors = $derived(revealed ? validationErrors : []);
+
+	/** `onUpdate`, noting that this field has been changed. */
+	function update(next: any) {
+		changed = true;
+		onUpdate(next);
+	}
+
+	// Real-time validation for wrapper display. `reveal` lets this field show what
+	// it finds from now on (see `revealed`).
+	export async function performValidation(
+		currentValue: any,
+		context: any = {},
+		options: { reveal?: boolean } = {}
+	) {
+		if (options.reveal) revealed = true;
 		validationErrors = []; // Clear previous errors
 
 		cmsLogger.debug(
@@ -139,8 +179,40 @@
 		validationErrors = result.errors;
 	}
 
+	/**
+	 * A list of objects shows its items' problems on their rows, not as a stack of
+	 * alerts above it: one empty new item would otherwise put a box per required
+	 * field over the list ("Select (item 4) › Name: This is required." and three
+	 * more) while it's still being filled in. Inside the item, each field says what's
+	 * wrong once it's been touched. Rich text keeps the list: its blocks have no rows.
+	 */
+	const itemRows = $derived(
+		field.type === 'array' && !!field.of && !field.of.some((t) => t.type === 'block')
+	);
+	const itemProblems = $derived.by(() => {
+		const byIndex = new Map<number, string[]>();
+		if (!itemRows) return byIndex;
+		for (const error of shownErrors) {
+			if (error.level !== 'error') continue;
+			const index = itemIndexOfMessage(error.message, field.name);
+			if (index === null) continue;
+			// "Select (item 4) › Name: This is required." -> "Name: This is required."
+			const text = humanizeValidationMessage(error.message, { field, value });
+			const [, ...rest] = text.split(' › ');
+			byIndex.set(index, [...(byIndex.get(index) ?? []), rest.length ? rest.join(' › ') : text]);
+		}
+		return byIndex;
+	});
+	const listedErrors = $derived(
+		itemRows
+			? shownErrors.filter((e) => itemIndexOfMessage(e.message, field.name) === null)
+			: shownErrors
+	);
+
 	// Computed values
-	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
+	const hasErrors = $derived(shownErrors.filter((e) => e.level === 'error').length > 0);
+	/** The alert by the title: the list's own problems only, as its items flag theirs. */
+	const titleAlert = $derived(listedErrors.some((e) => e.level === 'error'));
 	const validationClasses = $derived(getValidationClasses(hasErrors));
 
 	/**
@@ -155,26 +227,132 @@
 	 */
 	const visible = $derived(isFieldVisible(field, scope, documentData));
 
+	// An object can fold away (`options.collapsible`/`collapsed`). Its fields stay
+	// mounted while folded, so their validation keeps running.
+	const objectOptions = $derived(
+		field.type === 'object'
+			? (field.options as { collapsible?: boolean; collapsed?: boolean } | undefined)
+			: undefined
+	);
+	const foldable = $derived(!!(objectOptions?.collapsible || objectOptions?.collapsed));
+	// svelte-ignore state_referenced_locally
+	let unfolded = $state(
+		!(field.type === 'object' && (field.options as { collapsed?: boolean } | undefined)?.collapsed)
+	);
+	/**
+	 * Inherited values (`field.inherits`): what an empty field shows, whether it's
+	 * been set by hand over that, and, on an object, which of its fields have been.
+	 */
+	const inherited = $derived(inheritedValue(field, scope, documentData));
+	const overridden = $derived(!!field.inherits && !isEmptyValue(value));
+	const backTo = $derived(
+		field.inherits
+			? inherited === undefined
+				? `Click to go back to ${field.inherits.from}'s.`
+				: `Click to go back to ${field.inherits.from}'s: ${describeValue(field, inherited)}.`
+			: ''
+	);
+	const resettable = $derived(
+		field.type === 'object' && Array.isArray(field.fields)
+			? overriddenFields(field.fields, value ?? undefined)
+			: []
+	);
+	/** Put a value back to what it inherits, with an Undo in case that wasn't meant. */
+	function resetTo(next: any, message: string) {
+		const before = value;
+		update(next);
+		toast(message, { action: { label: 'Undo', onClick: () => update(before) } });
+	}
+	function resetOne() {
+		resetTo(undefined, `${field.title ?? field.name} is back to ${field.inherits?.from}'s`);
+	}
+	function resetAll() {
+		const next = { ...value };
+		for (const sub of resettable) delete next[sub.name];
+		const count = resettable.length;
+		resetTo(
+			next,
+			`${count} ${count === 1 ? 'setting' : 'settings'} back to ${resettable[0]?.inherits?.from}'s`
+		);
+	}
+
 	// Validate once focus leaves the field, not only on load and after save, so a
-	// required field an editor tabs through is flagged immediately rather than
-	// staying unflagged until publish.
+	// field someone has just got wrong says so at once. Leaving a field that was
+	// changed is what lets it show errors; see `revealed`.
 	function validateOnLeave(event: FocusEvent) {
 		const wrapper = event.currentTarget as HTMLElement;
 		if (event.relatedTarget instanceof Node && wrapper.contains(event.relatedTarget)) return;
-		void performValidation(value, documentData ?? {});
+		void performValidation(value, documentData ?? {}, { reveal: changed });
 	}
 </script>
 
+{#snippet subField(sub: Field)}
+	<SchemaField
+		field={sub}
+		value={value?.[sub.name]}
+		{documentData}
+		siblingData={value ?? {}}
+		onUpdate={(subValue) => update({ ...value, [sub.name]: subValue })}
+		{doValidation}
+		{schemaType}
+		parentPath={fieldPath}
+		{readonly}
+		{organizationId}
+		{onOpenReference}
+		descriptionMode="tooltip"
+	/>
+{/snippet}
+
 {#if visible}
-	<div class="space-y-2" data-field-path={fieldPath} onfocusout={validateOnLeave}>
+	<div
+		class="space-y-2"
+		data-field-path={fieldPath}
+		data-field-error={hasErrors ? '' : undefined}
+		onfocusout={validateOnLeave}
+	>
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-1.5">
-				<Label for={field.name}>
-					{field.title}
-					{#if isFieldRequired(field)}
-						<span class="text-destructive">*</span>
+				{#if foldable}
+					<button
+						type="button"
+						class="hover:text-foreground -ml-1 flex items-center gap-1 rounded text-sm font-medium"
+						aria-expanded={unfolded}
+						onclick={() => (unfolded = !unfolded)}
+					>
+						<ChevronRight
+							class="text-muted-foreground size-4 transition-transform {unfolded
+								? 'rotate-90'
+								: ''}"
+						/>
+						{field.title}
+					</button>
+				{:else}
+					<Label for={field.name}>
+						{field.title}
+						{#if isFieldRequired(field)}
+							<span class="text-destructive">*</span>
+						{/if}
+					</Label>
+				{/if}
+				{#if overridden}
+					<!-- Set here, over what it would inherit: one mark that is also the way back. -->
+					{#if readonly}
+						<span class="bg-primary size-1.5 rounded-full" title="Changed"></span>
+					{:else}
+						<Tooltip.Provider delayDuration={150}>
+							<Tooltip.Root>
+								<Tooltip.Trigger
+									class="text-primary hover:text-foreground focus-visible:text-foreground -my-1 inline-flex rounded p-0.5 transition-colors outline-none"
+									aria-label="Changed. {backTo}"
+									onclick={resetOne}
+								>
+									<RotateCcw class="size-3.5" />
+								</Tooltip.Trigger>
+								<Tooltip.Content class="text-xs">Changed. {backTo}</Tooltip.Content>
+							</Tooltip.Root>
+						</Tooltip.Provider>
 					{/if}
-				</Label>
+				{/if}
 
 				<!-- In tooltip mode (object subfields) the description hides behind an info
 			     icon on desktop to keep the group tidy. Desktop only — touch has no hover
@@ -197,23 +375,39 @@
 				{/if}
 			</div>
 
-			{#if hasErrors}
-				<span class="text-destructive text-sm">🚨</span>
-			{/if}
+			<div class="flex items-center gap-2">
+				{#if resettable.length > 0 && !readonly}
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded text-xs"
+						onclick={resetAll}
+					>
+						<RotateCcw class="size-3" />
+						Reset all to {resettable[0]?.inherits?.from}'s
+					</button>
+				{/if}
+				{#if titleAlert}
+					<CircleAlert
+						class="text-destructive size-4 shrink-0"
+						aria-label="This field has a problem"
+					/>
+				{/if}
+			</div>
 		</div>
 
 		<!-- Inline description: always in inline mode; in tooltip mode only on mobile
 	     (`lg:hidden`), where the desktop info icon is hidden. -->
-		{#if field.description}
+		<!-- A folded object's description would read as the next field's: it shows unfolded. -->
+		{#if field.description && !(foldable && !unfolded)}
 			<p class="text-muted-foreground text-sm {descriptionMode === 'tooltip' ? 'lg:hidden' : ''}">
 				{field.description}
 			</p>
 		{/if}
 
 		<!-- Validation errors display -->
-		{#if validationErrors.length > 0}
+		{#if listedErrors.length > 0}
 			<div class="space-y-2">
-				{#each validationErrors as error, index (index)}
+				{#each listedErrors as error, index (index)}
 					<Alert.Root
 						variant={error.level === 'error'
 							? 'destructive'
@@ -222,7 +416,7 @@
 								: 'default'}
 					>
 						<Alert.Description class="text-xs">
-							{error.message}
+							{humanizeValidationMessage(error.message, { field, value })}
 						</Alert.Description>
 					</Alert.Root>
 				{/each}
@@ -242,22 +436,18 @@
 				<!-- Object container: recurse. A custom `input` widget would override this.
 			     The field's title is already shown by the <Label> above, so the card is
 			     just a bordered group — no repeated heading. -->
-				<div class="border-border space-y-6 rounded-md border p-4">
-					{#each field.fields as subField, index (index)}
-						<SchemaField
-							field={subField}
-							value={value?.[subField.name]}
-							{documentData}
-							siblingData={value ?? {}}
-							onUpdate={(subValue) => onUpdate({ ...value, [subField.name]: subValue })}
-							{doValidation}
-							{schemaType}
-							parentPath={fieldPath}
-							{readonly}
-							{organizationId}
-							{onOpenReference}
-							descriptionMode="tooltip"
-						/>
+
+				<div class="border-border space-y-6 rounded-md border p-4" hidden={foldable && !unfolded}>
+					{#each layoutFields(field.fields, field.fieldsets) as item, index (index)}
+						{#if item.kind === 'field'}
+							{@render subField(item.field)}
+						{:else if item.fields.some((f) => isFieldVisible(f, value ?? {}, documentData))}
+							<FieldsetSection fieldset={item.fieldset} filled={filledCount(item.fields, value)}>
+								{#each item.fields as f (f.name)}
+									{@render subField(f)}
+								{/each}
+							</FieldsetSection>
+						{/if}
 					{/each}
 				</div>
 			{:else if field.type === 'array' && field.of && !CustomInput}
@@ -265,7 +455,8 @@
 				<ArrayField
 					{field}
 					{value}
-					{onUpdate}
+					{itemProblems}
+					onUpdate={update}
 					{onOpenReference}
 					{readonly}
 					{organizationId}
@@ -276,13 +467,14 @@
 				<FieldInput
 					{field}
 					{value}
-					{onUpdate}
+					onUpdate={update}
 					{readonly}
 					{validationClasses}
 					{documentData}
 					siblingData={scope}
 					{schemaType}
 					{fieldPath}
+					{inherited}
 					{organizationId}
 					{onOpenReference}
 				/>

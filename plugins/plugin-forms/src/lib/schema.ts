@@ -1,16 +1,20 @@
-import type { Field, SchemaAccess, SchemaType, TypeReference } from '@aphexcms/cms-core';
+import type { Field, Fieldset, SchemaAccess, SchemaType, TypeReference } from '@aphexcms/cms-core';
 import { effectiveOrganizationRole } from '@aphexcms/cms-core';
 import {
 	AlignLeft,
+	CalendarDays,
+	ChevronsUpDown,
+	CircleDot,
 	ClipboardList,
 	Hash,
 	Inbox,
-	List,
 	Mail,
 	MessageSquareText,
+	Phone,
 	SquareCheck,
 	Type
 } from '@lucide/svelte';
+import { withFieldKeys } from './keys';
 
 /**
  * The two collections this plugin contributes: `form` (what an editor composes)
@@ -33,34 +37,20 @@ import {
  * nothing to declare.
  */
 
-/** Settings every field kind shares, spread into each block. */
+/** Settings every field kind shares, first in each block. */
 function baseFields(): Field[] {
 	return [
 		{
-			name: 'name',
-			type: 'string',
-			title: 'Name',
-			description:
-				'The key this answer is stored and emailed under. Lowercase, no spaces — e.g. `email`, `company`.',
-			validation: (Rule) =>
-				Rule.required().custom((value) => {
-					if (typeof value !== 'string') return true;
-					return /^[a-z][a-z0-9_]*$/.test(value)
-						? true
-						: 'Use lowercase letters, digits and underscores, starting with a letter';
-				})
-		},
-		{
 			name: 'label',
 			type: 'string',
-			title: 'Label',
-			description: 'What the visitor reads above the input.',
+			title: 'Question',
+			description: 'What the visitor reads above the box, e.g. "Your phone number".',
 			validation: (Rule) => Rule.required()
 		},
 		{
 			name: 'required',
 			type: 'boolean',
-			title: 'Required',
+			title: 'Must be answered',
 			initialValue: false
 		},
 		{
@@ -77,6 +67,36 @@ function baseFields(): Field[] {
 	];
 }
 
+/** "More": settings most forms never touch, folded away under each field. */
+const MORE: Fieldset[] = [{ name: 'more', title: 'More', options: { collapsed: true } }];
+
+/**
+ * The key an answer is stored and emailed under, last in "More". Left empty, the
+ * form's save hook makes one from the question (`keys.ts`), so nobody has to
+ * invent `your_phone_number` to add a question.
+ */
+function keyField(): Field {
+	return {
+		name: 'name',
+		type: 'string',
+		title: 'Answer key',
+		fieldset: 'more',
+		description:
+			'What this answer is saved under, and what an email template uses ({{phone}}). Made from the question when left empty.',
+		validation: (Rule) =>
+			Rule.custom((value) => {
+				// Empty is fine: the save fills it in.
+				if (typeof value !== 'string' || !value) return true;
+				return /^[a-z][a-z0-9_]*$/.test(value)
+					? true
+					: 'Use lowercase letters, digits and underscores, starting with a letter';
+			})
+	};
+}
+
+/** A field in "More". */
+const more = (field: Field): Field => ({ ...field, fieldset: 'more' });
+
 function validEmailList(value: unknown, multiple: boolean): true | string {
 	if (typeof value !== 'string' || !value.trim()) return true;
 	if (value.includes('{{') || value.includes('}}'))
@@ -91,168 +111,241 @@ function validEmailList(value: unknown, multiple: boolean): true | string {
 
 function validateAuthoredFields(value: unknown): true | string {
 	if (!Array.isArray(value)) return true;
-	const inputs = value.filter(
-		(field): field is Record<string, unknown> =>
-			!!field && typeof field === 'object' && field._type !== 'formMessage'
+	const inputs = withFieldKeys(
+		value.filter(
+			(field): field is Record<string, unknown> =>
+				!!field && typeof field === 'object' && field._type !== 'formMessage'
+		) as Array<Record<string, unknown> & { name?: string; label?: string }>
 	);
-	if (inputs.length === 0) return 'Add at least one input field';
+	if (inputs.length === 0) return 'Add at least one question';
 
 	const names = inputs
 		.map((field) => field.name)
 		.filter((name): name is string => typeof name === 'string');
-	if (new Set(names).size !== names.length) return 'Every input must have a unique name';
+	if (new Set(names).size !== names.length) return 'Two questions have the same answer key';
 
 	for (const field of inputs) {
+		const label = String(field.label ?? field.name ?? 'a question');
 		if (
 			field._type === 'formNumber' &&
 			typeof field.min === 'number' &&
 			typeof field.max === 'number' &&
 			field.min > field.max
 		) {
-			return `Minimum cannot exceed maximum for ${String(field.label ?? field.name ?? 'number field')}`;
+			return `The lowest number can't be more than the highest for ${label}`;
 		}
-		if (field._type === 'formSelect') {
+		if (field._type === 'formSelect' || field._type === 'formRadio') {
 			const options = Array.isArray(field.options) ? field.options : [];
 			const values = options.map((option) => {
 				if (!option || typeof option !== 'object') return '';
 				const row = option as Record<string, unknown>;
 				return String(row.value ?? '').trim() || String(row.label ?? '').trim();
 			});
-			if (values.some((option) => !option)) return 'Every select option must have a label or value';
-			if (new Set(values).size !== values.length) return 'Select option values must be unique';
+			if (values.some((option) => !option)) return `Every choice in ${label} needs a name`;
+			if (new Set(values).size !== values.length) return `${label} has the same choice twice`;
 		}
 	}
 	return true;
 }
 
-/** The row label an editor reads in the collapsed field list. */
+/** The row an editor reads in the field list: the question, then its kind. */
 function fieldPreview(inputType: string) {
 	return {
-		select: { title: 'label', name: 'name' },
-		prepare: ({ title, name }: Record<string, unknown>) => ({
+		select: { title: 'label', required: 'required' },
+		prepare: ({ title, required }: Record<string, unknown>) => ({
 			title: (typeof title === 'string' && title) || inputType,
-			subtitle: typeof name === 'string' && name ? `${inputType} · ${name}` : inputType
+			subtitle: required === true ? `${inputType} · must be answered` : inputType
 		})
 	};
 }
 
+/** The choices of a "Choose one" or a dropdown. */
+function optionsField(): Field {
+	return {
+		name: 'options',
+		type: 'array',
+		title: 'Choices',
+		validation: (Rule) => Rule.required().min(1).max(100),
+		of: [
+			{
+				type: 'object',
+				name: 'option',
+				title: 'Choice',
+				fields: [
+					{
+						name: 'label',
+						type: 'string',
+						title: 'Choice',
+						validation: (Rule) => Rule.required()
+					},
+					{
+						name: 'value',
+						type: 'string',
+						title: 'Saved as',
+						description: 'What the answer is saved as, if not the choice itself.'
+					}
+				],
+				preview: { select: { title: 'label', subtitle: 'value' } }
+			}
+		]
+	};
+}
+
+const placeholder = (): Field =>
+	more({
+		name: 'placeholder',
+		type: 'string',
+		title: 'Hint inside the box',
+		description: 'Greyed-out example text, e.g. "07700 900123".'
+	});
+
 const textField: TypeReference = {
 	type: 'formText',
-	title: 'Text',
+	title: 'Short answer',
 	icon: Type,
+	fieldsets: MORE,
 	fields: [
 		...baseFields(),
-		{ name: 'placeholder', type: 'string', title: 'Placeholder' },
-		{ name: 'defaultValue', type: 'string', title: 'Default value' }
+		placeholder(),
+		more({ name: 'defaultValue', type: 'string', title: 'Filled in already' }),
+		keyField()
 	],
-	preview: fieldPreview('Text')
+	preview: fieldPreview('Short answer')
 };
 
 const textareaField: TypeReference = {
 	type: 'formTextarea',
-	title: 'Long text',
+	title: 'Long answer',
 	icon: AlignLeft,
+	fieldsets: MORE,
 	fields: [
 		...baseFields(),
-		{ name: 'placeholder', type: 'string', title: 'Placeholder' },
-		{ name: 'rows', type: 'number', title: 'Rows', initialValue: 4, min: 2, max: 20, step: 1 }
+		placeholder(),
+		more({
+			name: 'rows',
+			type: 'number',
+			title: 'Height in lines',
+			initialValue: 4,
+			min: 2,
+			max: 20,
+			step: 1
+		}),
+		keyField()
 	],
-	preview: fieldPreview('Long text')
+	preview: fieldPreview('Long answer')
 };
 
 const emailField: TypeReference = {
 	type: 'formEmail',
 	title: 'Email',
 	icon: Mail,
-	fields: [...baseFields(), { name: 'placeholder', type: 'string', title: 'Placeholder' }],
+	fieldsets: MORE,
+	fields: [...baseFields(), placeholder(), keyField()],
 	preview: fieldPreview('Email')
+};
+
+const phoneField: TypeReference = {
+	type: 'formPhone',
+	title: 'Phone',
+	icon: Phone,
+	fieldsets: MORE,
+	fields: [...baseFields(), placeholder(), keyField()],
+	preview: fieldPreview('Phone')
+};
+
+const dateField: TypeReference = {
+	type: 'formDate',
+	title: 'Date',
+	icon: CalendarDays,
+	fieldsets: MORE,
+	fields: [
+		...baseFields(),
+		{
+			name: 'notPast',
+			type: 'boolean',
+			title: 'Today or later only',
+			description: 'For bookings and deliveries: a date that has passed is refused.',
+			initialValue: true
+		},
+		keyField()
+	],
+	preview: fieldPreview('Date')
 };
 
 const numberField: TypeReference = {
 	type: 'formNumber',
 	title: 'Number',
 	icon: Hash,
+	fieldsets: MORE,
 	fields: [
 		...baseFields(),
-		{ name: 'min', type: 'number', title: 'Minimum' },
-		{ name: 'max', type: 'number', title: 'Maximum' }
+		{ name: 'min', type: 'number', title: 'Lowest allowed' },
+		{ name: 'max', type: 'number', title: 'Highest allowed' },
+		keyField()
 	],
 	preview: fieldPreview('Number')
 };
 
 const checkboxField: TypeReference = {
 	type: 'formCheckbox',
-	title: 'Checkbox',
+	title: 'Tick box',
 	icon: SquareCheck,
+	fieldsets: MORE,
 	fields: [
 		...baseFields(),
-		{ name: 'defaultValue', type: 'boolean', title: 'Ticked by default', initialValue: false }
+		more({ name: 'defaultValue', type: 'boolean', title: 'Ticked already', initialValue: false }),
+		keyField()
 	],
-	preview: fieldPreview('Checkbox')
+	preview: fieldPreview('Tick box')
+};
+
+const radioField: TypeReference = {
+	type: 'formRadio',
+	title: 'Choose one',
+	icon: CircleDot,
+	fieldsets: MORE,
+	fields: [...baseFields(), optionsField(), keyField()],
+	preview: fieldPreview('Choose one')
 };
 
 const selectField: TypeReference = {
 	type: 'formSelect',
-	title: 'Select',
-	icon: List,
-	fields: [
-		...baseFields(),
-		{
-			name: 'options',
-			type: 'array',
-			title: 'Options',
-			validation: (Rule) => Rule.required().min(1).max(100),
-			of: [
-				{
-					type: 'object',
-					name: 'option',
-					title: 'Option',
-					fields: [
-						{
-							name: 'label',
-							type: 'string',
-							title: 'Label',
-							validation: (Rule) => Rule.required()
-						},
-						{
-							name: 'value',
-							type: 'string',
-							title: 'Value',
-							description: 'What gets stored. Defaults to the label if left blank.'
-						}
-					],
-					preview: { select: { title: 'label', subtitle: 'value' } }
-				}
-			]
-		}
-	],
-	preview: fieldPreview('Select')
+	title: 'Dropdown',
+	icon: ChevronsUpDown,
+	fieldsets: MORE,
+	fields: [...baseFields(), optionsField(), keyField()],
+	preview: fieldPreview('Dropdown')
 };
 
 /**
- * A block of text between inputs — a section heading, an explanation, a consent
- * notice. It has no `name` and collects nothing, so it deliberately doesn't
- * spread `baseFields()`.
+ * Words between the questions: a heading, an explanation, a consent notice. It
+ * collects nothing, so it has no question, key or width.
  */
 const messageField: TypeReference = {
 	type: 'formMessage',
-	title: 'Message',
+	title: 'Paragraph',
 	icon: MessageSquareText,
-	fields: [{ name: 'message', type: 'array', title: 'Message', of: [{ type: 'block' }] }],
+	fields: [{ name: 'message', type: 'array', title: 'Text', of: [{ type: 'block' }] }],
 	preview: {
 		select: { heading: 'message.0.children.0.text' },
 		prepare: ({ heading }) => ({
-			title: (heading as string) || 'Message',
-			subtitle: 'Message · display text'
+			title: (heading as string) || 'Paragraph',
+			subtitle: 'Paragraph · words between questions'
 		})
 	}
 };
 
-/** Every field kind an editor can add, in the order they appear in the "add" menu. */
+/**
+ * Every field kind an editor can add, in the order of the "add" menu: the ones
+ * nearly every form has, then choices, then the rest.
+ */
 export const formFieldTypes: TypeReference[] = [
 	textField,
 	emailField,
+	phoneField,
 	textareaField,
+	dateField,
+	radioField,
 	selectField,
 	checkboxField,
 	numberField,
@@ -271,24 +364,34 @@ export const formSchema: SchemaType = {
 	description: 'A form an editor composes, embedded on a page by the Form block',
 	icon: ClipboardList,
 	groups: [
-		{ name: 'build', title: 'Build', default: true },
-		{ name: 'confirmation', title: 'Confirmation' },
-		{ name: 'notifications', title: 'Notifications' }
+		{ name: 'build', title: 'Questions', default: true },
+		{ name: 'confirmation', title: 'After sending' },
+		{ name: 'notifications', title: 'Emails' }
 	],
 	preview: { select: { title: 'title' } },
+	hooks: {
+		// An empty answer key becomes one made from its question, once (keys.ts).
+		beforeValidate: [
+			({ data }) =>
+				Array.isArray(data.fields)
+					? { ...data, fields: withFieldKeys(data.fields as Array<Record<string, unknown>>) }
+					: data
+		]
+	},
 	fields: [
 		{
 			name: 'title',
 			type: 'string',
 			title: 'Title',
-			description: 'Internal name, and the default heading where the form is embedded.',
+			description:
+				'The form’s name, and its heading on the page unless the Form block gives another.',
 			group: 'build',
 			validation: (Rule) => Rule.required()
 		},
 		{
 			name: 'fields',
 			type: 'array',
-			title: 'Fields',
+			title: 'Questions',
 			group: 'build',
 			of: formFieldTypes,
 			validation: (Rule) => Rule.required().min(1).max(50).custom(validateAuthoredFields)
@@ -296,26 +399,26 @@ export const formSchema: SchemaType = {
 		{
 			name: 'submitButtonLabel',
 			type: 'string',
-			title: 'Submit button label',
+			title: 'Button',
 			group: 'build',
 			initialValue: 'Submit'
 		},
 		{
 			name: 'confirmationType',
 			type: 'string',
-			title: 'On submit',
+			title: 'When someone sends it',
 			group: 'confirmation',
 			initialValue: 'message',
 			list: [
-				{ title: 'Show a message', value: 'message' },
-				{ title: 'Redirect', value: 'redirect' }
+				{ title: 'Say thank you', value: 'message' },
+				{ title: 'Go to another page', value: 'redirect' }
 			],
 			options: { layout: 'tabs' }
 		},
 		{
 			name: 'confirmationMessage',
 			type: 'array',
-			title: 'Confirmation message',
+			title: 'Thank-you message',
 			group: 'confirmation',
 			of: [{ type: 'block' }],
 			hidden: ({ siblingData }) => siblingData.confirmationType !== 'message',
@@ -323,15 +426,15 @@ export const formSchema: SchemaType = {
 				Rule.custom((value, context) =>
 					context?.document?.confirmationType === 'message' &&
 					(!Array.isArray(value) || value.length === 0)
-						? 'Required when the form shows a confirmation message'
+						? 'Write the thank-you message, or choose another page instead'
 						: true
 				)
 		},
 		{
 			name: 'redirectUrl',
 			type: 'string',
-			title: 'Redirect to',
-			description: 'A site path (/thanks) or an absolute URL.',
+			title: 'Page to go to',
+			description: 'A page of your site (/thanks) or a full web address (https://…).',
 			group: 'confirmation',
 			hidden: ({ siblingData }) => siblingData.confirmationType !== 'redirect',
 			/*
@@ -347,7 +450,7 @@ export const formSchema: SchemaType = {
 				Rule.custom((value, context) => {
 					const url = typeof value === 'string' ? value.trim() : '';
 					const redirects = context?.document?.confirmationType === 'redirect';
-					if (!url) return redirects ? 'Required when the form redirects on submit' : true;
+					if (!url) return redirects ? 'Say which page to go to' : true;
 					if (/^https?:\/\//.test(url) || url.startsWith('/')) return true;
 					return 'Use a site path (/thanks) or an absolute URL (https://…)';
 				})
@@ -355,9 +458,9 @@ export const formSchema: SchemaType = {
 		{
 			name: 'emails',
 			type: 'array',
-			title: 'Notification emails',
+			title: 'Emails about new messages',
 			description:
-				'Sent after a submission is stored. Reference an answer with {{fieldName}}; {{allFields}} expands to the whole submission.',
+				'Who hears about each message. {{allFields}} puts in every answer; {{phone}} puts in one, by its answer key.',
 			group: 'notifications',
 			validation: (Rule) => Rule.max(20),
 			of: [

@@ -4,13 +4,13 @@ description: Instance-level admin surface for super admins — manage every orga
 icon: Crown
 ---
 
-God Mode is the **instance-level admin** surface — a separate section at `/god-mode` reserved for the `super_admin` role. Where the regular admin UI scopes you to one organization at a time, God Mode shows everything across the whole instance and exposes the few operations that don't belong to any single org.
+God Mode is the **instance-level admin** surface — a section at `/admin/god-mode` reserved for the `super_admin` role. Where the regular admin UI scopes you to one organization at a time, God Mode shows everything across the whole instance and exposes the few operations that don't belong to any single org.
 
 ## Who can access it
 
 Only the `super_admin` instance role. The first user to sign up on a fresh deploy is auto-promoted to `super_admin` — that's the bootstrap path. After that, an existing super admin can promote another user via the database directly (there's no UI for it yet).
 
-The layout guard at <Src path="apps/studio/src/routes/god-mode/+layout.server.ts" /> rejects anyone else with an "Access Denied" page; unauthenticated requests redirect to `/login`. Treat the role as production-sensitive — it bypasses every per-org capability check.
+Anyone else who opens it is sent to `/admin`, and a visitor with no session is asked to sign in. Treat the role as production-sensitive — it bypasses every per-org capability check.
 
 <Callout type="warn">
 	The "God Mode" link only appears in the user dropdown if your account has `role ===
@@ -20,10 +20,10 @@ The layout guard at <Src path="apps/studio/src/routes/god-mode/+layout.server.ts
 
 ## Routes
 
-| Route                     | What it shows                                                           |
-| ------------------------- | ----------------------------------------------------------------------- |
-| `/god-mode`               | General page with your admin email + instance info.                     |
-| `/god-mode/organizations` | Every organization in the instance + the `allowUserOrgCreation` toggle. |
+| Route                           | What it shows                                                           |
+| ------------------------------- | ----------------------------------------------------------------------- |
+| `/admin/god-mode`               | General page with your admin email + instance info.                     |
+| `/admin/god-mode/organizations` | Every organization in the instance + the `allowUserOrgCreation` toggle. |
 
 Open the user-menu dropdown in the sidebar and click "God Mode" to enter. Use the breadcrumb / sidebar to navigate back out.
 
@@ -31,7 +31,7 @@ Open the user-menu dropdown in the sidebar and click "God Mode" to enter. Use th
 
 ### See every organization
 
-The organizations page lists all orgs in the instance, enriched with member count and owner email. This is the only place you can see orgs you're not a member of — the regular admin UI scopes by `event.locals.auth.organizationId`.
+The organizations page lists all orgs in the instance, enriched with member count and owner email. This is the only place you can see orgs you're not a member of — the regular admin UI scopes by `event.locals.aphexAuth.organizationId`.
 
 ### Create an organization without an invite
 
@@ -51,10 +51,12 @@ This is irreversible. There's no soft-delete and no trash bin.
 
 ### Toggle `allowUserOrgCreation`
 
-A switch on `/god-mode/organizations` controls whether non-super-admins can self-create organizations. Two modes:
+A switch on `/admin/god-mode/organizations` controls whether non-super-admins can self-create organizations. Two modes:
 
-- **On (default)** — any logged-in user can create their own org from the regular admin UI.
-- **Off** — only super admins can create orgs (i.e. only via God Mode). Useful for closed-tenancy installations where you decide who gets a workspace.
+- **Off (default)** — only super admins can create orgs. Use this for closed installations where you decide who gets a workspace.
+- **On** — any signed-in user can create their own org, including someone with no org yet. This is the SaaS setup. To let people sign up without an invitation as well, pass `options: { inviteOnly: false }` to `aphexAuth()`.
+
+A new org is top-level, so its owner's other orgs can't reach it. To put one inside an existing org, the user needs `org.settings` in that org, and the dialog offers it when they have that.
 
 The setting is global — there's no per-user override.
 
@@ -91,7 +93,7 @@ The `GET` is intentionally not super-admin-gated — the regular admin UI reads 
 
 ## How God Mode differs from the admin UI
 
-| Capability                            | Admin UI (`/admin`)                       | God Mode (`/god-mode`)                    |
+| Capability                            | Admin UI (`/admin`)                       | God Mode (`/admin/god-mode`)              |
 | ------------------------------------- | ----------------------------------------- | ----------------------------------------- |
 | Visible orgs                          | Just the ones you're a member of.         | All orgs in the instance.                 |
 | Create organization                   | Yes (if `allowUserOrgCreation: true`).    | Yes, always — bypasses the invite flow.   |

@@ -2,6 +2,10 @@
 
 @import 'tw-animate-css';
 
+/* The components, wherever this package was installed: src here, dist once published. */
+@source './lib/**/*.{html,js,svelte,ts}';
+@source '../dist/**/*.{html,js,svelte,ts}';
+
 @custom-variant dark (&:is(.dark *));
 
 /* bits-ui sets data-orientation on slider/progress parts; the shadcn components use

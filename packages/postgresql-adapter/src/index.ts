@@ -1065,28 +1065,40 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		documentType: string,
 		references: Array<{ assetId: string; fieldPath: string; plane: 'draft' | 'published' }>
 	) {
-		return this.documentAdapter.replaceAssetReferences(
-			organizationId,
-			documentId,
-			documentType,
-			references
+		return this.maybeOrgContext(organizationId, () =>
+			this.documentAdapter.replaceAssetReferences(
+				organizationId,
+				documentId,
+				documentType,
+				references
+			)
 		);
 	}
 
+	// The asset-reference reads below hit RLS tables like the document-reference ones
+	// above, so they need the same context on pglite (see maybeOrgContext).
 	async hasAnyAssetReferences(organizationId: string) {
-		return this.documentAdapter.hasAnyAssetReferences(organizationId);
+		return this.maybeOrgContext(organizationId, () =>
+			this.documentAdapter.hasAnyAssetReferences(organizationId)
+		);
 	}
 
 	async countAssetReferencesForAssets(organizationId: string, assetIds: string[]) {
-		return this.documentAdapter.countAssetReferencesForAssets(organizationId, assetIds);
+		return this.maybeOrgContext(organizationId, () =>
+			this.documentAdapter.countAssetReferencesForAssets(organizationId, assetIds)
+		);
 	}
 
 	async listStoredDocumentTypes(organizationId: string) {
-		return this.documentAdapter.listStoredDocumentTypes(organizationId);
+		return this.maybeOrgContext(organizationId, () =>
+			this.documentAdapter.listStoredDocumentTypes(organizationId)
+		);
 	}
 
 	async findAssetReferenceFieldPaths(organizationId: string, assetId: string) {
-		return this.documentAdapter.findAssetReferenceFieldPaths(organizationId, assetId);
+		return this.maybeOrgContext(organizationId, () =>
+			this.documentAdapter.findAssetReferenceFieldPaths(organizationId, assetId)
+		);
 	}
 
 	async clearAssetReferences(organizationId: string, assetId: string) {
@@ -1246,6 +1258,18 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	async updatePluginRecord(organizationId: string, id: string, data: Record<string, unknown>) {
+		return this.withOrgContext(organizationId, () =>
+			this.pluginStorageAdapter.updatePluginRecord(organizationId, id, data)
+		);
+	}
+
+	async deletePluginRecord(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.pluginStorageAdapter.deletePluginRecord(organizationId, id)
+		);
+	}
+
 	async scheduleJob(input: ScheduleJobInput) {
 		return this.withOrgContext(input.organizationId, () => this.eventJobAdapter.scheduleJob(input));
 	}
@@ -1389,6 +1413,7 @@ export { PostgreSQLDocumentAdapter } from './document-adapter';
 export { PostgreSQLAssetAdapter } from './asset-adapter';
 
 // Export schema (table definitions for Drizzle)
+export { postgresAdapter, type PostgresAdapterOptions } from './postgres-adapter';
 export { cmsSchema } from './schema';
 export type { CMSSchema } from './schema';
 

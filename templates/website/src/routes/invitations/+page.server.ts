@@ -3,7 +3,7 @@ import { isPendingInvitation } from '@aphexcms/cms-core';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 
 	// Require authentication — redirect to login if no session
 	// Both 'session' and 'partial_session' users can view invitations

@@ -176,6 +176,62 @@ describe('runAgentTurn', () => {
 		expect(secondCallMessages.at(-1)).toMatchObject({ role: 'tool', toolCallId: 'call-1' });
 	});
 
+	it("keeps each response's providerState on its own assistant message, and hands it back next round", async () => {
+		const provider = fakeProvider([
+			[
+				{ type: 'toolCall', toolCall: { id: 'call-1', name: 'test_tool', arguments: {} } },
+				{ type: 'providerState', state: { round: 1 } },
+				{ type: 'done', finishReason: 'tool_calls' }
+			],
+			[
+				{ type: 'text', delta: 'done' },
+				{ type: 'providerState', state: { round: 2 } },
+				{ type: 'done', finishReason: 'stop' }
+			]
+		]);
+
+		const events = await collect(
+			runAgentTurn({
+				aiProvider: provider,
+				model: 'test-model',
+				messages: [{ role: 'user', content: 'go' }],
+				tools: [fakeTool()],
+				toolContext: toolContext()
+			})
+		);
+
+		const done = events.at(-1) as { messages: Array<Record<string, unknown>> };
+		const assistants = done.messages.filter((m) => m.role === 'assistant');
+		expect(assistants.map((m) => m.providerState)).toEqual([{ round: 1 }, { round: 2 }]);
+		// The second call replays the first response with its state, for the adapter to resend.
+		expect(provider.calls[1]!.messages[1]).toMatchObject({ providerState: { round: 1 } });
+		expect(events.some((e) => e.type === ('providerState' as string))).toBe(false);
+	});
+
+	it('ends the turn on a refusal, running no tools', async () => {
+		const tool = fakeTool();
+		const provider = fakeProvider([
+			[
+				{ type: 'toolCall', toolCall: { id: 'call-1', name: 'test_tool', arguments: {} } },
+				{ type: 'done', finishReason: 'refusal' }
+			]
+		]);
+
+		const events = await collect(
+			runAgentTurn({
+				aiProvider: provider,
+				model: 'test-model',
+				messages: [{ role: 'user', content: 'go' }],
+				tools: [tool],
+				toolContext: toolContext()
+			})
+		);
+
+		expect(events.at(-1)).toMatchObject({ type: 'done', finishReason: 'refusal' });
+		expect(tool.execute).not.toHaveBeenCalled();
+		expect(provider.calls).toHaveLength(1);
+	});
+
 	it('rejects a tool call when the caller lacks the required capability, without executing it', async () => {
 		const tool = fakeTool({ requiredCapabilities: ['document.publish'] });
 		const provider = fakeProvider([

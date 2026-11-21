@@ -1,4 +1,4 @@
-import type { RequestHandler } from '@sveltejs/kit';
+import type { RequestEvent } from '@sveltejs/kit';
 import { verifyAssetSignature } from '../utils/asset-url-signing';
 import { isAssetPrivate, resolveFieldPrivacy } from '../utils/asset-privacy';
 import { cmsLogger } from '../utils/logger';
@@ -111,10 +111,17 @@ function assetSecurityHeaders(mimeType: string | null | undefined): Record<strin
  */
 const DEFAULT_SIGNED_URL_TTL_SECONDS = 900;
 
-export const GET: RequestHandler = async ({ params, locals, setHeaders, request }) => {
+export const GET = async ({
+	params,
+	locals,
+	setHeaders,
+	request
+}: Pick<RequestEvent, 'locals' | 'setHeaders' | 'request'> & {
+	params: { id: string; filename: string };
+}): Promise<Response> => {
 	try {
 		const { assetService, databaseAdapter, storageAdapter, cmsEngine, config } = locals.aphexCMS;
-		let auth = locals.auth;
+		let auth = locals.aphexAuth;
 		const { id, filename } = params;
 
 		cmsLogger.debug('[Asset CDN]', 'Request for asset:', id, filename);
@@ -145,6 +152,20 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 		if (!asset) {
 			cmsLogger.warn('[Asset CDN]', 'Asset not found:', id);
 			return new Response('Asset not found', { status: 404 });
+		}
+
+		// On a tenant's address, only that tenant's files, and its child organizations'
+		// (the same reach its documents have). Otherwise any tenant's address would serve
+		// every other tenant's public files under its own name. Answered as not found,
+		// so an address can't be used to probe for ids elsewhere.
+		const tenant = locals.aphexTenantOrganization;
+		if (tenant && tenant.id !== asset.organizationId) {
+			const children = databaseAdapter.getChildOrganizations
+				? await databaseAdapter.getChildOrganizations(tenant.id)
+				: [];
+			if (!children.includes(asset.organizationId)) {
+				return new Response('Asset not found', { status: 404 });
+			}
 		}
 
 		const organizationId =

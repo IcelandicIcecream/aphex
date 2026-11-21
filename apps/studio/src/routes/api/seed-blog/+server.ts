@@ -12,7 +12,7 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!dev) throw error(404);
 
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 	if (!auth || auth.type !== 'session') throw error(401, 'Not authenticated');
 
 	const { orgId, context } = await siteContext(locals);

@@ -229,9 +229,10 @@ function aphexDayjsAlias(): Plugin {
  * and throws ERR_UNKNOWN_FILE_EXTENSION (the `svelte` export condition is only
  * honoured by Vite, not by Node).
  *
- * sharp/graphql/graphql-yoga are native or large CJS deps that should stay
- * external — bundling them breaks Node's native bindings or balloons the SSR
- * bundle.
+ * sharp and graphql stay external, and an external resolves from the app at runtime,
+ * so the app installs both itself. Bundling breaks sharp's native bindings. Bundling
+ * graphql produces two copies, ESM and CJS, and graphql refuses to run with two.
+ * Everything else core depends on is bundled, so the app doesn't have to install it.
  */
 function aphexSSR(): Plugin {
 	return {
@@ -239,8 +240,13 @@ function aphexSSR(): Plugin {
 		config() {
 			return {
 				ssr: {
-					noExternal: ['@aphexcms/ui', '@aphexcms/cms-core', ...discoverAphexPlugins()],
-					external: ['sharp', 'graphql', 'graphql-yoga']
+					noExternal: [
+						'@aphexcms/ui',
+						'@aphexcms/cms-core',
+						'@aphexcms/visual-editing',
+						...discoverAphexPlugins()
+					],
+					external: ['sharp', 'graphql']
 				}
 			};
 		}
@@ -261,41 +267,42 @@ function aphexOptimizeDeps(): Plugin {
 		config() {
 			return {
 				optimizeDeps: {
-					exclude: ['sharp', '@aphexcms/ui', '@aphexcms/cms-core', ...discoverAphexPlugins()],
+					exclude: [
+						'sharp',
+						'@aphexcms/ui',
+						'@aphexcms/cms-core',
+						'@aphexcms/visual-editing',
+						...discoverAphexPlugins()
+					],
+					// Nested under cms-core, which owns these: an app doesn't depend on them directly,
+					// so a bare name wouldn't resolve from it.
 					include: [
-						'tailwind-variants',
-						'tailwind-merge',
-						'@internationalized/date',
-						'bits-ui',
-						'dayjs',
-						'dayjs/plugin/customParseFormat',
-						'dayjs/plugin/customParseFormat.js',
-						'dayjs/plugin/utc',
-						'dayjs/plugin/utc.js',
-						'@lucide/svelte',
-						'@lucide/svelte/icons/panel-left',
-						'@lucide/svelte/icons/minus',
-						'@lucide/svelte/icons/circle',
-						'@lucide/svelte/icons/chevron-right',
-						'@lucide/svelte/icons/search',
-						'@lucide/svelte/icons/bot',
-						'@lucide/svelte/icons/calendar',
-						'@lucide/svelte/icons/check',
-						'@lucide/svelte/icons/chevron-down',
-						'@lucide/svelte/icons/chevron-left',
-						'@lucide/svelte/icons/chevron-up',
-						'@lucide/svelte/icons/chevrons-up-down',
-						'@lucide/svelte/icons/circle-check',
-						'@lucide/svelte/icons/info',
-						'@lucide/svelte/icons/loader-2',
-						'@lucide/svelte/icons/octagon-x',
-						'@lucide/svelte/icons/plus',
-						'@lucide/svelte/icons/triangle-alert',
-						'@lucide/svelte/icons/x',
-						'better-auth/client/plugins',
-						'better-auth/svelte',
-						'mode-watcher',
-						'svelte-sonner',
+						'@aphexcms/cms-core > tailwind-variants',
+						'@aphexcms/cms-core > tailwind-merge',
+						'@aphexcms/cms-core > @internationalized/date',
+						'@aphexcms/cms-core > bits-ui',
+						'@aphexcms/cms-core > @lucide/svelte',
+						'@aphexcms/cms-core > @lucide/svelte/icons/panel-left',
+						'@aphexcms/cms-core > @lucide/svelte/icons/minus',
+						'@aphexcms/cms-core > @lucide/svelte/icons/circle',
+						'@aphexcms/cms-core > @lucide/svelte/icons/chevron-right',
+						'@aphexcms/cms-core > @lucide/svelte/icons/search',
+						'@aphexcms/cms-core > @lucide/svelte/icons/bot',
+						'@aphexcms/cms-core > @lucide/svelte/icons/calendar',
+						'@aphexcms/cms-core > @lucide/svelte/icons/check',
+						'@aphexcms/cms-core > @lucide/svelte/icons/chevron-down',
+						'@aphexcms/cms-core > @lucide/svelte/icons/chevron-left',
+						'@aphexcms/cms-core > @lucide/svelte/icons/chevron-up',
+						'@aphexcms/cms-core > @lucide/svelte/icons/chevrons-up-down',
+						'@aphexcms/cms-core > @lucide/svelte/icons/circle-check',
+						'@aphexcms/cms-core > @lucide/svelte/icons/info',
+						'@aphexcms/cms-core > @lucide/svelte/icons/loader-2',
+						'@aphexcms/cms-core > @lucide/svelte/icons/octagon-x',
+						'@aphexcms/cms-core > @lucide/svelte/icons/plus',
+						'@aphexcms/cms-core > @lucide/svelte/icons/triangle-alert',
+						'@aphexcms/cms-core > @lucide/svelte/icons/x',
+						'@aphexcms/cms-core > mode-watcher',
+						'@aphexcms/cms-core > svelte-sonner',
 						'@aphexcms/cms-core > @dnd-kit/helpers',
 						'@aphexcms/cms-core > @dnd-kit/svelte',
 						'@aphexcms/cms-core > @dnd-kit/svelte/sortable',

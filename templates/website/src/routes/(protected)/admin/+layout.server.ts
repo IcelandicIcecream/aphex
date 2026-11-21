@@ -7,7 +7,7 @@ import cmsConfig from '../../../../aphex.config';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	// User is guaranteed to exist here because /admin is protected by auth hook
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 
 	if (!auth || auth.type !== 'session') {
 		throw redirect(302, '/login');

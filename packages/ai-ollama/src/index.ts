@@ -1,6 +1,7 @@
 import { Ollama, type Message, type Tool } from 'ollama';
 import type {
 	AIProviderAdapter,
+	AIFinishReason,
 	AIChatRequest,
 	AIStreamEvent,
 	AIMessage,
@@ -44,7 +45,7 @@ function toOllamaTool(tool: AIToolSpec): Tool {
 	};
 }
 
-function mapDoneReason(reason: string | undefined): 'stop' | 'tool_calls' | 'length' | 'error' {
+function mapDoneReason(reason: string | undefined): AIFinishReason {
 	switch (reason) {
 		case 'length':
 			return 'length';
@@ -62,7 +63,7 @@ export class OllamaProviderAdapter implements AIProviderAdapter {
 	}
 
 	async *chatStream(request: AIChatRequest): AsyncIterable<AIStreamEvent> {
-		let finishReason: 'stop' | 'tool_calls' | 'length' | 'error' = 'stop';
+		let finishReason: AIFinishReason = 'stop';
 		let sawToolCalls = false;
 
 		try {

@@ -152,6 +152,14 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		return this.pluginStorageAdapter.listPluginRecords(options);
 	}
 
+	async updatePluginRecord(organizationId: string, id: string, data: Record<string, unknown>) {
+		return this.pluginStorageAdapter.updatePluginRecord(organizationId, id, data);
+	}
+
+	async deletePluginRecord(organizationId: string, id: string) {
+		return this.pluginStorageAdapter.deletePluginRecord(organizationId, id);
+	}
+
 	async scheduleJob(input: ScheduleJobInput) {
 		return this.eventJobAdapter.scheduleJob(input);
 	}
@@ -928,6 +936,7 @@ export { SQLiteDocumentAdapter } from './document-adapter';
 export { SQLiteAssetAdapter } from './asset-adapter';
 
 // Export schema (table definitions for Drizzle)
+export { sqliteAdapter, type SqliteAdapterOptions } from './sqlite-adapter';
 export { cmsSchema } from './schema';
 export type { CMSSchema } from './schema';
 

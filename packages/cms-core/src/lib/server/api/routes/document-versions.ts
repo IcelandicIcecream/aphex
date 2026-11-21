@@ -2,10 +2,28 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { cmsLogger } from '../../../utils/logger';
-import { hasCapability } from '../../../types/capabilities';
-import { RevisionConflictError } from '../../../db/interfaces/index';
+import { PermissionError } from '../../../local-api/permissions';
+import { DocumentValidationError } from '../../../local-api/collection-api';
+import { isRevisionConflictError } from '../../../db/interfaces/index';
 import { listVersionsQuery, restoreVersionRequest } from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
+import type { LocalAPIContext } from '../../../local-api/types';
+import type { LocalAPI } from '../../../local-api/index';
+
+/**
+ * The collection a document id belongs to. Every version route goes through
+ * it, so a version is read and restored under the document's own permission
+ * rules (role, ownership, the organization's features), never just the id.
+ */
+async function collectionOf(localAPI: LocalAPI, context: LocalAPIContext, id: string) {
+	const found = await localAPI.findDocumentById(context, id);
+	return found ? localAPI.getCollection(found.type) : undefined;
+}
+
+const forbidden = (error: unknown) =>
+	error instanceof PermissionError
+		? ({ success: false, error: 'Forbidden', message: error.message } as const)
+		: null;
 
 export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	.get(
@@ -24,7 +42,7 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 		}),
 		async (c) => {
 			try {
-				const { localAPI, databaseAdapter } = c.var.aphexCMS;
+				const { localAPI } = c.var.aphexCMS;
 				const context = authToContext(c.var.auth);
 				const id = c.req.param('id');
 
@@ -36,12 +54,9 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				const limit = q.limit ?? 25;
 				const offset = q.offset ?? 0;
 
-				const result = await localAPI.versionService.listVersions(
-					databaseAdapter,
-					context.organizationId,
-					id,
-					{ limit, offset }
-				);
+				const collection = await collectionOf(localAPI, context, id);
+				const result = await collection?.listVersions(context, id, { limit, offset });
+				if (!result) return c.json({ success: false, error: 'Document not found' }, 404);
 
 				const userIds = [...new Set(result.versions.map((v: any) => v.createdBy).filter(Boolean))];
 				const userMap = new Map<string, string>();
@@ -76,6 +91,8 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					total: result.total
 				});
 			} catch (error) {
+				const denied = forbidden(error);
+				if (denied) return c.json(denied, 403);
 				cmsLogger.error('Failed to list document versions:', error);
 				return c.json({ success: false, error: 'Failed to list versions' }, 500);
 			}
@@ -83,7 +100,7 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	)
 	.get('/:id/versions/:version', async (c) => {
 		try {
-			const { localAPI, databaseAdapter } = c.var.aphexCMS;
+			const { localAPI } = c.var.aphexCMS;
 			const context = authToContext(c.var.auth);
 			const id = c.req.param('id');
 			const version = c.req.param('version');
@@ -100,12 +117,8 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Version must be a number' }, 400);
 			}
 
-			const result = await localAPI.versionService.getVersion(
-				databaseAdapter,
-				context.organizationId,
-				id,
-				versionNumber
-			);
+			const collection = await collectionOf(localAPI, context, id);
+			const result = await collection?.getVersion(context, id, versionNumber);
 
 			if (!result) {
 				return c.json({ success: false, error: 'Version not found' }, 404);
@@ -113,6 +126,8 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 			return c.json({ success: true, data: result });
 		} catch (error) {
+			const denied = forbidden(error);
+			if (denied) return c.json(denied, 403);
 			cmsLogger.error('Failed to get document version:', error);
 			return c.json({ success: false, error: 'Failed to get version' }, 500);
 		}
@@ -123,14 +138,7 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			if (!auth || auth.type === 'partial_session') {
 				return c.json({ success: false, error: 'Unauthorized' }, 401);
 			}
-			if (!hasCapability(auth, 'document.update')) {
-				return c.json(
-					{ success: false, error: 'Forbidden: document.update capability required' },
-					403
-				);
-			}
-
-			const { localAPI, databaseAdapter } = c.var.aphexCMS;
+			const { localAPI } = c.var.aphexCMS;
 			const context = authToContext(c.var.auth);
 			const id = c.req.param('id');
 			const version = c.req.param('version');
@@ -156,27 +164,31 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				);
 			}
 
-			const document = await localAPI.versionService.restoreVersion(
-				databaseAdapter,
-				context.organizationId,
-				id,
-				versionNumber,
-				context.user?.id,
-				parsed.data.expectedRevision
-			);
+			const collection = await collectionOf(localAPI, context, id);
+			const restored = await collection?.restoreVersion(context, id, versionNumber, {
+				expectedRevision: parsed.data.expectedRevision
+			});
 
-			if (!document) {
+			if (!restored) {
 				return c.json({ success: false, error: 'Version not found or restore failed' }, 404);
 			}
 
 			return c.json({
 				success: true,
-				data: document,
+				data: restored.document,
 				message: `Restored to version ${versionNumber}`
 			});
 		} catch (error) {
+			const denied = forbidden(error);
+			if (denied) return c.json(denied, 403);
+			if (error instanceof DocumentValidationError) {
+				return c.json(
+					{ success: false, error: 'Invalid document data', message: error.message },
+					400
+				);
+			}
 			cmsLogger.error('Failed to restore document version:', error);
-			if (error instanceof RevisionConflictError) {
+			if (isRevisionConflictError(error)) {
 				return c.json(
 					{
 						success: false,

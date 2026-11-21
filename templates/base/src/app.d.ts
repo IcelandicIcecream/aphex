@@ -15,7 +15,7 @@ declare global {
 		// interface Error {}
 		interface Locals {
 			aphexCMS: CMSInstances;
-			auth?: Auth; // Available in protected routes
+			aphexAuth?: Auth; // CMS session, populated by the Aphex auth hook on /admin, /api and /media
 		}
 		// interface PageData {}
 		// interface PageState {}

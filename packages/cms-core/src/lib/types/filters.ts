@@ -171,10 +171,16 @@ export interface FindOptions<T = unknown> {
 	search?: string;
 
 	/**
-	 * Reference resolution depth
+	 * Reference resolution depth: how many levels of references to replace with
+	 * the documents they point at.
 	 * - 0: No reference resolution
 	 * - 1: Resolve first-level references
 	 * - 2: Resolve second-level references
+	 *
+	 * Resolved by the Local API, never the database adapter: each target is read
+	 * as the caller, in the same perspective, in the same shape as a direct read
+	 * of it. One the caller can't read, a dangling one, or one that would close a
+	 * cycle stays `{ _type: 'reference', _ref }`.
 	 * @default 0
 	 */
 	depth?: number;
@@ -197,7 +203,7 @@ export interface FindOptions<T = unknown> {
 	/**
 	 * Include documents from child organizations
 	 * - Only applies when hierarchyEnabled is true
-	 * @default false
+	 * @default false for `find`, true for `findByID` and `findDocumentById`
 	 */
 	includeChildOrganizations?: boolean;
 

@@ -1,10 +1,8 @@
 // apps/studio/src/lib/server/auth/auth.config.ts
 //
-// App-owned auth options. Auth-provider specifics live here rather than in
-// cms-core's provider-agnostic CMSConfig — the app owns the auth provider
-// instance (see ./instance.ts), so this is where email/password behaviour is
-// configured. Kept in a standalone module (no imports from ./auth or
-// aphex.config.ts) to avoid a circular import at instance construction time.
+// App-owned auth options, passed to `aphexAuth()` in aphex.config.ts. Kept separate
+// because hooks.server.ts reads the bootstrap policy, and that shouldn't evaluate the
+// whole CMS config.
 
 import { env } from '$env/dynamic/private';
 import {

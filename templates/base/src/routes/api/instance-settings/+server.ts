@@ -6,7 +6,7 @@ import { updateInstanceSettingsRequest } from '@aphexcms/cms-core/api/schemas/in
 export const GET: RequestHandler = async ({ locals }) => {
 	try {
 		const { databaseAdapter } = locals.aphexCMS;
-		const auth = locals.auth;
+		const auth = locals.aphexAuth;
 
 		if (!auth || auth.type !== 'session') {
 			return json(
@@ -26,7 +26,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 export const PATCH: RequestHandler = async ({ request, locals }) => {
 	try {
 		const { databaseAdapter } = locals.aphexCMS;
-		const auth = locals.auth;
+		const auth = locals.aphexAuth;
 
 		if (!auth || auth.type !== 'session') {
 			return json(

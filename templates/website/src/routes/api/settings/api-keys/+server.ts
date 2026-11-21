@@ -6,13 +6,13 @@ import { hasCapability } from '@aphexcms/cms-core';
 
 // GET - List user's API keys
 export const GET: RequestHandler = async ({ locals }) => {
-	if (!locals.auth || locals.auth.type !== 'session') {
+	if (!locals.aphexAuth || locals.aphexAuth.type !== 'session') {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
 	try {
 		const { databaseAdapter } = locals.aphexCMS;
-		const apiKeys = await authService.listApiKeys(databaseAdapter, locals.auth.user.id);
+		const apiKeys = await authService.listApiKeys(databaseAdapter, locals.aphexAuth.user.id);
 		return json({ success: true, data: apiKeys });
 	} catch (error) {
 		console.error('Error fetching API keys:', error);
@@ -22,11 +22,11 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 // POST - Create new API key
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.auth || locals.auth.type !== 'session') {
+	if (!locals.aphexAuth || locals.aphexAuth.type !== 'session') {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 
 	try {
 		// Capability-driven — custom roles with apiKey.manage are welcome.

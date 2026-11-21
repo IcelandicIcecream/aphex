@@ -11,6 +11,7 @@ import {
 	type NotificationEmailValue
 } from './compile';
 import { fieldLabels, toStoredValue, type Answer } from './template';
+import { withFieldKeys } from './keys';
 import { formSubmissionCreated } from './events';
 
 /** A stored submission, as this plugin writes and reads it. */
@@ -41,6 +42,7 @@ interface FormSubmissionDocument {
  *  - Only fields the form declares are stored. A key the form doesn't define is
  *    dropped rather than persisted, so a crafted request can't stuff arbitrary
  *    data into a document.
+ *  - On a tenant's host the form must belong to that tenant (`c.var.tenant`).
  *  - The submission is written under `systemContext`, which bypasses RBAC — the
  *    visitor has no account. That is safe only because the shape written here is
  *    fully determined by the form document, never by the request.
@@ -150,6 +152,14 @@ export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
 		'form'
 	);
 	if (!organizationId) return c.json({ success: false, error: 'Form not found' }, 404);
+	// On a tenant's address (a site's own host), only that tenant's forms take
+	// submissions. Otherwise any site's page could store submissions, and send their
+	// notification emails, through another site's form. Same answer as a missing
+	// form, so an address can't be used to probe which forms exist elsewhere.
+	const tenant = c.var.tenant;
+	if (tenant && tenant.id !== organizationId) {
+		return c.json({ success: false, error: 'Form not found' }, 404);
+	}
 	const context = systemContext(organizationId);
 
 	/*
@@ -182,7 +192,7 @@ export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
 		);
 	}
 
-	const declared = (formDoc.fields ?? []) as FormFieldValue[];
+	const declared = withFieldKeys((formDoc.fields ?? []) as FormFieldValue[]);
 	const inputs = declared.filter(isInputField);
 
 	// Keep only what the form declares — see the note above about stuffing.
@@ -213,6 +223,20 @@ export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
 	const summary = first
 		? `${labels.get(first.field) ?? first.field}: ${first.value}`
 		: 'Submission';
+
+	/*
+	 * The site's own limit (`config.documentLimits` for `formSubmission`, such as a
+	 * plan's messages a month). The write below is the system's, which limits
+	 * don't apply to, so it's asked for here on the visitor's behalf.
+	 */
+	try {
+		await aphexCMS.localAPI.checkDocumentLimit(organizationId, 'formSubmission');
+	} catch (error) {
+		if (error instanceof Error && error.name === 'DocumentLimitError') {
+			return c.json({ success: false, error: error.message, code: 'limit_reached' }, 402);
+		}
+		throw error;
+	}
 
 	const submissionId = crypto.randomUUID();
 	const notificationEmails = (formDoc.emails ?? [])

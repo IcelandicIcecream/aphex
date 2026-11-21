@@ -15,6 +15,7 @@ import {
 } from '@aphexcms/cms-core/server';
 import { resolveBootstrapPolicy } from './bootstrap-policy.js';
 import { cmsLogger, BUILTIN_ROLE_SEED, coarseApiKeyCapabilities } from '@aphexcms/cms-core';
+import type { ApiKeySummary } from '@aphexcms/cms-core';
 
 /**
  * Capabilities that make a key a *writing* key. Used to decide whether the
@@ -65,6 +66,22 @@ async function resolveGrantableCapabilities(
 	return [];
 }
 
+/**
+ * What a credential acting for `ownerId` in `organizationId` can ever hold: the
+ * owner's role there, or null when they're no longer a member. API keys and tokens
+ * from connected apps both go through this on every request, which is what makes
+ * removing someone, or changing their role, take effect at once.
+ */
+export async function ownerGrantableCapabilities(
+	db: DatabaseAdapter,
+	ownerId: string | null | undefined,
+	organizationId: string
+): Promise<Set<string> | null> {
+	const membership = ownerId ? await db.findUserMembership(ownerId, organizationId) : null;
+	if (!membership) return null;
+	return new Set(await resolveGrantableCapabilities(db, organizationId, membership.role));
+}
+
 // This is the new AuthService that centralizes all auth-related server operations.
 // It uses dependency injection for the DatabaseAdapter, making it more testable and decoupled.
 
@@ -104,7 +121,7 @@ export interface AuthService {
 		db: DatabaseAdapter,
 		permission?: 'read' | 'write'
 	): Promise<ApiKeyAuth>;
-	listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKey[]>;
+	listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKeySummary[]>;
 	createApiKey(
 		userId: string,
 		organizationId: string,
@@ -453,11 +470,9 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 				// `referenceId` is the owning entity — userId here, since the plugin is
 				// left on its default `references` setting (see createApiKey below).
 				const ownerId = result.key.referenceId;
-				const membership = ownerId
-					? await db.findUserMembership(ownerId, claimedOrganizationId)
-					: null;
+				const owned = await ownerGrantableCapabilities(db, ownerId, claimedOrganizationId);
 
-				if (!membership) {
+				if (!owned) {
 					cmsLogger.warn(
 						'[AuthService]',
 						`API key ${result.key.id} rejected — owner is not a member of ${claimedOrganizationId}`
@@ -468,9 +483,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 				// A key can never grant more than its owner holds in that organization.
 				// Instance admins are intentionally *not* special-cased: a long-lived
 				// bearer token shouldn't silently carry break-glass powers.
-				const grantable = new Set(
-					await resolveGrantableCapabilities(db, claimedOrganizationId, membership.role)
-				);
+				const grantable = owned;
 
 				// Same clamp for the coarse read/write scopes.
 				const requestedPermissions: unknown[] = Array.isArray(metadata.permissions)
@@ -527,7 +540,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 			return apiKeyAuth;
 		},
 
-		async listApiKeys(_db: DatabaseAdapter, userId: string): Promise<ApiKey[]> {
+		async listApiKeys(_db: DatabaseAdapter, userId: string): Promise<ApiKeySummary[]> {
 			// Query the apikey table directly using drizzleDb (not the adapter)
 			const userApiKeys = await drizzleDb.query.apikey.findMany({
 				where: eq(apikey.referenceId, userId),
@@ -544,14 +557,36 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 				]
 			});
 
-			return userApiKeys.map((key: Record<string, unknown>) => {
-				const metadata =
-					typeof key.metadata === 'string' ? JSON.parse(key.metadata) : (key.metadata as any) || {};
+			type ApiKeyRow = {
+				id: string;
+				name: string | null;
+				metadata: unknown;
+				expiresAt: Date | null;
+				lastRequest: Date | null;
+				createdAt: Date | null;
+			};
+			return userApiKeys.map((key: ApiKeyRow): ApiKeySummary => {
+				// metadata is CLIENT-WRITABLE and may be double-encoded; parse defensively.
+				const raw =
+					typeof key.metadata === 'string'
+						? (JSON.parse(key.metadata) as unknown)
+						: (key.metadata ?? {});
+				const metadata = (raw && typeof raw === 'object' ? raw : {}) as {
+					permissions?: unknown;
+					organizationId?: unknown;
+				};
+				const permissions = (
+					Array.isArray(metadata.permissions) ? metadata.permissions : []
+				).filter(isApiKeyPermission);
 				return {
-					...key,
-					permissions: metadata.permissions || [],
-					capabilities: Array.isArray(metadata.capabilities) ? metadata.capabilities : undefined,
-					organizationId: metadata.organizationId
+					id: key.id,
+					name: key.name,
+					permissions,
+					organizationId:
+						typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
+					createdAt: key.createdAt ?? null,
+					lastRequest: key.lastRequest ?? null,
+					expiresAt: key.expiresAt ?? null
 				};
 			});
 		},

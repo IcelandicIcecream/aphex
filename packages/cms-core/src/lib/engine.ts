@@ -3,7 +3,13 @@ import type { SchemaType } from './types/schemas';
 import type { DatabaseAdapter } from './db/interfaces/index';
 import { createPartResolver } from './plugins/resolver';
 import { validateSchemaReferences } from './schema-utils/validator';
+import {
+	validateMcpRequiredCapabilities,
+	validateRequiredCapabilities
+} from './schema-utils/required-capabilities';
 import { ALL_CAPABILITIES } from './types/capabilities';
+import { validateMcpGuides } from './mcp/guides';
+import { validateMcpPrompts } from './mcp/prompts';
 import { cmsLogger } from './utils/logger';
 
 export class CMSEngine {
@@ -31,6 +37,15 @@ export class CMSEngine {
 
 		// Validate schemas before syncing to database
 		validateSchemaReferences(this.config.schemaTypes);
+		// A misspelt id would hide its type from everyone, silently: fail here instead.
+		const known = [
+			...this.ownerCapabilities(),
+			...(this.config.organizationCapabilities?.ids ?? [])
+		];
+		validateRequiredCapabilities(this.config.schemaTypes, known);
+		validateMcpRequiredCapabilities(this.config.mcp?.requiredCapabilities, known);
+		validateMcpGuides(this.config.mcp?.guides);
+		validateMcpPrompts(this.config.mcp?.prompts);
 
 		// Get existing schemas from database
 		const existingSchemas = await this.db.listSchemas();

@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import type {
 	AIProviderAdapter,
+	AIFinishReason,
 	AIMessage,
 	AIToolCall,
 	AIToolSpec
@@ -111,8 +112,17 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 	for (;;) {
 		let assistantText = '';
 		const pendingToolCalls: AIToolCall[] = [];
-		let finishReason: 'stop' | 'tool_calls' | 'length' | 'error' = 'stop';
+		let finishReason: AIFinishReason = 'stop';
 		let erroredOut = false;
+		// The adapter's own replay data for this response (AIMessage.providerState), kept on
+		// the assistant message it belongs to.
+		let providerState: unknown;
+		const assistantMessage = (extra: Partial<AIMessage> = {}): AIMessage => ({
+			role: 'assistant',
+			content: assistantText,
+			...extra,
+			...(providerState === undefined ? {} : { providerState })
+		});
 
 		for await (const event of opts.aiProvider.chatStream({
 			model: opts.model,
@@ -138,6 +148,9 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 				case 'usage':
 					yield event;
 					break;
+				case 'providerState':
+					providerState = event.state;
+					break;
 				case 'error':
 					yield event;
 					erroredOut = true;
@@ -149,7 +162,7 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 		}
 
 		if (erroredOut) {
-			if (assistantText) messages.push({ role: 'assistant', content: assistantText });
+			if (assistantText) messages.push(assistantMessage());
 			yield { type: 'done', finishReason: 'error', messages };
 			return;
 		}
@@ -159,7 +172,7 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 			// reply onto `messages` — this is the terminal round, so it must happen here or the
 			// model's final answer would be silently missing from the conversation `messages`
 			// hands back for the next turn to replay.
-			if (assistantText) messages.push({ role: 'assistant', content: assistantText });
+			if (assistantText) messages.push(assistantMessage());
 			yield { type: 'done', finishReason, messages };
 			return;
 		}
@@ -170,7 +183,7 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 			return;
 		}
 
-		messages.push({ role: 'assistant', content: assistantText, toolCalls: pendingToolCalls });
+		messages.push(assistantMessage({ toolCalls: pendingToolCalls }));
 
 		// `execution: 'workspace'` tools touch a live, possibly-unsaved editor draft that only
 		// exists in the browser — this server-side loop can't run them. Every other call in the

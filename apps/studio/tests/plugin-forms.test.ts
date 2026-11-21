@@ -6,6 +6,9 @@ import { formSchema, formSubmissionSchema } from '../../../plugins/plugin-forms/
 import { formsPlugin } from '../../../plugins/plugin-forms/src/lib/index';
 import { handleSubmit } from '../../../plugins/plugin-forms/src/lib/submit';
 import { notifyOnSubmission } from '../../../plugins/plugin-forms/src/lib/notify';
+import { compileForm } from '../../../plugins/plugin-forms/src/lib/compile';
+import { keyFromLabel, withFieldKeys } from '../../../plugins/plugin-forms/src/lib/keys';
+import { validateFormData } from '@aphexcms/cms-core';
 
 const formId = '20000000-0000-4000-8000-000000000002';
 const organizationId = 'org-second';
@@ -30,6 +33,8 @@ function submissionApp(options: { version?: string } = {}) {
 	const cms = {
 		databaseAdapter: { resolvePublishedDocumentOrganizationId, findAllOrganizations },
 		localAPI: {
+			// No limit set: the visitor's message may be stored.
+			checkDocumentLimit: vi.fn().mockResolvedValue(undefined),
 			getCollection: (name: string) =>
 				name === 'form'
 					? { findByID: vi.fn().mockResolvedValue(formDocument(options.version)) }
@@ -43,6 +48,7 @@ function submissionApp(options: { version?: string } = {}) {
 	app.use('*', async (c, next) => {
 		c.set('aphexCMS', c.env.aphexCMS);
 		c.set('auth', null);
+		c.set('tenant', c.env.tenant ?? null);
 		await next();
 	});
 	app.post('/api/form-submissions', handleSubmit);
@@ -137,6 +143,38 @@ describe('public form submissions', () => {
 		expect(statuses[10]).toBe(429);
 	});
 
+	it("refuses another tenant's form on a tenant's address", async () => {
+		const { app, cms, create } = submissionApp();
+		const response = await app.fetch(
+			request({ form: formId, version: 'published-hash', data: { email: 'person@example.com' } }),
+			{
+				aphexCMS: cms,
+				auth: null,
+				tenant: { id: 'org-first', slug: 'first' },
+				clientAddress: '198.51.100.25'
+			} as never
+		);
+
+		expect(response.status).toBe(404);
+		expect(create).not.toHaveBeenCalled();
+	});
+
+	it("accepts the tenant's own form on its address", async () => {
+		const { app, cms, create } = submissionApp();
+		const response = await app.fetch(
+			request({ form: formId, version: 'published-hash', data: { email: 'person@example.com' } }),
+			{
+				aphexCMS: cms,
+				auth: null,
+				tenant: { id: organizationId, slug: 'second' },
+				clientAddress: '198.51.100.26'
+			} as never
+		);
+
+		expect(response.status).toBe(200);
+		expect(create).toHaveBeenCalledOnce();
+	});
+
 	it('rejects an oversized body before tenant resolution', async () => {
 		const { app, cms, resolvePublishedDocumentOrganizationId } = submissionApp();
 		const response = await app.fetch(
@@ -168,14 +206,14 @@ describe('authored form invariants', () => {
 			{ _type: 'formText', name: 'answer', label: 'First' },
 			{ _type: 'formText', name: 'answer', label: 'Second' }
 		]);
-		expect(messages).toContain('Every input must have a unique name');
+		expect(messages).toContain('Two questions have the same answer key');
 	});
 
 	it('rejects inverted number ranges', async () => {
 		const messages = await errors([
 			{ _type: 'formNumber', name: 'age', label: 'Age', min: 10, max: 5 }
 		]);
-		expect(messages).toContain('Minimum cannot exceed maximum for Age');
+		expect(messages).toContain("The lowest number can't be more than the highest for Age");
 	});
 
 	it('rejects duplicate effective select values', async () => {
@@ -190,7 +228,7 @@ describe('authored form invariants', () => {
 				]
 			}
 		]);
-		expect(messages).toContain('Select option values must be unique');
+		expect(messages).toContain('Choice has the same choice twice');
 	});
 
 	it('rejects templated notification recipients', async () => {
@@ -268,5 +306,66 @@ describe('form notifications', () => {
 				logger: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() }
 			} as never)
 		).rejects.toThrow('mailbox unavailable');
+	});
+});
+
+describe('answer keys from questions', () => {
+	it('makes a key from the question', () => {
+		expect(keyFromLabel('Your phone number!')).toBe('your_phone_number');
+		expect(keyFromLabel('Café name')).toBe('cafe_name');
+		expect(keyFromLabel('2 guests?')).toBe('field_2_guests');
+		expect(keyFromLabel('  ')).toBeNull();
+	});
+
+	it('fills only empty keys, numbering clashes, and leaves paragraphs alone', () => {
+		const fields = withFieldKeys([
+			{ _type: 'formText', label: 'Name', name: 'name' },
+			{ _type: 'formText', label: 'Name' },
+			{ _type: 'formMessage' },
+			{ _type: 'formPhone', label: 'Phone' }
+		]);
+		expect(fields.map((field) => field.name)).toEqual(['name', 'name_2', undefined, 'phone']);
+	});
+
+	it('keys empty names on save', async () => {
+		const hook = formSchema.hooks!.beforeValidate![0]!;
+		const data = await hook({
+			data: { fields: [{ _type: 'formEmail', label: 'Email address' }] },
+			operation: 'create',
+			context: { organizationId: 'org' },
+			schema: formSchema
+		} as never);
+		expect((data.fields as Array<{ name?: string }>)[0]!.name).toBe('email_address');
+	});
+});
+
+describe('phone, date and choose-one answers', () => {
+	const form = compileForm({
+		id: 'f',
+		fields: [
+			{ _type: 'formPhone', label: 'Phone', required: true },
+			{ _type: 'formDate', label: 'Date', notPast: true },
+			{
+				_type: 'formRadio',
+				label: 'Seating',
+				options: [{ label: 'Inside' }, { label: 'Outside', value: 'out' }]
+			}
+		]
+	});
+	const check = async (data: Record<string, unknown>) =>
+		(await validateFormData(form, data)).errors.map((entry) => entry.field);
+
+	it('accepts a real answer', async () => {
+		const later = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+		expect(await check({ phone: '+44 (0)7700 900-123', date: later, seating: 'out' })).toEqual([]);
+	});
+
+	it('refuses a non-number phone, a past date and a choice that was never offered', async () => {
+		expect(await check({ phone: 'call me', date: '2001-01-01', seating: 'Outside' })).toEqual([
+			'phone',
+			'date',
+			'seating'
+		]);
+		expect(await check({ phone: '12' })).toEqual(['phone']);
 	});
 });

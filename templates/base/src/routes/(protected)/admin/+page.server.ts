@@ -4,7 +4,7 @@ import { redirect } from '@sveltejs/kit';
 export async function load({ locals }) {
 	try {
 		const { cmsEngine, databaseAdapter } = locals.aphexCMS;
-		const auth = locals.auth;
+		const auth = locals.aphexAuth;
 
 		if (!auth) {
 			redirect(307, '/login');

@@ -23,7 +23,6 @@ export interface DocumentFilters {
 	status?: string;
 	limit?: number;
 	offset?: number;
-	depth?: number; // How deep to resolve nested references (0 = no resolution, default = 0)
 	filterOrganizationIds?: string[]; // Optional: Filter to specific org(s). RLS still enforces access.
 }
 
@@ -62,6 +61,20 @@ export class RevisionConflictError extends Error {
 		super(message);
 		this.name = 'RevisionConflictError';
 	}
+}
+
+/**
+ * Whether an error is a {@link RevisionConflictError}. Use this, not
+ * `instanceof`: an adapter and core can load as two copies of cms-core (an app's
+ * bundler processes one, Node loads the other), and then the adapter's error is
+ * an instance of the other copy's class. `instanceof` said no, and a conflict
+ * reached the client as a 500 instead of a 409.
+ */
+export function isRevisionConflictError(error: unknown): error is RevisionConflictError {
+	return (
+		error instanceof RevisionConflictError ||
+		(error instanceof Error && error.name === 'RevisionConflictError')
+	);
 }
 
 /**

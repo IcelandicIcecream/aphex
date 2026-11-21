@@ -1,8 +1,40 @@
 # create-aphex
 
-Scaffold a new Aphex CMS project from an official standalone template.
+Create a new Aphex CMS project, or add Aphex to the SvelteKit app you already have.
 
-## Usage
+## Add Aphex to an existing app
+
+Run it inside your SvelteKit 2 app, with no project name:
+
+```bash
+pnpm create aphex
+```
+
+It asks which database, upload storage and email to use, shows every file it will create or change, and asks before writing anything. It creates the config, the admin route and a sample schema, adds `aphex()` (and Tailwind, if you don't have it) to `vite.config.ts`, puts Aphex first in your `handle`, adds Aphex's `locals` to `app.d.ts`, fills in `.env` with a generated secret, and installs the packages. It never overwrites a file you already have. When a file has a shape it can't edit safely, it prints the lines to add by hand.
+
+```bash
+pnpm create aphex --dry-run                          # show the changes, make none
+pnpm create aphex --db postgres --storage s3 --yes   # no questions
+```
+
+| Flag           | Values                                                            | Default  |
+| -------------- | ----------------------------------------------------------------- | -------- |
+| `--db`         | `sqlite`, `postgres`                                              | `sqlite` |
+| `--storage`    | `local`, `s3`                                                     | `local`  |
+| `--email`      | `none`, `resend`                                                  | `none`   |
+| `-y`, `--yes`  | Use the defaults for anything not given, and don't ask to confirm |          |
+| `--dry-run`    | Show the changes without making them                              |          |
+| `--no-install` | Write the files but don't install packages                        |          |
+
+With Postgres it also runs `drizzle-kit generate`, so commit the `drizzle` folder it creates. It stops without changing anything on SvelteKit 3, Tailwind 3, an app without TypeScript, or an app that already has `src/routes/admin`.
+
+## Upgrade an older Aphex app
+
+Run the same command in an app that already uses Aphex, and it upgrades the app to the embedded admin (`@aphexcms/cms-core` 12) instead: it deletes the admin, account, `/api` and `/media` route files that core now serves, adds the admin route and `aphex.client.ts`, fixes the config, and moves the `@aphexcms/*` packages to the latest version. `--yes`, `--dry-run` and `--no-install` work the same way.
+
+It deletes a file only if it's exactly a version an Aphex template shipped, and keeps a route folder whole if you changed any file in it. It recognises versions by their git blob ids, listed in `src/upgrade/known-files.ts`. When a template changes one of those files, regenerate the list with `pnpm -F create-aphex known-files`, which reads the monorepo's git history. See [Upgrading to the embedded admin](https://docs.getaphex.com/upgrading-to-embedded-admin).
+
+## Create a new app
 
 ```bash
 pnpm create aphex my-app

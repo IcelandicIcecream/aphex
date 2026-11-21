@@ -43,7 +43,8 @@
 		"drizzle-orm": "^0.45.2"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:^"
+		"@aphexcms/cms-core": "workspace:^",
+		"drizzle-kit": "^0.31.7"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:^",
@@ -52,5 +53,10 @@
 		"drizzle-kit": "^0.31.7",
 		"typescript": "^5.9.3",
 		"vitest": "^4.1.10"
+	},
+	"peerDependenciesMeta": {
+		"drizzle-kit": {
+			"optional": true
+		}
 	}
 }

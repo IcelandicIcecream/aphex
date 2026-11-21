@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { isAssetPrivate, resolveFieldPrivacy } from '../../../utils/asset-privacy';
 import { cmsLogger } from '../../../utils/logger';
+import { isLimitError } from '../../../local-api/limits';
 import { validateFile } from '../../../utils/mime-detect';
 import {
 	isAcceptedFileType,
@@ -348,6 +349,12 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 			return c.json({ success: true, data: asset });
 		} catch (error) {
+			if (isLimitError(error)) {
+				return c.json(
+					{ success: false, error: error.message, message: error.message, code: 'limit_reached' },
+					402
+				);
+			}
 			cmsLogger.error('Asset upload failed:', error);
 			return c.json(
 				{

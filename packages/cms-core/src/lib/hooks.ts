@@ -1,15 +1,20 @@
 import type { Handle } from '@sveltejs/kit';
 import type { Context, Hono } from 'hono';
-import type { CMSConfig } from './types/index';
+import type { CMSConfig, CMSConfigInput } from './types/index';
+import { isBuilding, resolveCMSConfig } from './resolve-config';
 import type { DatabaseAdapter } from './db/index';
 import type { AssetService } from './services/asset-service';
 import type { StorageAdapter } from './storage/interfaces/storage';
 import type { EmailAdapter } from './email/index';
 import type { AIProviderAdapter } from './ai/index';
 import type { AuthProvider } from './auth/provider';
+import type { AuthFeatures } from './types/auth';
 import type { GraphQLSettings } from './graphql/index';
 import type { Logger } from './utils/logger';
 import { handleAuthHook } from './auth/auth-hooks';
+import { resolveTenant } from './auth/tenant';
+import { serveCoreRoute } from './server/core-routes';
+import { refuseCrossSiteForm } from './server/csrf';
 import { getPreviewPerspective } from './preview/perspective';
 import { resolveCapabilities } from './types/capabilities';
 import { cmsLogger, setLogLevel, setLogger } from './utils/logger';
@@ -45,6 +50,8 @@ export interface CMSInstances {
 	pluginSettingsService: PluginSettingsService;
 	logger: Logger;
 	auth?: AuthProvider;
+	/** Auth feature flags the admin UI branches on, from `config.auth.features`. */
+	authFeatures?: AuthFeatures;
 	graphqlSettings?: GraphQLSettings | null;
 	apiApp: Hono<AphexEnv>;
 	/** Indexed plugin parts (routes, document actions, admin tools, field components). */
@@ -81,7 +88,7 @@ function gateHandler(
 let cmsInstances: CMSInstances | null = null;
 let schemaError: Error | null = null;
 let initPromise: Promise<void> | null = null;
-let activeConfig: CMSConfig | null = null;
+let activeConfig: CMSConfigInput | null = null;
 let configDirty = false;
 // Started once per process (not per request, and not restarted on schema-HMR re-init): the loop
 // resolves the live `cmsInstances` at each tick, so a rebuilt instance is picked up automatically.
@@ -97,7 +104,7 @@ let embeddedRunner: EmbeddedJobRunner | null = null;
  * share the same cms-core instance through Vite's module graph, so this
  * setter mutates the same `activeConfig` the hook reads on each request.
  */
-export function __notifyAphexConfigChanged(newConfig: CMSConfig): void {
+export function __notifyAphexConfigChanged(newConfig: CMSConfigInput): void {
 	activeConfig = newConfig;
 	configDirty = true;
 }
@@ -116,7 +123,17 @@ function createDefaultStorageAdapter(): StorageAdapter {
 	});
 }
 
-export function createCMSHook(config: CMSConfig): Handle {
+let devMode: Promise<boolean> | null = null;
+/** SvelteKit's `dev`, or false outside SvelteKit (tests, scripts), where checks should hold. */
+function isDev(): Promise<boolean> {
+	devMode ??= import('$app/environment').then(
+		(env) => env.dev,
+		() => false
+	);
+	return devMode;
+}
+
+export function createCMSHook(config: CMSConfigInput): Handle {
 	if (!config) {
 		throw new Error(
 			'[CMS] createCMSHook received an undefined config. ' +
@@ -133,7 +150,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 	return async ({ event, resolve }) => {
 		// Use the latest config that the HMR plugin handed us; falls back to
 		// the one captured at hook construction time.
-		const currentConfig = activeConfig ?? config;
+		const declaredConfig = activeConfig ?? config;
 		// Note: In dev mode, /storage/ might be accessible via Vite dev server
 		// In production, only /static/ folder is served - /storage/ is private
 
@@ -159,6 +176,16 @@ export function createCMSHook(config: CMSConfig): Handle {
 			initPromise = new Promise<void>((r) => (resolveInit = r));
 
 			cmsLogger.info('[CMS]', 'Initializing...');
+			let currentConfig: CMSConfig;
+			try {
+				currentConfig = await resolveCMSConfig(declaredConfig);
+			} catch (error) {
+				// Release the lock, or every later request waits on it forever instead of
+				// retrying once the database is reachable.
+				initPromise = null;
+				resolveInit!();
+				throw error;
+			}
 			const databaseAdapter = currentConfig.database;
 			// Use the storage adapter from config, or create the default local one.
 			const storageAdapter = currentConfig.storage ?? createDefaultStorageAdapter();
@@ -168,7 +195,8 @@ export function createCMSHook(config: CMSConfig): Handle {
 				storageAdapter,
 				databaseAdapter,
 				resolveImageConfig(currentConfig.images),
-				resolveGlobalAllowedMimeTypes({ config: currentConfig })
+				resolveGlobalAllowedMimeTypes({ config: currentConfig }),
+				currentConfig.storageLimits
 			);
 			const cmsEngine = createCMS(currentConfig, databaseAdapter);
 			const rolesService = new RolesService(databaseAdapter, currentConfig.cache ?? null);
@@ -214,7 +242,16 @@ export function createCMSHook(config: CMSConfig): Handle {
 			try {
 				await cmsEngine.initialize();
 			} catch (error) {
-				cmsLogger.error('[CMS]', 'Failed to initialize:', error);
+				// The build doesn't migrate, so a page prerendered without a provisioned
+				// database lands here. That's fine unless the page reads content.
+				if (await isBuilding()) {
+					cmsLogger.warn(
+						'[CMS]',
+						'No provisioned database during this build, so prerendered pages cannot read content.'
+					);
+				} else {
+					cmsLogger.error('[CMS]', 'Failed to initialize:', error);
+				}
 				schemaError = error instanceof Error ? error : new Error(String(error));
 			}
 
@@ -278,6 +315,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				pluginSettingsService,
 				logger: cmsLogger,
 				auth: currentConfig.auth?.provider,
+				authFeatures: currentConfig.auth?.features,
 				graphqlSettings,
 				apiApp,
 				partResolver
@@ -306,28 +344,61 @@ export function createCMSHook(config: CMSConfig): Handle {
 		// Inject shared CMS services into locals (reuse singleton instances)
 		event.locals.aphexCMS = cmsInstances;
 
-		// Auth protection if configured
-		if (cmsInstances.auth) {
-			const authResponse = await handleAuthHook(
-				event,
-				currentConfig,
-				cmsInstances.auth,
-				cmsInstances.databaseAdapter,
-				cmsInstances.rolesService
-			);
-			if (authResponse) return authResponse;
+		// A prerendered page has no visitor: nobody to authenticate, and SvelteKit throws if
+		// the URL's query string is read. It renders published content only.
+		if (await isBuilding()) {
+			event.locals.previewPerspective = 'published';
+			return resolve(event);
 		}
 
-		// Resolve the read perspective once per request so site loads inherit it
-		// (published normally / draft in an authenticated `?aphex-preview` session)
-		// via `locals.previewPerspective` — no per-load wiring. Apps can override the
-		// policy with `config.preview.resolvePerspective`.
-		event.locals.previewPerspective =
-			currentConfig.preview?.resolvePerspective?.({
-				auth: event.locals.auth,
-				url: event.url
-			}) ?? getPreviewPerspective(event.locals.auth, event.url);
+		const instances = cmsInstances;
+		const runCMS: Parameters<Handle>[0]['resolve'] = async (event, options) => {
+			// The organization the host's hook took from the URL, if any. Looked up even
+			// without auth, so the host's pages can read `locals.aphexTenantOrganization`.
+			const tenant = await resolveTenant(event, instances.databaseAdapter);
 
-		return resolve(event);
+			// Auth protection if configured
+			if (instances.auth) {
+				const authResponse = await handleAuthHook(
+					event,
+					instances.config,
+					instances.auth,
+					instances.databaseAdapter,
+					instances.rolesService,
+					tenant
+				);
+				if (authResponse) return authResponse;
+			}
+
+			// Resolve the read perspective once per request so site loads inherit it
+			// (published normally / draft in an authenticated `?aphex-preview` session)
+			// via `locals.previewPerspective` — no per-load wiring. Apps can override the
+			// policy with `config.preview.resolvePerspective`.
+			event.locals.previewPerspective =
+				instances.config.preview?.resolvePerspective?.({
+					auth: event.locals.aphexAuth,
+					url: event.url
+				}) ?? getPreviewPerspective(event.locals.aphexAuth, event.url);
+
+			return (await serveCoreRoute(event)) ?? resolve(event, options);
+		};
+
+		// SvelteKit's cross-site form check, run here so OAuth's server-to-server
+		// endpoints can be exempt (see `server/csrf.ts`). Before the auth provider,
+		// which answers those endpoints itself. Production only, as SvelteKit's is.
+		if (!(await isDev())) {
+			const refused = refuseCrossSiteForm(event.request, event.url, {
+				trustedOrigins: instances.config.csrf?.trustedOrigins,
+				exemptPaths: instances.auth?.oauth?.serverEndpoints
+			});
+			if (refused) return refused;
+		}
+
+		// Let the auth provider answer its own routes first. Those requests never
+		// reach the CMS's auth checks, which is what lets an unauthenticated sign-in
+		// through.
+		return instances.auth?.handle
+			? instances.auth.handle({ event, resolve: runCMS })
+			: runCMS(event);
 	};
 }

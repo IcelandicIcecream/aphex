@@ -164,12 +164,25 @@ export function fieldToJsonSchema(
 				});
 			}
 			const variants = of.map((item) => {
+				// An inline object: `{ type: 'object', name, fields }`, or a block
+				// declared in place as `{ type: 'hero', fields }` (which used to fall to
+				// `default` and accept anything). Checked before the registry, as the
+				// admin's `getArrayTypes` does. Stored with `_type` = name, else type.
+				if (Array.isArray(item.fields)) {
+					const body = fieldsToJsonSchema(item.fields as Field[], schemaMap, seen);
+					return withItemTag(body, item.name ?? item.type);
+				}
 				// A named object type becomes a `$ref` into components — which is also
 				// what makes a self-containing schema (an object whose array names its
 				// own type) terminate: the component is emitted once, not inlined.
 				const named = schemaMap.get(item.type);
 				if (named && named.type === 'object') {
-					return { $ref: `#/components/schemas/${componentName(named.name)}` };
+					return {
+						allOf: [
+							{ $ref: `#/components/schemas/${componentName(named.name)}` },
+							withItemTag({ type: 'object' }, named.name)
+						]
+					};
 				}
 				return fieldToJsonSchema(item as Field, schemaMap, seen);
 			});
@@ -205,6 +218,9 @@ export function fieldsToJsonSchema(
 	const out: JsonSchema = {
 		type: 'object',
 		properties,
+		// Underscore keys (`_type`, `_key`, and keys a load derives) are not fields:
+		// the validator skips them, so the spec allows them.
+		patternProperties: { '^_': {} },
 		// A write may legitimately carry a subset of fields, but it may not carry
 		// fields the schema doesn't declare — the validator rejects those as
 		// `kind: "structural"`, so the spec says so too.
@@ -212,6 +228,24 @@ export function fieldsToJsonSchema(
 	};
 	if (required.length > 0) out.required = required;
 	return out;
+}
+
+/**
+ * An object array item: the validator requires `_type` naming which `of` entry it
+ * is (`resolveArrayItemTypeRef`), and the editor adds a `_key`.
+ */
+function withItemTag(body: JsonSchema, tag: string): JsonSchema {
+	const properties = (body.properties ?? {}) as Record<string, JsonSchema>;
+	const required = Array.isArray(body.required) ? (body.required as string[]) : [];
+	return {
+		...body,
+		properties: {
+			_type: { type: 'string', const: tag },
+			_key: { type: 'string' },
+			...properties
+		},
+		required: ['_type', ...required]
+	};
 }
 
 /** PascalCase component name for a schema type, e.g. `post` → `PostData`. */

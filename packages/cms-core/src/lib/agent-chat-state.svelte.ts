@@ -37,6 +37,8 @@ export type HistoryMessage = {
 	content: string;
 	toolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown> }>;
 	toolCallId?: string;
+	/** The AI adapter's own replay data (`AIMessage.providerState`), sent back untouched. */
+	providerState?: unknown;
 };
 
 export type ToolCall = {
@@ -71,6 +73,7 @@ function createAgentChatState() {
 	// resends the full conversation on every call, this is effectively "how big the
 	// conversation currently is," used to warn before it gets unwieldy (or expensive).
 	let lastPromptTokens = $state(persisted?.lastPromptTokens ?? 0);
+	let pendingPrompt = $state<string | null>(null);
 
 	// A live turn mid-stream shouldn't be persisted as if it finished — reload would show a
 	// permanently "streaming" bubble with a spinner that will never resolve. Reloading the
@@ -119,6 +122,17 @@ function createAgentChatState() {
 		},
 		set lastPromptTokens(value: number) {
 			lastPromptTokens = value;
+		},
+		/**
+		 * A message to put in the composer when the panel next opens, from a link such as
+		 * `/admin?assistant=Build%20my%20site`. Never sent by itself: the person reads it and
+		 * presses send. Not persisted.
+		 */
+		get pendingPrompt() {
+			return pendingPrompt;
+		},
+		set pendingPrompt(value: string | null) {
+			pendingPrompt = value;
 		}
 	};
 }

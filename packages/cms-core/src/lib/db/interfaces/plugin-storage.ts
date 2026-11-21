@@ -1,5 +1,6 @@
 // Plugin storage port — a generic, org-scoped record store for plugins, the DATA-plane sibling
-// of the CONFIG-plane `cms_plugin_settings`. It is NOT the content/document model: records never
+// of the CONFIG-plane `cms_plugin_settings`. Records can be changed and removed as well as added:
+// a submission never changes, but a redirect's target or a counter does. It is NOT the content/document model: records never
 // enter document lists, versioning, drafts, the content REST/GraphQL API, or MCP tools. Any plugin
 // namespaces its rows by `(plugin, collection)` — e.g. the forms plugin stores a submission as
 // `(plugin: 'forms', collection: <formId>)`. Relational adapters implement this.
@@ -48,4 +49,15 @@ export interface PluginStorageAdapter {
 	getPluginRecord(organizationId: string, id: string): Promise<PluginStorageRecord | null>;
 	/** List a plugin's records (optionally one collection), newest first. */
 	listPluginRecords(options: ListPluginRecordsOptions): Promise<Page<PluginStorageRecord>>;
+	/**
+	 * Replace a record's `data` (org-scoped; its plugin, collection and createdAt stay). Returns
+	 * the updated record, or null when there's none with that id in the organization.
+	 */
+	updatePluginRecord(
+		organizationId: string,
+		id: string,
+		data: Record<string, unknown>
+	): Promise<PluginStorageRecord | null>;
+	/** Remove a record (org-scoped). Returns whether one was removed. */
+	deletePluginRecord(organizationId: string, id: string): Promise<boolean>;
 }

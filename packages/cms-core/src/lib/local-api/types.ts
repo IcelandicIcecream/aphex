@@ -31,7 +31,7 @@ export interface LocalAPIContext {
 	overrideAccess?: boolean;
 
 	/**
-	 * Full auth object from locals.auth
+	 * Full auth object from locals.aphexAuth
 	 * Preserved to allow custom permission logic to access any custom fields
 	 * added via module augmentation (e.g., custom roles, permissions, metadata)
 	 */

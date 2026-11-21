@@ -144,50 +144,33 @@ The document editor ships with a version history panel. From there editors can:
 
 ## Programmatic access
 
-The Local API exposes a `versionService` for scripts and migrations:
+Each collection reads and restores its documents' versions. Every call checks the same permissions as reading or editing the document itself, including the organization's features (`requiredCapabilities`), and leaves out fields the caller can't read:
 
 ```ts
 import { authToContext } from '@aphexcms/cms-core/server';
 
-const api = locals.aphexCMS.localAPI;
-const adapter = locals.aphexCMS.databaseAdapter;
-const ctx = authToContext(locals.auth);
+const pages = locals.aphexCMS.localAPI.collections.page;
+const ctx = authToContext(locals.aphexAuth);
 
-const { versions, total } = await api.versionService.listVersions(
-	adapter,
-	ctx.organizationId,
-	'doc_xyz',
-	{
-		limit: 50,
-		offset: 0
-	}
-);
+// `null` when the document isn't a page.
+const list = await pages.listVersions(ctx, 'doc_xyz', { limit: 50, offset: 0 });
 
-const target = await api.versionService.getVersion(adapter, ctx.organizationId, 'doc_xyz', 8);
+const target = await pages.getVersion(ctx, 'doc_xyz', 8);
 
-// Returns the restored document, or `null` if the version doesn't exist.
-const restored = await api.versionService.restoreVersion(
-	adapter,
-	ctx.organizationId,
-	'doc_xyz',
-	8,
-	ctx.user?.id
-);
+// The restored document and its validation, or `null` if the version doesn't exist.
+const restored = await pages.restoreVersion(ctx, 'doc_xyz', 8);
 ```
+
+A restore is an ordinary draft save of the version's data: it runs the schema's hooks, refreshes the reference, asset and search indexes, records a new draft version, and on a `liveEdit` schema publishes. The version replaces the draft rather than merging into it, so a field added since comes back empty. Blocks the organization can no longer add (see [Content types per organization](/multi-tenancy#content-types-per-organization)) restore only if the draft or the published version still has them.
 
 ### Restoring safely
 
-`restoreVersion` takes an optional `expectedRevision` after the user id. A restore is a write like any other, so if someone edited the document between the moment you showed the version list and the moment the user clicked restore, the restore would silently discard that edit. Pass the revision you last read and a stale restore throws `RevisionConflictError` instead:
+A restore is a write like any other, so if someone edited the document between the moment you showed the version list and the moment the user clicked restore, the restore would silently discard that edit. Pass the revision you last read and a stale restore throws `RevisionConflictError` instead:
 
 ```ts
-const restored = await api.versionService.restoreVersion(
-	adapter,
-	ctx.organizationId,
-	'doc_xyz',
-	8,
-	ctx.user?.id,
-	doc._meta.revision
-);
+const restored = await pages.restoreVersion(ctx, 'doc_xyz', 8, {
+	expectedRevision: doc._meta.revision
+});
 ```
 
 Over HTTP the same guard is an `expectedRevision` in the restore request body, answered with `409`. See [Concurrency](/local-api#concurrency--expectedrevision).

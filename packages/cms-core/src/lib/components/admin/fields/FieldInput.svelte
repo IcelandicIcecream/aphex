@@ -1,3 +1,19 @@
+<script lang="ts" module>
+	import { cmsLogger } from '../../../utils/logger';
+
+	// Not state: only remembers which warnings were already logged.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const warnedInputs = new Set<string>();
+	function warnMissingInput(input: string, fieldName: string) {
+		if (warnedInputs.has(input)) return;
+		warnedInputs.add(input);
+		cmsLogger.warn(
+			'[FieldInput]',
+			`Field "${fieldName}" asks for input "${input}", but no plugin registers an aphex/field/component for it, so it shows the default control. Register the plugin in your plugins list, or remove \`input\`.`
+		);
+	}
+</script>
+
 <script lang="ts">
 	// The shared input resolver: given a field, pick the right control — a plugin
 	// widget (field.input → aphex/field/component) first, else the built-in renderer
@@ -9,6 +25,7 @@
 	// SchemaField / ArrayField, which fall back to this component for their leaves.
 	import type { Field } from '../../../types/schemas';
 	import { useFieldComponents } from '../../../admin/field-components.svelte';
+	import { useDocumentWriter } from '../../../admin/document-writer.svelte';
 	import StringField from './StringField.svelte';
 	import TextareaField from './TextareaField.svelte';
 	import NumberField from './NumberField.svelte';
@@ -34,6 +51,8 @@
 		fieldPath?: string;
 		organizationId?: string;
 		onOpenReference?: (documentId: string, documentType: string) => void;
+		/** What the field is while empty (`field.inherits`), already worked out. */
+		inherited?: unknown;
 	}
 
 	let {
@@ -47,11 +66,20 @@
 		schemaType,
 		fieldPath,
 		organizationId,
-		onOpenReference
+		onOpenReference,
+		inherited
 	}: Props = $props();
 
 	const fieldComponents = useFieldComponents();
+	const writeDocument = useDocumentWriter();
 	const CustomInput = $derived(field.input ? fieldComponents(field.input) : undefined);
+
+	// A field naming an input no plugin registers falls back to the plain control
+	// for its type, which looks deliberate. Say so, once per key, so a missing or
+	// unregistered plugin is noticed rather than shipped.
+	$effect(() => {
+		if (field.input && !CustomInput) warnMissingInput(field.input, field.name);
+	});
 </script>
 
 {#if CustomInput}
@@ -64,6 +92,8 @@
 		{documentData}
 		{siblingData}
 		{schemaType}
+		{inherited}
+		setDocumentFields={readonly ? undefined : writeDocument}
 	/>
 {:else if field.type === 'string'}
 	<StringField
@@ -74,9 +104,10 @@
 		{onUpdate}
 		{validationClasses}
 		{readonly}
+		{inherited}
 	/>
 {:else if field.type === 'text'}
-	<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
+	<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} {inherited} />
 {:else if field.type === 'slug'}
 	<SlugField
 		{field}

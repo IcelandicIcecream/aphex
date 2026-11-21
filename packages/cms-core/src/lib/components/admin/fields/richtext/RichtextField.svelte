@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { Editor } from '@tiptap/core';
+	import { Editor, getSchema } from '@tiptap/core';
 	import { StarterKit } from '@tiptap/starter-kit';
 	import Link from '@tiptap/extension-link';
 	import Underline from '@tiptap/extension-underline';
@@ -40,6 +40,8 @@
 	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../../types/schemas';
 	import { getSchemaContext } from '../../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../../schema-utils/utils';
+	import { hasRequiredCapabilities } from '../../../../schema-utils/required-capabilities';
+	import { findPermissions } from '../../../../permissions-context.svelte';
 	import { useBlockPreviews } from '../../../../admin/block-previews.svelte';
 	import { getRichtextEditorRegistry } from '../../../../richtext-context.svelte.js';
 	import ObjectModal from '../../ObjectModal.svelte';
@@ -76,6 +78,15 @@
 	let element = $state<HTMLElement>();
 	let editor = $state<Editor | null>(null);
 	let editorState = $state(0);
+	// Stored content this field's current config can't represent. TipTap's answer
+	// is to open an empty document with only a console warning, and the first
+	// keystroke would then autosave that over the real draft (aphex #334).
+	let contentBlocked = $state(false);
+
+	function reportBlockedContent(cause: unknown) {
+		contentBlocked = true;
+		console.error(`[RichtextField] "${field.name}" holds content its config can't show`, cause);
+	}
 	let internalVersion = 0;
 	let isSyncingFromParent = false;
 
@@ -139,6 +150,15 @@
 		})
 	);
 	const hasInlineTypes = $derived(inlineTypes.length > 0);
+
+	// What the insert menu offers: a type the organization doesn't have
+	// (`requiredCapabilities`) is left out, as the server refuses it. The full
+	// lists above still render and edit what the text already holds.
+	const permissions = findPermissions();
+	const canInsert = (t: { schema: SchemaType | null }) =>
+		hasRequiredCapabilities(t.schema, permissions?.capabilities ?? []);
+	const insertableCustomTypes = $derived(customTypes.filter(canInsert));
+	const insertableInlineTypes = $derived(inlineTypes.filter(canInsert));
 
 	const hasDecorator = (d: string) => decorators.includes(d);
 	const hasList = (l: string) => lists.includes(l);
@@ -534,16 +554,24 @@
 		lastSyncedVersion = 0;
 		editorJustCreated = true;
 		expanded = false;
+		contentBlocked = false;
+		let unreadable = false;
+		try {
+			getSchema(extensions).nodeFromJSON(tiptapDoc);
+		} catch (cause) {
+			unreadable = true;
+			reportBlockedContent(cause);
+		}
 		editor = new Editor({
 			element,
-			editable: !readonly,
+			editable: !readonly && !unreadable,
 			extensions,
 			content: tiptapDoc,
 			editorProps: {
 				transformPastedHTML: sanitizePastedHTML
 			},
 			onUpdate: ({ editor: e }) => {
-				if (isSyncingFromParent) return;
+				if (isSyncingFromParent || contentBlocked) return;
 				internalVersion++;
 				const json = e.getJSON();
 				const pt = tiptapToPortableText(json);
@@ -692,7 +720,21 @@
 		// "changed" for some docs (notably lists + links) — which triggers a destructive
 		// replaceWith that resets the caret and makes links impossible to click. Round-tripping
 		// the incoming doc through `nodeFromJSON().toJSON()` normalizes both sides identically.
-		const incomingDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
+		let incomingDoc;
+		try {
+			incomingDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
+		} catch (cause) {
+			if (!contentBlocked) {
+				editor.setEditable(false, false);
+				reportBlockedContent(cause);
+			}
+			return;
+		}
+		// A readable value arrived (a restored version, say), so editing is safe again.
+		if (contentBlocked) {
+			contentBlocked = false;
+			editor.setEditable(!readonly, false);
+		}
 		if (
 			JSON.stringify(stripVolatileMarks(incomingDoc.toJSON())) ===
 			JSON.stringify(stripVolatileMarks(editor.getJSON()))
@@ -959,7 +1001,7 @@
 		? `position: fixed; top: ${containerBounds.top}px; left: ${containerBounds.left}px; width: ${containerBounds.width}px; height: ${containerBounds.height}px; z-index: 50;`
 		: ''}
 >
-	{#if editor && !readonly}
+	{#if editor && !readonly && !contentBlocked}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<Tooltip.Provider>
 			<!--
@@ -1084,7 +1126,7 @@
 					{@render toolbarBtn(handleInsertImageBlock, 'Insert image', () => false, ImageIcon)}
 				{/if}
 
-				{#if hasCustomTypes || hasInlineTypes}
+				{#if insertableCustomTypes.length > 0 || insertableInlineTypes.length > 0}
 					<div class="bg-border mx-1 h-4 w-px"></div>
 					<div class="relative">
 						<Tooltip.Root delayDuration={400}>
@@ -1104,11 +1146,11 @@
 							<div
 								class="bg-popover border-rule absolute top-full left-0 z-40 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
 							>
-								{#if hasCustomTypes}
+								{#if insertableCustomTypes.length > 0}
 									<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
 										Blocks
 									</div>
-									{#each customTypes as ct}
+									{#each insertableCustomTypes as ct}
 										<button
 											type="button"
 											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
@@ -1122,14 +1164,14 @@
 										</button>
 									{/each}
 								{/if}
-								{#if hasInlineTypes}
-									{#if hasCustomTypes}
+								{#if insertableInlineTypes.length > 0}
+									{#if insertableCustomTypes.length > 0}
 										<div class="bg-border mx-2 my-1 h-px"></div>
 									{/if}
 									<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
 										Inline
 									</div>
-									{#each inlineTypes as it}
+									{#each insertableInlineTypes as it}
 										<button
 											type="button"
 											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
@@ -1199,7 +1241,18 @@
 		</Tooltip.Provider>
 	{/if}
 
-	<div bind:this={element} class="richtext-content"></div>
+	{#if contentBlocked}
+		<div role="alert" class="text-destructive p-3 text-sm">
+			This text can't be shown because this field's settings changed after it was written. Your
+			saved text is safe, and editing is locked here so it can't be overwritten. Please ask your web
+			team to look at it.
+		</div>
+	{/if}
+	<div
+		bind:this={element}
+		class="richtext-content"
+		style:display={contentBlocked ? 'none' : undefined}
+	></div>
 
 	{#if linkMode === 'preview'}
 		<div
@@ -1366,9 +1419,11 @@
 		overflow: auto;
 	}
 
+	/* Room to write, as a word processor gives: about WordPress's box. It still
+	   grows with the text, and fills the screen when expanded. */
 	.richtext-content :global(.tiptap) {
-		padding: 0.75rem 1rem;
-		min-height: 150px;
+		padding: 1rem 1.25rem;
+		min-height: 18rem;
 		flex: 1;
 		outline: none;
 		font-size: 1rem;

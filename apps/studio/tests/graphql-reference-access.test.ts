@@ -17,7 +17,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
-import { db } from '$lib/server/db';
+import { db } from './helpers/db';
 import cmsConfig from './fixtures/config';
 import { createYoga, createSchema } from 'graphql-yoga';
 import { generateGraphQLSchema } from '@aphexcms/cms-core/graphql/schema';

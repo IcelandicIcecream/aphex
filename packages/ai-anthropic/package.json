@@ -2,7 +2,6 @@
 	"name": "@aphexcms/ai-anthropic",
 	"version": "0.1.0",
 	"license": "MIT",
-	"private": true,
 	"publishConfig": {
 		"access": "public",
 		"provenance": true
@@ -27,6 +26,7 @@
 	],
 	"scripts": {
 		"build": "tsc",
+		"test": "vitest run",
 		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
 		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist",
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
@@ -39,6 +39,7 @@
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:^",
-		"typescript": "^5.9.3"
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.10"
 	}
 }

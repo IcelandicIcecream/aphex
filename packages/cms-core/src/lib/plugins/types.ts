@@ -32,6 +32,7 @@ export type PartKind =
 	| 'aphex/job/handler'
 	| 'aphex/event/consumer'
 	| 'aphex/agent/tool'
+	| 'aphex/agent/instructions'
 	| 'aphex/document/action'
 	| 'aphex/admin/tool'
 	| 'aphex/field/component';
@@ -207,6 +208,22 @@ export interface AgentToolPart {
 	execute: AgentToolExecutor;
 }
 
+/**
+ * A section of what an MCP client is told when it connects, after core's guide and the
+ * app's `mcp.instructions`: how to use this plugin's types and tools well (a forms
+ * plugin explaining that a form block references a form document). Shown only to a
+ * caller holding `requiredCapabilities`, like the plugin's tools.
+ */
+export interface AgentInstructionsPart {
+	implements: 'aphex/agent/instructions';
+	/** Unique across plugins. */
+	id: string;
+	/** The section's heading. */
+	title: string;
+	text: string;
+	requiredCapabilities?: string[];
+}
+
 // ── Component plane (client only) ───────────────────────────────────────────
 
 /**
@@ -225,6 +242,12 @@ export interface DocumentActionProps {
 	updateData: (patch: Record<string, unknown>) => void;
 	save: () => Promise<void>;
 	publish: () => Promise<void>;
+	/**
+	 * Where this action is drawn: in the toolbar, or as a row in the document's ⋯
+	 * menu. A component can style itself to match: a compact button, or a
+	 * full-width row with its label.
+	 */
+	placement: 'toolbar' | 'menu';
 }
 
 /** Adds a button/action to the document editor toolbar. */
@@ -239,6 +262,13 @@ export interface DocumentActionPart {
 	appliesTo?: string[];
 	requiredCapabilities?: string[];
 	order?: number;
+	/**
+	 * `'toolbar'` (the default) draws the action in the editor's toolbar. `'menu'`
+	 * puts it in the document's ⋯ menu instead, which keeps the toolbar for the
+	 * one or two actions people use most. A menu action stays mounted while the menu
+	 * is closed, so a dialog it opens isn't lost when the menu closes.
+	 */
+	placement?: 'toolbar' | 'menu';
 }
 
 /**
@@ -257,7 +287,22 @@ export interface AdminToolProps {
 	/** Switch the active admin area/tab (e.g. back to `'structure'`). */
 	navigate: (area: AdminArea) => void;
 	/** Open a document in the editor. */
-	openDocument: (documentType: string, documentId: string) => void;
+	/**
+	 * Open a document in the editor. `tab` opens it on one of its field groups (the
+	 * group's `name`), as `?tab=` does in a link; `field` opens it on the group that
+	 * field sits in, so a "fix your phone number" button lands where the phone is.
+	 */
+	openDocument: (
+		documentType: string,
+		documentId: string,
+		options?: { tab?: string; field?: string }
+	) => void;
+	/**
+	 * Start a new document of this type in the editor, as the type's own "+"
+	 * does. For a tool's "New invoice" button: `navigate('structure')` only
+	 * switches area and leaves the user to find the type and press create.
+	 */
+	createDocument: (documentType: string) => void;
 }
 
 /** Adds a top-level admin section (its own tool). */
@@ -308,6 +353,18 @@ export interface FieldComponentProps {
 	siblingData?: Record<string, unknown>;
 	/** The document's type name (e.g. `'author'`) — for widgets that vary by type. */
 	schemaType?: string;
+	/**
+	 * What the field is while empty, from `field.inherits` (already worked out, and
+	 * undefined when there's none). Show it in the empty control, unlike a value:
+	 * muted, a placeholder, a dashed swatch.
+	 */
+	inherited?: unknown;
+	/**
+	 * Set other top-level fields of this document along with this one, as one
+	 * change: `setDocumentFields({ style: 'bold', look: {} })`. Undefined when the
+	 * form is read-only or isn't a document editor; fall back to `onUpdate` then.
+	 */
+	setDocumentFields?: (fields: Record<string, unknown>) => void;
 }
 
 /**
@@ -330,6 +387,7 @@ export type PluginPart =
 	| JobHandlerPart
 	| EventConsumerPart
 	| AgentToolPart
+	| AgentInstructionsPart
 	| DocumentActionPart
 	| AdminToolPart
 	| FieldComponentPart;

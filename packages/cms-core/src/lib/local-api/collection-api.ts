@@ -3,25 +3,31 @@
 // Collection API - provides type-safe CRUD operations for a single collection
 
 import type { DocumentCache } from '../cache/index';
-import type { DatabaseAdapter } from '../db/index';
+import type { DatabaseAdapter, BackReferenceRow } from '../db/index';
 import type { HierarchyService } from '../services/hierarchy-service';
 import type { VersionService } from '../services/version-service';
 import type { ReferencesService } from '../services/references-service';
 import { AssetReferencesService } from '../services/asset-references-service';
 import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filters';
 import type { Document } from '../types/document';
+import type { DocumentVersion, DocumentVersionList } from '../types/version';
 import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
-import { PermissionChecker } from './permissions';
+import { PermissionChecker, PermissionError } from './permissions';
 import { singletonId } from '../schema-utils/singleton';
 import { resolveSearchPaths, buildSearchText } from '../schema-utils/utils';
 import {
+	toFieldIssues,
 	validateDocumentData,
 	type DocumentValidationResult,
-	type FieldErrors
+	type FieldErrors,
+	type FieldIssue
 } from '../field-validation/utils';
 import { runDocumentHooks } from './hooks';
+import type { DocumentHookReader } from './hook-reader';
+import type { DocumentLimitGuard } from './limits';
 import { collectReferenceIds } from '../utils/reference-walk';
+import { expandReferences } from './expand-references';
 import { emitDocumentPublished } from '../events/emit';
 import type { AppendEventInput, Job } from '../types/events';
 import { DOCUMENT_PUBLISH_JOB, DOCUMENT_UNPUBLISH_JOB } from '../jobs/document-jobs';
@@ -167,12 +173,53 @@ export class DocumentValidationError extends Error {
 }
 
 /**
+ * A publish refused because the document isn't finished. Carries one issue per
+ * failure with its full path (`issues`), so the editor can name the field in words
+ * and an API client can place each error without parsing `message`.
+ */
+export class PublishValidationError extends Error {
+	constructor(
+		message: string,
+		readonly issues: FieldIssue[]
+	) {
+		super(message);
+		this.name = 'PublishValidationError';
+	}
+}
+
+/**
+ * A delete refused because other documents still reference this one: deleting
+ * it would leave each of them pointing at nothing (an invoice whose client is
+ * gone). Carries those documents so the caller can name them; pass
+ * `{ force: true }` to `delete` to go ahead anyway. HTTP answers it with 409.
+ */
+export class ReferencedDocumentError extends Error {
+	constructor(
+		message: string,
+		readonly referencedBy: BackReferenceRow[]
+	) {
+		super(message);
+		this.name = 'ReferencedDocumentError';
+	}
+}
+
+/**
  * Subset of CollectionAPI methods that are valid on a singleton schema.
  * Codegen emits this type for singleton entries in the Collections interface
  * so consumers can't accidentally call list/findByID/create/delete on them.
  *
  * The runtime is still a regular CollectionAPI — this is purely a TS narrow.
  */
+/**
+ * Reads documents of any type by id as the caller, dropping the ones it may not
+ * read: `LocalAPI.findDocumentsByIds`. What `depth` expands references through.
+ */
+export type CallerDocumentReader = (
+	context: LocalAPIContext,
+	ids: string[],
+	options: Pick<FindOptions, 'perspective' | 'public' | 'includeChildOrganizations'>
+) => Promise<Array<Record<string, unknown>>>;
+
 export type SingletonCollection<T = Document> = Pick<
 	CollectionAPI<T>,
 	'get' | 'getSingletonId' | 'update' | 'publish' | 'unpublish' | 'schema'
@@ -192,7 +239,13 @@ export class CollectionAPI<T = Document> {
 		private hierarchyService?: HierarchyService,
 		private versionService?: VersionService,
 		private referencesService?: ReferencesService,
-		private schemaRegistry?: SchemaType[]
+		private schemaRegistry?: SchemaType[],
+		/** What a schema hook reads through, bound to the writer's context. */
+		private hookReader?: (context: LocalAPIContext) => DocumentHookReader,
+		/** `config.documentLimits`, checked before every create. */
+		private limitGuard?: DocumentLimitGuard,
+		/** How `depth` reads the documents a reference points at. */
+		private referenceReader?: CallerDocumentReader
 	) {
 		// Validate collection exists
 		this.permissions.validateCollection(collectionName);
@@ -258,6 +311,28 @@ export class CollectionAPI<T = Document> {
 	}
 
 	/**
+	 * Re-index both asset planes from a document as it stands after a publish. A
+	 * publish rewrites only the published data, and nothing else recorded it: until
+	 * the next draft save, the index went on naming the assets of the version the
+	 * publish replaced, so an asset it dropped still counted as in use and the
+	 * "Unused" filter never offered it. Pass it as the publish's in-transaction step.
+	 *
+	 * Unpublish needs none: it is soft, keeping `publishedData`, and the index
+	 * mirrors the stored data whatever the status (see the delete guard).
+	 */
+	private indexPlanesInTx(organizationId: string) {
+		return async (tx: DatabaseAdapter, saved: Document) => {
+			await this.syncAssetReferences(
+				tx,
+				organizationId,
+				saved.id,
+				saved.draftData ?? null,
+				saved.publishedData ?? null
+			);
+		};
+	}
+
+	/**
 	 * Recompute the document's full-text search index from freshly-saved
 	 * draftData. Best-effort, same shape as {@link syncReferences}: not part
 	 * of the write transaction, self-healing on the next edit if missed.
@@ -276,6 +351,15 @@ export class CollectionAPI<T = Document> {
 	 */
 	get schema(): SchemaType {
 		return this._schema;
+	}
+
+	/** The reader a hook gets. A collection built without one (tests) gives hooks a reader that refuses. */
+	private readerFor(context: LocalAPIContext): DocumentHookReader {
+		if (this.hookReader) return this.hookReader(context);
+		const refuse = (): never => {
+			throw new Error('This collection was built without a Local API, so its hooks cannot read');
+		};
+		return { find: refuse, findByID: refuse, count: refuse, singleton: refuse };
 	}
 
 	/**
@@ -382,7 +466,12 @@ export class CollectionAPI<T = Document> {
 		// The cache is keyed on the same resolved options — before the hierarchy
 		// org ids are added below, so the get and set keys agree — because the
 		// perspective changes the result set, not just its projection.
-		const queryKey: FindOptions<T> = { ...options, perspective };
+		//
+		// `depth` is left out of both: references are expanded per caller after the
+		// read (`withReferences`), so the cached and adapter results never hold
+		// another document.
+		const { depth, ...query } = options;
+		const queryKey: FindOptions<T> = { ...query, perspective };
 		const findOptions: FindOptions<T> = { ...queryKey };
 
 		// Check cache for published queries
@@ -400,7 +489,12 @@ export class CollectionAPI<T = Document> {
 			// and stops leaking when it expires — which is why it reads as
 			// intermittent rather than as a bug.
 			if (cached)
-				return applyPublicMetaToResult(applyHiddenToResult(cached, hidden), options.public);
+				return this.withReferences(
+					context,
+					applyPublicMetaToResult(applyHiddenToResult(cached, hidden), options.public),
+					depth,
+					{ ...options, perspective }
+				);
 		}
 
 		// Resolve org IDs via hierarchy service (cached) and pass directly —
@@ -438,7 +532,47 @@ export class CollectionAPI<T = Document> {
 			);
 		}
 
-		return applyPublicMetaToResult(applyHiddenToResult(unfilteredResult, hidden), options.public);
+		return this.withReferences(
+			context,
+			applyPublicMetaToResult(applyHiddenToResult(unfilteredResult, hidden), options.public),
+			depth,
+			{ ...options, perspective }
+		);
+	}
+
+	/**
+	 * Expand references `depth` levels deep in a result already projected for the
+	 * caller, each target read as that caller (see `expand-references.ts`).
+	 */
+	private async withReferences(
+		context: LocalAPIContext,
+		result: FindResult<T>,
+		depth: number | undefined,
+		options: Partial<FindOptions<T>>
+	): Promise<FindResult<T>> {
+		if (!depth || depth <= 0 || result.docs.length === 0) return result;
+		return { ...result, docs: await this.expandDocs(context, result.docs, depth, options) };
+	}
+
+	private async expandDocs<D>(
+		context: LocalAPIContext,
+		docs: D[],
+		depth: number,
+		options: Partial<FindOptions<T>>
+	): Promise<D[]> {
+		const read = this.referenceReader;
+		if (!read) {
+			throw new Error(
+				`${this.collectionName}: reading with \`depth\` needs a reference reader. Use the collection from createLocalAPI rather than constructing CollectionAPI yourself.`
+			);
+		}
+		return expandReferences(docs, depth, (ids) =>
+			read(context, ids, {
+				perspective: options.perspective,
+				public: options.public,
+				includeChildOrganizations: options.includeChildOrganizations
+			})
+		);
 	}
 
 	private resolveHiddenReadFields(context: LocalAPIContext): ReadonlySet<string> {
@@ -517,20 +651,33 @@ export class CollectionAPI<T = Document> {
 		// Call option wins; else the context's default perspective; else 'draft'.
 		const perspective = options?.perspective || context.perspective || 'draft';
 		const hidden = this.resolveHiddenReadFields(context);
+		// `depth` never reaches the adapter or the cache, which is keyed on the id
+		// alone: references are expanded per caller, last.
+		const { depth, ...rest } = options ?? {};
+		const expand = async (doc: T): Promise<T> =>
+			depth && depth > 0
+				? ((await this.expandDocs(context, [doc], depth, { ...rest, perspective }))[0] as T)
+				: doc;
 
 		// Check cache for published lookups
 		if (perspective === 'published' && this.documentCache) {
 			const cached = await this.documentCache.getDocument<T>(context.organizationId, id);
-			if (cached) return applyPublicMetaToDoc(applyHiddenToDoc(cached, hidden), options?.public);
+			if (cached)
+				return expand(applyPublicMetaToDoc(applyHiddenToDoc(cached, hidden), options?.public));
 		}
 
 		// Resolve org IDs via hierarchy service (cached) — avoids RLS transaction.
 		// Same as `find`: the resolved perspective must reach the adapter.
-		const findOptions: Partial<FindOptions<T>> = { ...options, perspective };
+		// Unlike `find`, child organizations are included unless the caller passes
+		// `false`. An id names one document, writes already reach a child's document
+		// through the adapter's fallback, and a list showing child documents would
+		// otherwise link to ones that can't be opened.
+		const findOptions: Partial<FindOptions<T>> = { ...rest, perspective };
 		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
-			findOptions.filterOrganizationIds = options?.includeChildOrganizations
-				? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
-				: [context.organizationId];
+			findOptions.filterOrganizationIds =
+				(options?.includeChildOrganizations ?? true)
+					? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
+					: [context.organizationId];
 		}
 
 		const result = await this.findOwnDocById(context.organizationId, id, findOptions);
@@ -550,9 +697,7 @@ export class CollectionAPI<T = Document> {
 			await this.documentCache.setDocument(context.organizationId, id, unfiltered);
 		}
 
-		const transformed = applyPublicMetaToDoc(applyHiddenToDoc(unfiltered, hidden), options?.public);
-
-		return transformed;
+		return expand(applyPublicMetaToDoc(applyHiddenToDoc(unfiltered, hidden), options?.public));
 	}
 
 	/**
@@ -596,8 +741,50 @@ export class CollectionAPI<T = Document> {
 	 * // result.document - the created document
 	 * // result.validation - validation results
 	 * ```
+	 *
+	 * On a `liveEdit` schema the new document is also published. See `publishIfLive`.
 	 */
 	async create(
+		context: LocalAPIContext,
+		data: Omit<T, 'id' | '_meta'>,
+		options?: Parameters<CollectionAPI<T>['createDocument']>[2]
+	): Promise<DocumentResult<T>> {
+		const result = await this.createDocument(context, data, options);
+		return (await this.publishIfLive(context, result, options?.publish)) ?? result;
+	}
+
+	/**
+	 * A `liveEdit` schema has no drafts: a record such as a client or a settings
+	 * page is live as soon as it's saved, so documents referencing it can always be
+	 * published. After a create or update, publish it.
+	 *
+	 * A save whose content wouldn't pass publish validation, or by a role that may
+	 * edit but not publish, stays a draft rather than failing: the person's work
+	 * is saved either way, and the editor shows what's missing.
+	 */
+	private async publishIfLive(
+		context: LocalAPIContext,
+		result: DocumentResult<T> | null,
+		alreadyPublished: boolean | undefined
+	): Promise<DocumentResult<T> | null> {
+		if (!result || !this._schema.liveEdit || alreadyPublished) return result;
+		const document: unknown = result.document;
+		const id =
+			typeof document === 'object' && document !== null && 'id' in document
+				? String(document.id)
+				: null;
+		if (!id) return result;
+		try {
+			const published = await this.publish(context, id);
+			return published ? { ...result, document: published } : result;
+		} catch (error) {
+			if (error instanceof PublishValidationError || error instanceof PermissionError)
+				return result;
+			throw error;
+		}
+	}
+
+	private async createDocument(
 		context: LocalAPIContext,
 		data: Omit<T, 'id' | '_meta'>,
 		options?: {
@@ -631,6 +818,12 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canCreate(context, this.collectionName);
 
+		// The organization's limit for this type, such as its plan's. A singleton has
+		// one row by definition, so it's never limited.
+		if (this.limitGuard && !this._schema.singleton) {
+			await this.limitGuard(context, this.collectionName, this.databaseAdapter);
+		}
+
 		// Drop any writes targeting field-locked names before validation.
 		// A caller with collection-level update may still lack write access on
 		// a specific field; silently dropping keeps the server authoritative.
@@ -646,7 +839,8 @@ export class CollectionAPI<T = Document> {
 			operation: 'create',
 			originalDoc: null,
 			context: { organizationId: context.organizationId, userId: context.user?.id },
-			schema: this._schema
+			schema: this._schema,
+			read: this.readerFor(context)
 		});
 
 		// Validate and normalize data (dates converted to ISO). The document context
@@ -655,6 +849,12 @@ export class CollectionAPI<T = Document> {
 			schemas: this.schemaRegistry
 		});
 		this.assertStructurallyValid(validationResult);
+		this.permissions.assertCanInsertItems(
+			context,
+			this.collectionName,
+			validationResult.normalizedData,
+			null
+		);
 
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName);
@@ -664,7 +864,10 @@ export class CollectionAPI<T = Document> {
 				const errorMessage = validationResult.errors
 					.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 					.join('; ');
-				throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+				throw new PublishValidationError(
+					`Cannot publish: validation errors - ${errorMessage}`,
+					toFieldIssues(validationResult.errors)
+				);
 			}
 		}
 
@@ -841,12 +1044,34 @@ export class CollectionAPI<T = Document> {
 	 * // result.document - the updated document
 	 * // result.validation - validation results
 	 * ```
+	 *
+	 * On a `liveEdit` schema the change is also published. See `publishIfLive`.
 	 */
 	async update(
 		context: LocalAPIContext,
 		id: string,
 		data: Partial<Omit<T, 'id' | '_meta'>>,
 		options?: { publish?: boolean; skipVersioning?: boolean; expectedRevision?: number }
+	): Promise<DocumentResult<T> | null> {
+		const result = await this.updateDocument(context, id, data, options);
+		return this.publishIfLive(context, result, options?.publish);
+	}
+
+	private async updateDocument(
+		context: LocalAPIContext,
+		id: string,
+		data: Partial<Omit<T, 'id' | '_meta'>>,
+		options?: {
+			publish?: boolean;
+			skipVersioning?: boolean;
+			expectedRevision?: number;
+			/**
+			 * The data is the whole draft, not a patch: a field it leaves out is
+			 * cleared rather than kept (a version restore). Field-locked values
+			 * still keep what is stored, since this caller can't write them.
+			 */
+			replace?: boolean;
+		}
 	): Promise<DocumentResult<T> | null> {
 		// Fetch the doc first so ownership policies have access to the target.
 		// A missing doc still returns null below; capability/role rules stay
@@ -871,7 +1096,7 @@ export class CollectionAPI<T = Document> {
 
 		// Only copy fields from existing doc that are still in the schema
 		for (const [key, value] of Object.entries(existingDoc.draftData || {})) {
-			if (schemaFieldNames.has(key)) {
+			if (schemaFieldNames.has(key) && (!options?.replace || locked.has(key))) {
 				cleanedExisting[key] = value;
 			}
 		}
@@ -885,7 +1110,8 @@ export class CollectionAPI<T = Document> {
 			operation: 'update',
 			originalDoc: existingDoc.draftData ?? null,
 			context: { organizationId: context.organizationId, userId: context.user?.id },
-			schema: this._schema
+			schema: this._schema,
+			read: this.readerFor(context)
 		});
 
 		// Validate and normalize the merged data
@@ -893,6 +1119,13 @@ export class CollectionAPI<T = Document> {
 			schemas: this.schemaRegistry
 		});
 		this.assertStructurallyValid(validationResult);
+		// Both versions count as already there, so undoing a removal still saves.
+		this.permissions.assertCanInsertItems(
+			context,
+			this.collectionName,
+			validationResult.normalizedData,
+			[existingDoc.draftData, existingDoc.publishedData]
+		);
 
 		// Update draft with normalized data (dates in ISO format)
 		// Use VersionService for atomic save + version creation if available
@@ -950,7 +1183,10 @@ export class CollectionAPI<T = Document> {
 				const errorMessage = validationResult.errors
 					.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 					.join('; ');
-				throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+				throw new PublishValidationError(
+					`Cannot publish: validation errors - ${errorMessage}`,
+					toFieldIssues(validationResult.errors)
+				);
 			}
 
 			const published =
@@ -958,7 +1194,9 @@ export class CollectionAPI<T = Document> {
 					? await this.versionService.publishWithVersion(
 							this.databaseAdapter,
 							context.organizationId,
-							document.id
+							document.id,
+							undefined,
+							this.indexPlanesInTx(context.organizationId)
 						)
 					: await this.publishWithoutVersion(context.organizationId, document.id);
 			if (published) {
@@ -994,7 +1232,14 @@ export class CollectionAPI<T = Document> {
 	 * );
 	 * ```
 	 */
-	async delete(context: LocalAPIContext, id: string): Promise<boolean> {
+	async delete(
+		context: LocalAPIContext,
+		id: string,
+		options: {
+			/** Delete even though other documents still reference this one. */
+			force?: boolean;
+		} = {}
+	): Promise<boolean> {
 		// Protect the canonical singleton row. In-limbo random-uuid docs of
 		// the same type (left over from before the schema was flipped to
 		// singleton) remain deletable — only the deterministic id is locked.
@@ -1011,6 +1256,23 @@ export class CollectionAPI<T = Document> {
 		if (!existing) return false;
 
 		await this.permissions.canDelete(context, this.collectionName, existing);
+
+		// Refuse to strand the documents that point here. The back-reference index
+		// covers drafts as well as published data, so a draft invoice still holding
+		// a client blocks that client's deletion. A document referencing itself
+		// doesn't count: it goes with it.
+		if (!options.force) {
+			const referencedBy = (
+				await this.databaseAdapter.findBackReferences(context.organizationId, id)
+			).filter((ref) => ref.id !== id);
+			if (referencedBy.length > 0) {
+				const count = referencedBy.length;
+				throw new ReferencedDocumentError(
+					`Cannot delete: ${count} document${count === 1 ? '' : 's'} still reference${count === 1 ? 's' : ''} it. Remove those references first, or delete with force.`,
+					referencedBy
+				);
+			}
+		}
 
 		const result = await this.databaseAdapter.deleteDocById(context.organizationId, id);
 
@@ -1047,7 +1309,10 @@ export class CollectionAPI<T = Document> {
 	): Promise<Document | null> {
 		return this.databaseAdapter.withTransaction(async (tx) => {
 			const published = await tx.publishDoc(organizationId, id, expectedRevision);
-			if (published) await emitDocumentPublished(tx, organizationId, published);
+			if (published) {
+				await emitDocumentPublished(tx, organizationId, published);
+				await this.indexPlanesInTx(organizationId)(tx, published);
+			}
 			return published;
 		});
 	}
@@ -1075,7 +1340,10 @@ export class CollectionAPI<T = Document> {
 			const errorMessage = validationResult.errors
 				.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 				.join('; ');
-			throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+			throw new PublishValidationError(
+				`Cannot publish: validation errors - ${errorMessage}`,
+				toFieldIssues(validationResult.errors)
+			);
 		}
 
 		// Guard: block publish if any referenced document is not published
@@ -1109,7 +1377,8 @@ export class CollectionAPI<T = Document> {
 					this.databaseAdapter,
 					context.organizationId,
 					id,
-					options?.expectedRevision
+					options?.expectedRevision,
+					this.indexPlanesInTx(context.organizationId)
 				)
 			: await this.publishWithoutVersion(context.organizationId, id, options?.expectedRevision);
 		if (!publishedDocument) {
@@ -1262,6 +1531,83 @@ export class CollectionAPI<T = Document> {
 	async getScheduled(context: LocalAPIContext, id: string): Promise<Job[]> {
 		await this.permissions.canRead(context, this.collectionName);
 		return this.pendingScheduledFor(context.organizationId, id);
+	}
+
+	/**
+	 * A document's saved versions, newest first. Gated like reading the document
+	 * itself (a version is the document as it was), with the same read-hidden
+	 * fields left out. Null when the document isn't in this collection.
+	 */
+	async listVersions(
+		context: LocalAPIContext,
+		id: string,
+		options?: { limit?: number; offset?: number }
+	): Promise<DocumentVersionList | null> {
+		const document = await this.findOwnDocById(context.organizationId, id);
+		if (!document) return null;
+		await this.permissions.canRead(context, this.collectionName, document);
+		if (!this.versionService) return { versions: [], total: 0 };
+		const result = await this.versionService.listVersions(
+			this.databaseAdapter,
+			context.organizationId,
+			id,
+			options
+		);
+		const hidden = this.resolveHiddenReadFields(context);
+		return { ...result, versions: result.versions.map((v) => this.withoutHidden(v, hidden)) };
+	}
+
+	/** One saved version, gated as {@link listVersions}. */
+	async getVersion(
+		context: LocalAPIContext,
+		id: string,
+		versionNumber: number
+	): Promise<DocumentVersion | null> {
+		const document = await this.findOwnDocById(context.organizationId, id);
+		if (!document) return null;
+		await this.permissions.canRead(context, this.collectionName, document);
+		const version = await this.versionService?.getVersion(
+			this.databaseAdapter,
+			context.organizationId,
+			id,
+			versionNumber
+		);
+		return version ? this.withoutHidden(version, this.resolveHiddenReadFields(context)) : null;
+	}
+
+	/**
+	 * Put a saved version back as the draft. It is a draft save like any other,
+	 * so it goes through `update`: the same permission and feature checks, hooks,
+	 * structural validation, reference/asset/search indexes, revision guard and,
+	 * on a `liveEdit` schema, publish. The version replaces the draft rather than
+	 * merging into it, so a field added since comes back empty, as it was then.
+	 * Null when the document or the version doesn't exist.
+	 */
+	async restoreVersion(
+		context: LocalAPIContext,
+		id: string,
+		versionNumber: number,
+		options?: { expectedRevision?: number }
+	): Promise<DocumentResult<T> | null> {
+		const document = await this.findOwnDocById(context.organizationId, id);
+		if (!document || !this.versionService) return null;
+		await this.permissions.canUpdate(context, this.collectionName, document);
+		const version = await this.versionService.getVersion(
+			this.databaseAdapter,
+			context.organizationId,
+			id,
+			versionNumber
+		);
+		if (!version) return null;
+		const result = await this.updateDocument(context, id, version.data ?? {}, {
+			expectedRevision: options?.expectedRevision,
+			replace: true
+		});
+		return this.publishIfLive(context, result, false);
+	}
+
+	private withoutHidden(version: DocumentVersion, hidden: ReadonlySet<string>): DocumentVersion {
+		return hidden.size ? { ...version, data: stripHiddenFields(version.data, hidden) } : version;
 	}
 
 	/** Cancel all pending scheduled publish/unpublish jobs for a document. Returns how many were cancelled. */

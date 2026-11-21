@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
+import { isLimitError } from '../../../local-api/limits';
 import { cmsLogger } from '../../../utils/logger';
 import { confirmUploadRequest, createUploadUrlRequest } from '../../../api/schemas/assets';
 import { resolveFieldPrivacy } from '../../../utils/asset-privacy';
@@ -261,6 +262,12 @@ export const assetsDirectUploadRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				return c.json({ success: true, data: asset });
 			} catch (error) {
+				if (isLimitError(error)) {
+					return c.json(
+						{ success: false, error: error.message, message: error.message, code: 'limit_reached' },
+						402
+					);
+				}
 				const message = error instanceof Error ? error.message : 'Could not confirm upload';
 				cmsLogger.error('[Asset API] Could not confirm direct upload:', error);
 				// Verification failures are the caller's problem (nothing was

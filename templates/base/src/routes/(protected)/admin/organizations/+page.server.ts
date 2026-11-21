@@ -3,7 +3,7 @@ import { authService } from '$lib/server/auth';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { databaseAdapter } = locals.aphexCMS;
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 
 	if (!auth || auth.type !== 'session') {
 		return { organizations: [] };

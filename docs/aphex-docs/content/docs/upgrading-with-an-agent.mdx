@@ -1,0 +1,146 @@
+---
+title: Upgrading with an Agent
+description: Hand an Aphex upgrade to Claude Code, Cursor or another coding agent, with the tools it should use, the order to work in, and the errors real upgrades have hit.
+icon: WandSparkles
+---
+
+This page is written for a coding agent to follow, and for you to check its work against. It covers upgrading an app to the latest `@aphexcms/cms-core`, including from an older template to the [embedded admin](/upgrading-to-embedded-admin).
+
+## Give your agent this prompt
+
+Commit or stash your work first, then paste this into your agent in the app's folder:
+
+```txt title="Prompt"
+Upgrade this app's Aphex packages to the latest version.
+
+Follow https://docs.getaphex.com/llms.mdx/upgrading-with-an-agent step by step,
+and read https://docs.getaphex.com/llms.mdx/migration-guide for everything that changed.
+Work through every item under "Breaking changes" there and report each as fixed or not affected.
+
+Run the upgrade tool before editing anything by hand. Don't delete files it
+didn't delete without asking me, and don't silence type errors with casts.
+When you finish, tell me what you changed, what the tool printed for me to do
+by hand, and every check you ran with its result.
+```
+
+Every docs page is served as Markdown at `/llms.mdx/<page>`, and the whole site is one file at [`/llms-full.txt`](https://docs.getaphex.com/llms-full.txt), so an agent can read any page this one links to.
+
+## The tools
+
+| Tool                                   | What it's for                                                                                                                                         |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm create aphex --dry-run`          | Lists every file the upgrade would delete, create or change. Changes nothing                                                                          |
+| `pnpm create aphex --yes`              | Makes those changes and installs the latest `@aphexcms/*` packages. Never replaces a folder you edited                                                |
+| `npx create-aphex`                     | The same, for an app whose `patchedDependencies` breaks `pnpm create` (see [the errors](#errors-real-upgrades-hit))                                   |
+| `pnpm check`                           | `svelte-check`. Most breaking changes show up here as type errors                                                                                     |
+| `pnpm dev`, then `curl`                | Checks the routes answer after the upgrade                                                                                                            |
+| `aphex generate:types`                 | Regenerates schema types, if the app uses them                                                                                                        |
+| `aphex migrate`                        | Applies Postgres migrations by hand. Only needed with `APHEX_DB_AUTO_MIGRATE=false`: otherwise the app migrates when it starts. SQLite never needs it |
+| The [MCP server](/mcp): `describe_cms` | Lists the schemas, reserved field names and plugins of the running app                                                                                |
+| The MCP server: `validate_schema`      | Checks a schema before you write it, instead of finding out when the app boots                                                                        |
+
+The upgrade tool is the main tool. It recognises every file an Aphex template ever shipped, deletes only exact copies, and edits config with checks that it understood the file. Hand edits come after it, for what it prints.
+
+## Steps
+
+### 1. Start from a clean tree
+
+Run `git status`. If anything is uncommitted, stop and ask. The upgrade is easy to review as one diff and to undo with `git checkout .`, but only from a clean tree.
+
+### 2. See what the upgrade will do
+
+```bash
+pnpm create aphex --dry-run
+```
+
+Read the whole output. It has four kinds of lines to act on later:
+
+- **Kept: …** A folder stays because the app changed one of Aphex's files in it. The lines under it are the app's own. Don't replace these folders: report them, with their lines, so a person can decide.
+- **Change by hand.** A file had a shape the tool couldn't edit safely. It prints the lines to change.
+- **Imports a deleted file.** Something left in the app, often a test of the old login page, imports a file the upgrade deletes.
+- **Links to a moved route**, such as a "Sign in" link to `/login`.
+
+If it lists a patched `@aphexcms` package, it won't install. See [the errors](#errors-real-upgrades-hit) first.
+
+### 3. Run it
+
+```bash
+pnpm create aphex --yes
+```
+
+With `--yes` it makes the same changes it showed, keeps every folder it marked "Kept", and installs. Running it again changes nothing, so it's safe to repeat.
+
+### 4. Make the edits it printed
+
+Make the hand edits it listed, then search for what no tool can change, because it type-checks fine and fails at runtime:
+
+```bash
+# The session was renamed to locals.aphexAuth. Destructured reads aren't renamed.
+grep -rnE "locals\.auth\b|locals: \{[^}]*\bauth\b" src
+
+# Links to the old account pages
+grep -rnE "['\"\`]/(login|invite|invitations|reset-password|two-factor|verify-email)\b" src
+
+# Site pages that fall back to "the first organization"
+grep -rnE "findAllOrganizations|organizations?\[0\]" src/routes
+```
+
+For the last one, see [Site pages read one organization](/upgrading-to-embedded-admin#site-pages-read-one-organization). The fix is `siteContext(locals)` from `@aphexcms/cms-core/server`, described in [Multi-Tenancy](/multi-tenancy#your-own-pages).
+
+### 5. Check it
+
+1. `pnpm check` reports no errors. Fix each one from [the errors](#errors-real-upgrades-hit) below; don't cast it away.
+2. Start the dev server and check the routes answer:
+
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:5173/admin/login"   # 200
+   curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" "http://localhost:5173/admin"   # 302 to /admin/login
+   curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:5173/api/documents?type=page"   # 401, not 404
+   ```
+
+3. Leave these for a person, and say so in the report, because they need a signed-in browser:
+   - `/admin` has one sidebar, with the active organization in its header.
+   - Sign out works, and signing in again works.
+   - A document whose preview shows a referenced document or a singleton still shows it.
+
+### 6. Report
+
+List what the tool changed, the hand edits, the folders it kept and their lines, the checks and their results, and the browser checks left to do.
+
+## Errors real upgrades hit
+
+Each of these came up upgrading a real app.
+
+| What you see                                                                                                      | Why                                                                                                                           | Fix                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ENOENT … patches/<name>.patch` from `pnpm create aphex`, before anything happens                                 | pnpm applies the app's `patchedDependencies` to the temporary folder it runs the tool from, where the patch files don't exist | Run `npx create-aphex` with the same flags                                                                                                                                     |
+| The upgrade lists a patch and installs nothing                                                                    | The app patches an `@aphexcms` package, and a patch is pinned to the version it was made for                                  | Check whether the new version already has the fix. Then remove the patch's entry, or port it. Ask before dropping a patch                                                      |
+| Two sidebars in `/admin`                                                                                          | The app kept an admin `+layout.svelte` that draws Aphex's sidebar, and `<AphexStudio>` draws one too                          | Delete that `+layout.svelte` and `+layout.server.ts`. The upgrade offers to replace it, defaulting to no                                                                       |
+| `Property 'signOut' is missing in type … but required in type 'AdminAuthClient'`                                  | An auth client of the app's own without `signOut`. Before, Sign out silently left the person signed in                        | Use `adminAuthClient` from `@aphexcms/auth/client` in `aphex.client.ts`                                                                                                        |
+| A type error on `activeTab` or `handleTabChange` on `<AphexStudio>`                                               | An admin route built by hand before 12. The studio tracks its own tab now                                                     | Remove both props. The upgrade rewrites a catch-all page that passes them                                                                                                      |
+| The session is `undefined` in a load, with no type error                                                          | It's `locals.aphexAuth` now. `locals.auth` is free for the app's own auth, so reading it isn't an error                       | Rename every read, including destructured `{ locals: { auth } }`                                                                                                               |
+| `Cannot find module '$lib/auth-client'`, or another file the upgrade deleted                                      | Something left in the app imported a file only the old routes used                                                            | The upgrade lists these. Delete the importer if it tested the old pages, otherwise switch it to core's export                                                                  |
+| `organizationRoleEnum` is not exported                                                                            | Apps from April 2026 re-export it. The Postgres adapter dropped it when roles got their own table                             | Remove the export                                                                                                                                                              |
+| `Type 'X' is not assignable to type 'X'` about two identical types (`Auth`, `BetterAuthOptions`, a Drizzle table) | Two copies of `better-auth`, `drizzle-orm` or `kysely` installed, each with its own types                                     | Keep `better-auth` in `@aphexcms/auth`'s range, or remove it if the app doesn't import it. `pnpm why kysely` shows the copies; collapse them with `pnpm.overrides`. Never cast |
+| Invitees get the invitation email twice                                                                           | Core sends it now, and the app still has the `api` hook in `aphex.config.ts` that sent it                                     | Remove that hook. Change the email with `invitationEmail`                                                                                                                      |
+| The password reset email's link is a 404                                                                          | The link points at the app's old `/reset-password` page                                                                       | Add `authPagesPath: '/admin'` to `createAphexAuth()`, or use `aphexAuth()` in `aphex.config.ts`, which knows                                                                   |
+| A site page shows another organization's content, or nothing, on `localhost` or in the preview                    | Reads stay in one organization now, and the page picks "the first organization" when the URL doesn't name one                 | Pick the organization with `siteContext(locals)`: the tenant, or the signed-in editor's in the preview                                                                         |
+| Deleting a document fails with 409 `Document is referenced`, or `ReferencedDocumentError`                         | Other documents still reference it, drafts included                                                                           | Delete the documents that do the referencing first, or pass `{ force: true }` if leaving them pointing at nothing is acceptable. Ask first                                     |
+| A recurring job's `scheduleNextTick` call is a type error about `listJobs`                                        | It now reads the queue to avoid forking the chain                                                                             | Pass the database adapter itself                                                                                                                                               |
+| A test asserting `Field "x" Required` fails                                                                       | Validation messages are written for editors now                                                                               | Assert on `issues[].path`, or on the new wording                                                                                                                               |
+| A list is missing a child organization's documents                                                                | Lists return the caller's organization only                                                                                   | Pass `includeChildOrganizations: true`                                                                                                                                         |
+| A hook after Aphex's in `sequence()` stops seeing `/api` or `/media`                                              | The Aphex hook answers those itself when no route of the app's matched                                                        | Put that hook before Aphex's, or keep the route files it needs                                                                                                                 |
+| A page of the app's own under `/admin` lost the sidebar                                                           | Only core's views render inside the studio                                                                                    | Expected. Make it a [plugin tool](/plugins) to get the sidebar back                                                                                                            |
+| The app won't boot: `Schema "x" uses reserved field name "type"`                                                  | A document already has its own `type`, `status`, `publishedAt` and similar columns, and a field can't shadow one, even nested | Rename the field (`variant`, `linkType`). It's data, so migrate existing values too, and ask first                                                                             |
+| `Schema "x" ordering "y" references unknown field "publishedAt"`                                                  | An ordering may only name fields the schema declares                                                                          | Remove the ordering. Queries can still sort with `sort: '-publishedAt'`                                                                                                        |
+| A slug reads as `[object Object]`, or a slug query matches nothing                                                | Code written for Sanity reads `slug.current`. Aphex stores a slug as a plain string                                           | Read `slug`, and query with `{ slug: { equals: 'about' } }`                                                                                                                    |
+| An older document is missing from a search                                                                        | Documents saved before search existed aren't indexed until they're saved again                                                | Open and save it, or re-save documents in bulk with the [Local API](/local-api)                                                                                                |
+
+## What an agent shouldn't do
+
+- **Replace a folder the upgrade kept** without asking. The lines it prints are someone's work.
+- **Delete a file the upgrade didn't recognise.** It might be a leftover with nothing importing it, or it might be the app's own code. List them instead.
+- **Restore deleted route folders** to make an error go away. Core serves those routes now; find what still imports them.
+- **Silence a type error** with `as`, `any` or `!`. Each one in the table has a real fix, and a cast hides one that fails at runtime.
+- **Rename schema fields** or change stored data without asking.
+- **Edit `node_modules`**, or patch an `@aphexcms` package to get past an error. Report it instead.

@@ -16,6 +16,8 @@ import {
 import { resolveBootstrapPolicy } from './bootstrap-policy.js';
 import type { AphexAuthConfig } from './types.js';
 import { defaultTwoFactorOtpEmail } from './email/two-factor-otp.js';
+import { defaultEmailVerification, defaultPasswordReset } from './email/link-emails.js';
+import { checkOAuthRequest, createOAuthPlugin } from './oauth.js';
 
 /** Per-address cooldown between verification emails, in seconds. */
 const VERIFICATION_EMAIL_COOLDOWN = 60;
@@ -79,8 +81,10 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		socialProviders,
 		twoFactor,
 		appName,
+		oauth,
 		betterAuth: extend
 	} = config;
+	const oauthEnabled = oauth?.enabled === true;
 
 	const {
 		requireEmailVerification = false,
@@ -112,22 +116,23 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		// A link for the first two templates, a six-digit code for `twoFactorOtp`.
 		url: string
 	) {
-		if (!emailAdapter || !emailConfig) {
-			cmsLogger.warn('[Auth]', `Email adapter not configured. ${template} email not sent.`);
+		const from = emailConfig?.from ?? emailAdapter?.defaultFrom;
+		if (!emailAdapter || !from) {
+			cmsLogger.warn(
+				'[Auth]',
+				`${template} email not sent: ${emailAdapter ? 'set `from` on the email adapter' : 'no email adapter is configured'}.`
+			);
 			return;
 		}
-		// Only the OTP template has a built-in fallback — the other two carry links
-		// into app-specific routes, so there is nothing generic to send for them.
-		const resolved =
-			emailConfig[template] ?? (template === 'twoFactorOtp' ? defaultTwoFactorOtpEmail : undefined);
-		if (!resolved) {
-			cmsLogger.warn('[Auth]', `No ${template} email template configured. Email not sent.`);
-			return;
-		}
+		const defaults = {
+			passwordReset: defaultPasswordReset,
+			emailVerification: defaultEmailVerification,
+			twoFactorOtp: defaultTwoFactorOtpEmail
+		};
 		try {
-			const { subject, render } = resolved;
+			const { subject, render } = emailConfig?.[template] ?? defaults[template];
 			const { html, text } = await render(userName, url);
-			const result = await emailAdapter.send({ from: emailConfig.from, to, subject, html, text });
+			const result = await emailAdapter.send({ from, to, subject, html, text });
 			if (result.error) {
 				cmsLogger.error('[Auth]', `Failed to send ${template} email:`, result.error);
 			} else {
@@ -228,6 +233,7 @@ export function createAuthInstance(config: AphexAuthConfig) {
 				message: 'API keys are managed through the CMS, not through the auth endpoint.'
 			});
 		}
+		checkOAuthRequest(oauthEnabled, ctx);
 	});
 
 	// better-auth reads `appName` as the default TOTP issuer, so it's what shows up
@@ -252,8 +258,11 @@ export function createAuthInstance(config: AphexAuthConfig) {
 	 * default rather than a ceiling.
 	 */
 	const wantsEmailOtp = twoFactorMethods.includes('email');
-	const canSendOtpEmail = wantsEmailOtp && Boolean(emailAdapter && emailConfig);
-	if (wantsEmailOtp && !canSendOtpEmail && !building) {
+	const canSendOtpEmail =
+		wantsEmailOtp && Boolean(emailAdapter && (emailConfig?.from ?? emailAdapter.defaultFrom));
+	// Only when asked for by name: email is on by default, and a config with no email
+	// adapter hasn't done anything to warn about.
+	if (config.options?.twoFactorMethods?.includes('email') && !canSendOtpEmail && !building) {
 		cmsLogger.warn(
 			'[Auth]',
 			"twoFactorMethods includes 'email' but no email adapter is configured — email codes are unavailable."
@@ -327,7 +336,10 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			// Only set when we have a header we trust. Passing an empty list would
 			// tell better-auth to look at nothing, which is the same shared-bucket
 			// fallback but without the warning that explains it.
-			...(ipAddressHeaders.length > 0 ? { ipAddress: { ipAddressHeaders } } : {})
+			...(ipAddressHeaders.length > 0 ? { ipAddress: { ipAddressHeaders } } : {}),
+			...(config.cookieDomain
+				? { crossSubDomainCookies: { enabled: true, domain: config.cookieDomain } }
+				: {})
 		},
 		database: drizzleAdapter(drizzleDb as never, { provider: dialect }),
 		databaseHooks: {
@@ -365,7 +377,7 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			}) => {
 				// better-auth's default link is /reset-password?token=…; the apps route
 				// the token as a path segment instead.
-				const resetUrl = `${baseURL || 'http://localhost:5173'}/reset-password/${token}`;
+				const resetUrl = `${baseURL || 'http://localhost:5173'}${config.authPagesPath ?? ''}/reset-password/${token}`;
 				await sendAuthEmail('passwordReset', user.email, user.name || user.email, resetUrl);
 			}
 		},
@@ -373,7 +385,6 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			enabled: true,
 			sendOnSignUp: requireEmailVerification,
 			autoSignInAfterVerification: true,
-			verifyEmailPath: '/verify-email',
 			sendVerificationEmail: async ({
 				user,
 				url
@@ -408,7 +419,10 @@ export function createAuthInstance(config: AphexAuthConfig) {
 				// endpoint on the generic 100/minute allowance, which is no throttle at
 				// all for an email-sending route.
 				'/request-password-reset': { window: 60, max: 2 },
-				'/forget-password': { window: 60, max: 2 }
+				'/forget-password': { window: 60, max: 2 },
+				// Registration is open to anyone (that's how Claude and ChatGPT connect),
+				// so it's the one OAuth endpoint worth a tight limit.
+				'/oauth2/register': { window: 60, max: 10 }
 			}
 		},
 		...(socialProviders ? { socialProviders } : {}),
@@ -434,12 +448,31 @@ export function createAuthInstance(config: AphexAuthConfig) {
 	// its own: the behaviour that needs a verification screen only engages for a
 	// user who has *enabled* 2FA, which requires the app to have built that UI to
 	// call `twoFactor.enable` in the first place.
+	// Always registered, like 2FA, so the tuple stays fixed; `oauth.enabled` decides
+	// whether its endpoints answer (`checkOAuthRequest`). Its pieces that need the
+	// built instance (the verification store) reach it through `built`, which is set
+	// before any request can arrive.
+	const built: { instance?: { $context: Promise<{ internalAdapter: any }> } } = {};
+	const oauthPlugin = createOAuthPlugin({
+		database: db,
+		verification: async () => {
+			if (!built.instance) throw new Error('The auth instance is not built yet.');
+			return (await built.instance.$context).internalAdapter;
+		},
+		// The MCP server's address, and `/mcp`, where it lived first.
+		resources: ['/admin/mcp', '/mcp'].map(
+			(path) => `${new URL(baseURL ?? 'http://localhost').origin}${path}`
+		)
+	});
+
 	const options = {
 		...base,
-		plugins: [apiKeyPlugin, twoFactorPlugin(twoFactorOptions ?? {})]
+		plugins: [apiKeyPlugin, twoFactorPlugin(twoFactorOptions ?? {}), oauthPlugin]
 	};
 
-	return betterAuth(extend ? (extend(options) as typeof options) : options);
+	const instance = betterAuth(extend ? (extend(options) as typeof options) : options);
+	built.instance = instance;
+	return instance;
 }
 
 export type AphexAuthInstance = ReturnType<typeof createAuthInstance>;

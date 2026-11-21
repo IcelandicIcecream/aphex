@@ -25,7 +25,7 @@ You wire up two things: wrap your site in `<AphexVisualOverlay>`, and add a `pre
 
 ## 1. Wrap your site
 
-Add the overlay once, in your public layout. It's a no-op unless the URL carries the `?aphex-preview` marker (which the editor's iframe adds), so it has zero effect on real visitors.
+Add the overlay once, in your public layout. It's a no-op unless the URL carries the `?aphex-preview` marker (your `previewUrl` carries it, and the editor removes it to show the published page), so it has zero effect on real visitors.
 
 ```svelte title="src/routes/(site)/+layout.svelte"
 <script lang="ts">
@@ -135,7 +135,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const cms = locals.aphexCMS;
 
 	// A public site renders one organization's content. Single-org deploy → the only org;
-	// multi-tenant → resolve it from the request host. A public visitor has no `locals.auth`,
+	// multi-tenant → resolve it from the request host. A public visitor has no `locals.aphexAuth`,
 	// so use `systemContext` (a system read) rather than `authToContext` (which requires a session).
 	const [org] = await cms.databaseAdapter.findAllOrganizations();
 	if (!org) error(404, 'No organization configured');
@@ -195,6 +195,22 @@ Then inline blocks call `ve.encode` **without** a `field` — it's filled in fro
 
 <img {src} alt={ve.encode(alt, { blockKey: portableText.value._key })} loading="lazy" />
 ```
+
+## What gets marked
+
+The editor marks `string`, `text` and `url` fields, at any depth, with the path down to them: a heading in a page builder's third block, inside its first column, carries `[2].columns[0].heading`. Clicking it opens each item on the way, in a modal trail, and focuses the heading.
+
+Two kinds of string are left alone, because a renderer uses them as values rather than showing them:
+
+- **A string with a `list`.** It holds one of a fixed set of values (`'center'`, `'split'`), which a renderer compares or turns into a class. A marked value would match nothing.
+- **A field with `stega: false`.** For text that is never read as text: a colour, a URL, CSS, an anchor id, a font name. On an `object` or `array` it covers everything inside.
+
+```ts
+{ name: 'accent', type: 'string', title: 'Accent colour', stega: false }
+{ name: 'style', type: 'object', title: 'Style', stega: false, fields: [/* colours, CSS */] }
+```
+
+Mark the field once rather than cleaning it in every component that reads it. A value you derive yourself still needs `stegaClean`, below.
 
 ## `stegaClean(value)`
 
@@ -272,7 +288,7 @@ export default createCMSConfig({
 });
 ```
 
-`getPreviewPerspective(locals.auth, url)` is still exported if you'd rather resolve it inline in a one-off load.
+`getPreviewPerspective(locals.aphexAuth, url)` is still exported if you'd rather resolve it inline in a one-off load.
 
 ## `ve.edit(target)` — click-to-edit for content stega can't mark up
 
@@ -304,6 +320,22 @@ Clicking reveals that field in the form pane, and with `arrayIndex`, the specifi
 {/each}
 ```
 
+### Something inside a row — `{ field, objectPath }`
+
+Text carries its own path, but an image, a button labelled by its page's title, a star rating or a card's padding has none. `objectPath` gives one: the path from `field` down, written the way the editor's stega writes it. Clicking opens each item on the way and lands on the field it ends at, or on the item, when it ends on one.
+
+```svelte
+<!-- the third block's image -->
+<img {src} alt="" {...ve.edit({ field: 'blocks', objectPath: '[2].image' })} />
+
+<!-- a card in that block: clicking its padding or its picture opens the card -->
+{#each block.items as item, i}
+	<li {...ve.edit({ field: 'blocks', objectPath: `[${index}].items[${i}]` })}>…</li>
+{/each}
+```
+
+A renderer that recurses (a layout builder's nested boxes) passes each child its own path, so every level opens itself.
+
 ### Choosing between them with `ve.documentType`
 
 When one page is reachable from several document types, the right target depends on which one the author has open. `ve.documentType` is the schema type currently being edited, or `null` outside preview:
@@ -321,8 +353,9 @@ When one page is reachable from several document types, the right target depends
 Editing the menu reveals the dish's slot in the list; editing a dish — whose preview URL is also this page — opens that dish instead.
 
 <Callout>
-	The hover overlay appends `[n]` to the label for a row, so several rows of one list don't all read
-	as the same bare field name.
+	The hover overlay labels an element by the field its path ends on (`heading`, `image`), or the
+	item (`columns[0]`); a row with no path gets `[n]` appended, so several rows of one list don't all
+	read as the same bare field name.
 </Callout>
 
 ## API reference
@@ -334,6 +367,7 @@ Editing the menu reveals the dish's slot in the list; editing a dish — whose p
 | `ve.documentType`                | Schema type currently open in the editor, or `null` outside preview.                                 |
 | `ve.edit({ id, type })`          | Attributes to make any element open a _different_ document (app-level references).                   |
 | `ve.edit({ field, arrayIndex })` | Attributes to reveal a field — or one row of it — of the document being edited.                      |
+| `ve.edit({ field, objectPath })` | Attributes to open the items along a path inside a field, and land on where it ends.                 |
 | `setPortableTextField(field)`    | Declare the field a Portable Text body belongs to, for inline blocks.                                |
 | `stegaClean(value)`              | Strip stega markers from a string or JSON tree.                                                      |
 | `isPreviewMode(url)`             | Whether the URL has the `?aphex-preview` marker.                                                     |

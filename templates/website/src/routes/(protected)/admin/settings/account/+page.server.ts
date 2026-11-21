@@ -3,7 +3,7 @@ import { email } from '$lib/server/email';
 import { authOptions } from '$lib/server/auth/auth.config';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 
 	if (!auth || auth.type !== 'session') {
 		throw new Error('No session found');

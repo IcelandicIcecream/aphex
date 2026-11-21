@@ -137,6 +137,13 @@
 	}
 
 	let input = $state('');
+	// A starting message from an `?assistant=` link (Sidebar.svelte), put in the box, not sent.
+	$effect(() => {
+		const pending = agentChatState.pendingPrompt;
+		if (pending === null) return;
+		agentChatState.pendingPrompt = null;
+		if (!input.trim()) input = pending;
+	});
 	let streaming = $state(false);
 	let controller: AbortController | null = null;
 
@@ -284,7 +291,10 @@
 						} else {
 							turnDone = true;
 							const turn = agentChatState.turns[assistantIndex];
-							if (turn?.status === 'streaming') {
+							if (turn?.status === 'streaming' && event.finishReason === 'refusal') {
+								turn.status = 'error';
+								turn.error = 'The model declined this request. Try asking another way.';
+							} else if (turn?.status === 'streaming') {
 								turn.status = event.finishReason === 'error' ? 'error' : 'complete';
 							}
 						}

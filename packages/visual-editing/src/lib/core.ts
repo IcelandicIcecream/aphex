@@ -18,6 +18,15 @@ export interface AphexPreviewOptions {
 	 * if omitted, the overlay falls back to a full `location.reload()`.
 	 */
 	onRefresh?: () => void;
+	/**
+	 * Called with a live snapshot of a *different* document the page shows, such as a
+	 * form a page's block renders, while that document is open in a stacked editor.
+	 * It arrives as it is typed, before that document saves.
+	 */
+	onRelatedData?: (
+		doc: Record<string, unknown>,
+		meta: { documentType: string; documentId: string }
+	) => void;
 }
 
 /**
@@ -73,8 +82,25 @@ function navigatesAway(target: Element): boolean {
 	return false;
 }
 
+/**
+ * What the hover label calls an element. Inside an item, the field the path ends
+ * on (`heading`, `image`), or the item it ends on (`columns[0]`): naming the
+ * top-level field would label every part of a page builder `blocks`. Otherwise
+ * the field, with the row number for a list entry — several rows of one list
+ * would all hover as the same bare name, with nothing to say which is which.
+ */
+function labelFor(d: DOMStringMap): string {
+	const path = d.aphexObjectPath;
+	if (path) {
+		const last = path.match(/(?:^|\.)([^.]+)$/)?.[1];
+		if (last && !last.startsWith('[')) return last;
+	}
+	const idx = d.aphexArrayIndex;
+	return (d.aphexField ?? '') + (idx != null ? `[${idx}]` : '');
+}
+
 export function enableAphexPreview(options: AphexPreviewOptions = {}): () => void {
-	const { stega = true, onData, onRefresh } = options;
+	const { stega = true, onData, onRefresh, onRelatedData } = options;
 
 	if (typeof window === 'undefined' || window.parent === window) return () => {};
 
@@ -193,10 +219,7 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 
 	function showOn(el: HTMLElement) {
 		activeEl = el;
-		// Show the row number for a list entry — several rows of one list otherwise all
-		// hover as the same bare field name, with nothing to say which slot is which.
-		const idx = el.dataset.aphexArrayIndex;
-		label.textContent = (el.dataset.aphexField ?? '') + (idx != null ? `[${idx}]` : '');
+		label.textContent = labelFor(el.dataset);
 		positionOn(el);
 		overlay.style.display = 'block';
 	}
@@ -279,6 +302,9 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 		} else if (type === 'aphex:data' && doc) {
 			onData?.(doc, { documentType, documentId });
 			// Re-scan after the framework re-renders with the new stega-encoded values
+			requestAnimationFrame(scanStega);
+		} else if (type === 'aphex:related-data' && doc && documentType && documentId) {
+			onRelatedData?.(doc, { documentType, documentId });
 			requestAnimationFrame(scanStega);
 		} else if (type === 'aphex:refresh') {
 			// Re-fetch server-loaded data (a different document changed). Prefer the

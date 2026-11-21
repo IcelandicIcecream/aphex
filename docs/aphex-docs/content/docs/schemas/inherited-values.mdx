@@ -1,0 +1,59 @@
+---
+title: Inherited values
+description: A field that, left empty, takes its value from somewhere else, with the admin showing that value, marking changes and offering to put them back.
+---
+
+Some settings mean something even when they're empty. A site's corners, left unset, are whatever
+its theme's style says; a page's share title, left unset, is the page's own title. An empty box
+says none of that, so an editor can't tell what the page will do, which settings they've changed,
+or how to get back.
+
+`inherits` on a field says what it is while it's empty:
+
+```ts
+{
+	name: 'corners',
+	type: 'string',
+	list: [
+		{ title: 'Square', value: 'square' },
+		{ title: 'Pill', value: 'pill' }
+	],
+	inherits: {
+		from: 'the style',
+		value: ({ documentData }) => styleOf(documentData).corners
+	}
+}
+```
+
+The admin then:
+
+- **shows the inherited value in the empty control**: an outlined tab, a muted dropdown choice, a
+  placeholder, a dashed colour swatch;
+- **marks a field set by hand** with a reset icon after its name. Its tooltip says what it goes
+  back to ("Click to go back to the style's: Pill"); clicking it clears the field;
+- **offers "Reset all"** on an object whose fields inherit, when any of them are set;
+- **shows an Undo** after every reset.
+
+`value` receives the same `{ siblingData, documentData }` as [`hidden`](/schemas/conditional-fields).
+It runs as the editor types, so it must answer straight away from the document it's given: it can
+work something out from other fields, or look it up in your code, but it can't load another document.
+
+## Display only
+
+Nothing is stored. An inheriting field that's empty stays empty in the database, and resetting
+clears it. Whatever reads the document still decides what empty means, so have `value` call the
+same function your renderer does. If they're two pieces of code they'll drift, and the form will
+show one thing while the page shows another.
+
+A throwing `value` counts as no inherited value: the field shows as a plain empty field.
+
+## Custom inputs
+
+A plugin input (`aphex/field/component`) receives the worked-out value as `inherited` (undefined
+when there's none). Show it the way an empty control would: muted, as a placeholder, dashed.
+
+## Rules
+
+- **Leaf fields only.** `inherits` on an `object` or `array` fails at boot; put it on the fields
+  inside, and the object gets "Reset all".
+- An inherited value that is itself empty (`undefined`, `null`, `''`, `[]`) counts as none.

@@ -70,6 +70,7 @@
 	.image-block-view {
 		position: relative;
 		width: 100%;
+		height: 260px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -92,8 +93,8 @@
 	   matches nothing. Namespaced enough not to collide. */
 	:global(.image-block-img) {
 		display: block;
-		max-width: 100%;
-		max-height: 400px;
+		width: 100%;
+		height: 100%;
 		object-fit: contain;
 	}
 

@@ -20,6 +20,11 @@
 			"svelte": "./src/lib/index.js",
 			"default": "./src/lib/index.js"
 		},
+		"./keys": {
+			"types": "./src/lib/keys.d.ts",
+			"svelte": "./src/lib/keys.js",
+			"default": "./src/lib/keys.js"
+		},
 		"./schema": {
 			"types": "./src/lib/schema.d.ts",
 			"svelte": "./src/lib/schema.js",

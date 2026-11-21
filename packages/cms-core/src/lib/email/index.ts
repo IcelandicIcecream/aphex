@@ -3,3 +3,6 @@
 
 // Interfaces
 export * from './interfaces/email';
+
+// Plain built-in template
+export * from './link-email';

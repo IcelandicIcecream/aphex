@@ -32,6 +32,7 @@ import { validateFile } from '../utils/mime-detect';
 import { fetchRemoteFile } from '../utils/fetch-remote-file';
 import { fieldWriteShape } from '../type-gen';
 import { hasCapability, resolveCapabilities } from '../types/capabilities';
+import { hasRequiredCapabilities } from '../schema-utils/required-capabilities';
 import { contentWorkspaceTools } from '../ai/content-workspace-tools';
 import {
 	DEFAULT_BLOCK_STYLES,
@@ -40,7 +41,9 @@ import {
 } from '../components/admin/fields/richtext/block-defaults';
 
 export interface McpToolResult {
-	content: Array<{ type: 'text'; text: string }>;
+	content: Array<
+		{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
+	>;
 	isError?: boolean;
 }
 
@@ -64,6 +67,16 @@ export interface ContentAgentTool {
 }
 
 const ok = (data: unknown): AgentToolResult => ({ success: true, data });
+
+/**
+ * Whether the caller's organization has a type at all (`requiredCapabilities`).
+ * The Local API refuses the rest, so an agent shouldn't be told about them.
+ */
+function typeAvailable(context: LocalAPIContext) {
+	if (context.overrideAccess) return () => true;
+	const held = context.auth ? resolveCapabilities(context.auth) : new Set<string>();
+	return (schema: SchemaType | undefined) => hasRequiredCapabilities(schema, held);
+}
 
 const fail = (message: string): AgentToolResult => ({ success: false, error: message });
 
@@ -211,8 +224,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 			const edges: RefEdge[] = [];
 			for (const s of schemas) collectReferences(s.name, s.fields, edges);
 
+			const available = typeAvailable(context);
 			const documentTypes = schemas
-				.filter((s) => s.type === 'document')
+				.filter((s) => s.type === 'document' && available(s))
 				.map((s) => ({
 					name: s.name,
 					title: s.title,
@@ -220,7 +234,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 					fieldCount: s.fields.length
 				}));
 			const objectTypes = schemas
-				.filter((s) => s.type === 'object')
+				.filter((s) => s.type === 'object' && available(s))
 				.map((s) => ({ name: s.name, title: s.title, fieldCount: s.fields.length }));
 
 			const auth = context.auth;
@@ -259,9 +273,12 @@ export const contentAgentTools: ContentAgentTool[] = [
 			execution: 'server',
 			inputSchema: z.object({})
 		},
-		execute: async (_input, { aphexCMS }: AgentToolExecutionContext) => {
+		execute: async (_input, { aphexCMS, context }: AgentToolExecutionContext) => {
 			const api = aphexCMS.localAPI;
-			const names = api.getCollectionNames();
+			const available = typeAvailable(context);
+			const names = api
+				.getCollectionNames()
+				.filter((name) => available(api.getCollectionSchema(name)));
 			const collections = names.map((name) => {
 				const schema = api.getCollectionSchema(name);
 				return { name, title: schema?.title ?? name, singleton: schema?.singleton ?? false };
@@ -279,12 +296,18 @@ export const contentAgentTools: ContentAgentTool[] = [
 			execution: 'server',
 			inputSchema: z.object({ collection: z.string().describe('Collection name') })
 		},
-		execute: async (args: Record<string, unknown>, { aphexCMS }: AgentToolExecutionContext) => {
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
 			const api = aphexCMS.localAPI;
 			const collection = asString(args, 'collection');
 			if (!collection) return fail('Missing required string argument: collection');
 			const schema = api.getCollectionSchema(collection);
 			if (!schema) return fail(`Unknown collection: ${collection}`);
+			if (!typeAvailable(context)(schema)) {
+				return fail(`${schema.title} isn't available in this organization.`);
+			}
 			const portableText = portableTextGuide(schema);
 			const { writeShapes, shapeLegend } = buildWriteShapes(schema, aphexCMS.config.schemaTypes);
 			return ok({
@@ -788,7 +811,16 @@ export const contentAgentTools: ContentAgentTool[] = [
 
 function toMcpResult(result: AgentToolResult): McpToolResult {
 	if (result.success) {
-		return { content: [{ type: 'text', text: JSON.stringify(result.data, null, 2) }] };
+		return {
+			content: [
+				{ type: 'text', text: JSON.stringify(result.data, null, 2) },
+				...(result.images ?? []).map((image) => ({
+					type: 'image' as const,
+					data: image.data,
+					mimeType: image.mimeType
+				}))
+			]
+		};
 	}
 	return { content: [{ type: 'text', text: result.error ?? 'Tool failed' }], isError: true };
 }
@@ -819,8 +851,17 @@ export function resolveAgentTools(
 	const pluginTools = aphexCMS.partResolver
 		.agentToolsForCapabilities(callerCapabilities)
 		.filter((t) => !coreNames.has(t.definition.name));
+	// Core tools the caller can't run aren't offered either, as with plugin tools: a
+	// model shown `publish_document` will try it and tell the user it failed. Each
+	// tool's `execute` still checks, so this only decides what's listed.
+	const held = new Set(callerCapabilities);
+	const coreTools = context.overrideAccess
+		? contentAgentTools
+		: contentAgentTools.filter((t) =>
+				(t.definition.requiredCapabilities ?? []).every((capability) => held.has(capability))
+			);
 
-	const base = [...contentAgentTools, ...pluginTools];
+	const base = [...coreTools, ...pluginTools];
 	if (opts?.documentContext) {
 		// `update_document` writes straight to the DB and bypasses the open editor. Its
 		// description already told the model to prefer the workspace tools here, but a prompt

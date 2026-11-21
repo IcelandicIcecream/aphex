@@ -37,9 +37,10 @@
 		// Another area (a tool, media) replaces the content one, and the URL can still
 		// carry the `docType` it had before (`?docType=invoice&view=plugin:dashboard`):
 		// the user is in that area, not in the type's list.
-		const view = page.url.searchParams.get('view');
-		if (view && view !== 'structure') return false;
+		// An item for an area itself (`/admin?view=media`) is matched by its own `view`.
 		const target = new URL(item.url, page.url.origin);
+		const view = page.url.searchParams.get('view');
+		if (view && view !== 'structure' && !target.searchParams.has('view')) return false;
 		if (target.pathname !== page.url.pathname) return false;
 		for (const [key, value] of target.searchParams) {
 			if (page.url.searchParams.get(key) !== value) return false;

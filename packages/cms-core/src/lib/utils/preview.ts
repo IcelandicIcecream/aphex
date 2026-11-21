@@ -158,3 +158,30 @@ export function resolvePreviewSubtitle(item: any, schema: PreviewSource): string
 	if (!configured) return null;
 	return toPreviewString(readPath(item, configured));
 }
+
+/** The asset id in an image value (`{ asset: { _ref } }`), or the string when it's one. */
+function assetRefOf(value: unknown): string | null {
+	if (typeof value === 'string') return value || null;
+	const ref = (value as { asset?: { _ref?: unknown } } | null)?.asset?._ref;
+	return typeof ref === 'string' && ref ? ref : null;
+}
+
+/**
+ * The picture to show for an item (a custom block's card in rich text), as an asset
+ * id. Precedence: `preview.prepare().media` → `select.media` dot-path → the item's
+ * first image (a top-level field holding `{ asset: { _ref } }`), so a block with a
+ * photo shows it without any preview config. Null when it has none.
+ */
+export function resolvePreviewMedia(item: any, schema: PreviewSource): string | null {
+	const prepared = runPrepare(item, schema);
+	if (prepared?.media) return assetRefOf(prepared.media);
+	const configured = schema?.preview?.select?.media;
+	if (configured) return assetRefOf(readPath(item, configured));
+	if (!item || typeof item !== 'object') return null;
+	for (const [key, value] of Object.entries(item)) {
+		if (key.startsWith('_') || typeof value !== 'object') continue;
+		const ref = assetRefOf(value);
+		if (ref) return ref;
+	}
+	return null;
+}

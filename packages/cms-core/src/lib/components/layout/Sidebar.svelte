@@ -37,6 +37,8 @@
 		structureLabel?: string;
 		/** Built-in tabs an app turns off. See `AphexClientConfig.tabs`. */
 		tabs?: { media?: boolean; vision?: boolean };
+		/** `false` when the sidebar lists the types itself (`sidebar.types`): no Structure tab. */
+		structureTab?: boolean;
 	};
 
 	let {
@@ -49,7 +51,8 @@
 		onTabChange,
 		plugins = [],
 		structureLabel = 'Structure',
-		tabs = {}
+		tabs = {},
+		structureTab = true
 	}: Props = $props();
 	let assistantOpen = $state(false);
 
@@ -102,8 +105,13 @@
 
 	// Only on the main /admin page, and only when there's more than Structure to
 	// choose: a single tab is just noise. Plugin tools placed as tabs count.
+	// With the types in the sidebar there's no Structure tab either, so a lone Media
+	// tab hides the bar too: an app that keeps Media links it from its sidebar.
 	const tabCount = $derived(
-		1 + (showVision ? 1 : 0) + (canSeeMedia ? 1 : 0) + slots.get('admin-tabs').length
+		(structureTab ? 1 : 0) +
+			(showVision ? 1 : 0) +
+			(canSeeMedia ? 1 : 0) +
+			slots.get('admin-tabs').length
 	);
 	const showTabs = $derived(page.url.pathname === '/admin' && tabCount > 1);
 </script>
@@ -131,14 +139,16 @@
 					<div
 						class="bg-muted text-muted-foreground mx-auto inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]"
 					>
-						<button
-							onclick={() => switchTab('structure')}
-							class="{activeTab.value === 'structure'
-								? 'bg-background text-foreground shadow'
-								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
-						>
-							{structureLabel}
-						</button>
+						{#if structureTab}
+							<button
+								onclick={() => switchTab('structure')}
+								class="{activeTab.value === 'structure'
+									? 'bg-background text-foreground shadow'
+									: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+							>
+								{structureLabel}
+							</button>
+						{/if}
 						{#if showVision}
 							<button
 								onclick={() => switchTab('vision')}

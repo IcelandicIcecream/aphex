@@ -97,7 +97,10 @@ export interface AphexClientConfig {
 		 * `true` lists the document types in the sidebar, grouped by their schema
 		 * `group` as the types panel groups them, so a new type appears without
 		 * editing the nav. They go where `navGroups` has a `{ id: 'types' }` group,
-		 * or else after the first group. Pairs with `typesPanel: false`.
+		 * or else after the first group. Pairs with `typesPanel: false`. The sidebar
+		 * then stands in for the document list: the Structure tab goes, a lone Media
+		 * tab with it (link `/admin?view=media` from `navGroups` to keep it), and
+		 * `?view=structure` with no type open goes to `startView`.
 		 */
 		types?: boolean;
 	};

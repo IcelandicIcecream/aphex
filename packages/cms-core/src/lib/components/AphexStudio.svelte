@@ -132,10 +132,16 @@
 	const opensDocument = (params: URLSearchParams) =>
 		['docType', 'docId', 'action'].some((key) => params.has(key));
 
+	// With the types in the sidebar, the document list on its own (no type open) only
+	// repeats the sidebar, so it isn't a place: it opens the start view instead.
+	const typesInSidebar = !!sidebar?.types;
+
 	$effect(() => {
 		const params = page.url.searchParams;
 		const area = params.get('view');
-		activeArea = area && isArea(area) ? area : opensDocument(params) ? 'structure' : startArea;
+		const asked = area && isArea(area) ? area : opensDocument(params) ? 'structure' : startArea;
+		activeArea =
+			asked === 'structure' && typesInSidebar && !opensDocument(params) ? startArea : asked;
 	});
 
 	function selectArea(area: string) {
@@ -290,6 +296,7 @@
 		{plugins}
 		structureLabel={config.labels?.structure}
 		tabs={config.tabs}
+		structureTab={!typesInSidebar}
 	>
 		{@render view()}
 	</Sidebar>

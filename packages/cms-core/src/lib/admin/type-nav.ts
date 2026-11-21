@@ -54,9 +54,24 @@ export function typeNavGroups(
  * `navGroups`, or else straight after its first group (Home or Dashboard).
  */
 export function withTypeGroups(
-	groups: SidebarNavGroup[],
-	typeGroups: SidebarNavGroup[]
+	appGroups: SidebarNavGroup[],
+	allTypeGroups: SidebarNavGroup[]
 ): SidebarNavGroup[] {
+	// An app group with a type group's id (`types:Website`) takes that group's types,
+	// first, before its own links: so a schema `group` and the app's own links (its
+	// media, a tool) can share one heading.
+	const claimed = new Set(appGroups.map((group) => group.id));
+	const groups = appGroups.map((group) => {
+		const types = allTypeGroups.find((typeGroup) => typeGroup.id === group.id);
+		return types
+			? {
+					...group,
+					label: group.label ?? types.label,
+					items: [...(types.items ?? []), ...(group.items ?? [])]
+				}
+			: group;
+	});
+	const typeGroups = allTypeGroups.filter((group) => !claimed.has(group.id));
 	const slot = groups.findIndex((group) => group.id === 'types' && !group.items?.length);
 	if (slot !== -1) return [...groups.slice(0, slot), ...typeGroups, ...groups.slice(slot + 1)];
 	const firstTop = groups.findIndex((group) => group.placement !== 'bottom');

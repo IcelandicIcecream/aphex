@@ -11,6 +11,7 @@ import {
 	type NotificationEmailValue
 } from './compile';
 import { fieldLabels, toStoredValue, type Answer } from './template';
+import { withFieldKeys } from './keys';
 import { formSubmissionCreated } from './events';
 
 /** A stored submission, as this plugin writes and reads it. */
@@ -191,7 +192,7 @@ export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
 		);
 	}
 
-	const declared = (formDoc.fields ?? []) as FormFieldValue[];
+	const declared = withFieldKeys((formDoc.fields ?? []) as FormFieldValue[]);
 	const inputs = declared.filter(isInputField);
 
 	// Keep only what the form declares — see the note above about stuffing.

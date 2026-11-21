@@ -1,4 +1,5 @@
 import type { Field, FormDefinition } from '@aphexcms/cms-core';
+import { withFieldKeys } from './keys';
 
 /**
  * Turn a `form` document — what an editor composed in the studio — into a
@@ -32,7 +33,19 @@ export interface FormFieldValue {
 	min?: number;
 	max?: number;
 	options?: Array<{ label?: string; value?: string }>;
+	/** `formDate`: only today or later (a booking, a delivery date). */
+	notPast?: boolean;
 	message?: unknown;
+}
+
+/** At least this many digits, and nothing a phone number doesn't contain. */
+const PHONE = /^\+?[\d\s().\-]+$/;
+const MIN_PHONE_DIGITS = 6;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Today as `YYYY-MM-DD`, a day early: a visitor's today may still be yesterday here. */
+function earliestToday(): string {
+	return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 /** A `form` document, as far as this plugin cares. */
@@ -138,6 +151,37 @@ function toField(field: FormFieldValue): Field | null {
 						: Rule.optional()
 			};
 
+		case 'formPhone':
+			return {
+				name,
+				type: 'string',
+				title,
+				validation: (Rule) =>
+					(required ? Rule.required() : Rule.optional()).custom((value) => {
+						if (value === undefined || value === null || value === '') return true;
+						const text = String(value);
+						return (
+							(PHONE.test(text) && text.replace(/\D/g, '').length >= MIN_PHONE_DIGITS) ||
+							'Enter a phone number'
+						);
+					})
+			};
+
+		case 'formDate':
+			return {
+				name,
+				type: 'string',
+				title,
+				validation: (Rule) =>
+					(required ? Rule.required() : Rule.optional()).custom((value) => {
+						if (value === undefined || value === null || value === '') return true;
+						const text = String(value);
+						if (!ISO_DATE.test(text) || Number.isNaN(Date.parse(text))) return 'Enter a date';
+						return !field.notPast || text >= earliestToday() || 'Choose today or a later date';
+					})
+			};
+
+		case 'formRadio':
 		case 'formSelect': {
 			const values = (field.options ?? []).map(optionValue).filter(Boolean);
 			return {
@@ -167,7 +211,11 @@ function toField(field: FormFieldValue): Field | null {
  * definition is used purely as a validation contract.
  */
 export function compileForm(doc: FormDocument): FormDefinition {
-	const fields = (doc.fields ?? []).map(toField).filter((f): f is Field => f !== null);
+	// A field whose key was never filled in (saved before the hook, or a form that
+	// skipped it) gets the one the site's renderer made for it from its label.
+	const fields = withFieldKeys(doc.fields)
+		.map(toField)
+		.filter((f): f is Field => f !== null);
 
 	return {
 		id: doc.id,

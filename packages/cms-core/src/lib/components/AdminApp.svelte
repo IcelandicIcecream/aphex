@@ -2093,6 +2093,9 @@
 												// Update local state FIRST so the URL Effect's EDIT branch
 												// sees consistent values when goto fires it.
 												isCreatingDocument = false;
+												// A page just made has no address or saved draft to show
+												// yet: `openPreview` mustn't pop it open mid-typing.
+												previewOpenedFor = docId;
 												editingDocumentId = docId;
 
 												const params = new SvelteURLSearchParams(page.url.searchParams);

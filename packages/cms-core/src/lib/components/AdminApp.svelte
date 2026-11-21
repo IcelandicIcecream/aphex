@@ -2073,6 +2073,11 @@
 										presentationMode={presentationModeOn}
 										onTogglePresentation={togglePresentationMode}
 										hideActionBar={presentationModeOn && editorStack.length > 0}
+										onExitPreview={() => {
+											// Back to the list, not a "no" to previews: the next page
+											// opened still opens with it (`openPreview`).
+											presentationModeOn = false;
+										}}
 										refreshToken={baseRefreshToken}
 										relatedPreview={stackedLive}
 										organizationId={currentOrgId}

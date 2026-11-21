@@ -78,6 +78,10 @@
 		 *  instead of a bare close (✕) icon — used for reference editors so the action
 		 *  reads as "go back" rather than "close". */
 		backLabel?: string;
+		/** In presentation mode, the type in the top bar becomes a "← {type}" button
+		 *  calling this: it closes the preview and shows the list again, which
+		 *  otherwise only the pressed Preview button did. */
+		onExitPreview?: () => void;
 		onSaved?: (documentId: string) => void;
 		onAutoSaved?: (documentId: string, title: string) => void;
 		onDeleted?: () => void;
@@ -149,6 +153,7 @@
 		isCreating,
 		onBack,
 		backLabel,
+		onExitPreview,
 		onSaved,
 		onAutoSaved,
 		onDeleted,
@@ -2798,7 +2803,20 @@
 			</button>
 			<span class="shrink-0" aria-hidden="true">/</span>
 		{/if}
-		<span class="shrink-0 whitespace-nowrap">{schema?.title || effectiveType}</span>
+		{#if presentationMode && onExitPreview && !backLabel}
+			<!-- The way back to the list while the preview has its place. -->
+			<button
+				type="button"
+				onclick={onExitPreview}
+				class="hover:text-foreground hover:bg-muted -ml-1.5 flex shrink-0 cursor-pointer items-center gap-1 rounded px-1.5 py-1 whitespace-nowrap uppercase transition-colors"
+				title="Close the preview and show the list"
+			>
+				<ArrowLeft class="h-3.5 w-3.5 shrink-0" />
+				{schema?.title || effectiveType}
+			</button>
+		{:else}
+			<span class="shrink-0 whitespace-nowrap">{schema?.title || effectiveType}</span>
+		{/if}
 		<!-- The title is only shown here in presentation mode, where there's no <h1>.
 		     In the normal editor the <h1> already renders it, so don't duplicate it. -->
 		{#if presentationMode}

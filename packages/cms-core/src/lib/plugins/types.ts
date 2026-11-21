@@ -287,7 +287,16 @@ export interface AdminToolProps {
 	/** Switch the active admin area/tab (e.g. back to `'structure'`). */
 	navigate: (area: AdminArea) => void;
 	/** Open a document in the editor. */
-	openDocument: (documentType: string, documentId: string) => void;
+	/**
+	 * Open a document in the editor. `tab` opens it on one of its field groups (the
+	 * group's `name`), as `?tab=` does in a link; `field` opens it on the group that
+	 * field sits in, so a "fix your phone number" button lands where the phone is.
+	 */
+	openDocument: (
+		documentType: string,
+		documentId: string,
+		options?: { tab?: string; field?: string }
+	) => void;
 	/**
 	 * Start a new document of this type in the editor, as the type's own "+"
 	 * does. For a tool's "New invoice" button: `navigate('structure')` only

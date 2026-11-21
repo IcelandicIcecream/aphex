@@ -199,7 +199,7 @@
 		navigate: (area) => {
 			activeTab.value = area;
 		},
-		openDocument: (documentType, documentId) => {
+		openDocument: async (documentType, documentId, options) => {
 			// Guard: without a type the editor can't resolve a schema ("No schema found").
 			if (!documentType || !documentId) {
 				cmsLogger.warn('[AdminApp]', 'openDocument called without type/id', {
@@ -212,7 +212,16 @@
 			// navigateToDocumentType does) so opening a doc from a plugin tab actually
 			// shows the editor instead of leaving state stranded on the plugin tab.
 			if (activeTab.value !== 'structure') handleTabChange('structure');
-			navigateToEditDocument(documentId, documentType);
+			await navigateToEditDocument(documentId, documentType);
+			// On one of its field groups, as `?tab=` does in a link: the one named, or
+			// the one the named field sits in (its first, when it's in several).
+			const fieldGroup = options?.field
+				? schemas
+						.find((schema) => schema.name === documentType)
+						?.fields?.find((field) => field.name === options.field)?.group
+				: undefined;
+			const tab = options?.tab ?? (Array.isArray(fieldGroup) ? fieldGroup[0] : fieldGroup);
+			if (tab) await syncTabParam(tab);
 		},
 		createDocument: (documentType) => {
 			if (!documentType) return;

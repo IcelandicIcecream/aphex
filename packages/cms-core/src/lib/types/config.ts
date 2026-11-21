@@ -19,6 +19,7 @@ import type { PreviewPerspective } from '../preview/perspective';
 import type { JobHandlerMap } from '../jobs/types';
 import type { McpInstructions } from '../mcp/instructions';
 import type { McpGuide } from '../mcp/guides';
+import type { McpPrompt } from '../mcp/prompts';
 
 export type { GraphQLConfig };
 
@@ -503,6 +504,13 @@ export interface CMSConfig {
 		 * Keep `instructions` to the rules that apply every time and put the depth here.
 		 */
 		guides?: readonly McpGuide[];
+		/**
+		 * Ready-made requests a client offers its user, like "Make my site": Claude lists
+		 * them in its "+" menu and asks for their arguments. Each becomes a message the user
+		 * sends. Some clients never show prompts, so put what an agent must know in
+		 * `instructions` or a guide, never only in a prompt.
+		 */
+		prompts?: readonly McpPrompt[];
 	};
 	/**
 	 * How many documents of a type an organization may create, such as a plan's

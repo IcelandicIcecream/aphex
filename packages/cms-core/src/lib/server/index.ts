@@ -151,3 +151,11 @@ export {
 	type McpInstructionsContext
 } from '../mcp/instructions';
 export type { McpGuide } from '../mcp/guides';
+export { validateMcpPrompts, type McpPrompt, type McpPromptArgument } from '../mcp/prompts';
+/**
+ * Core's own zod, for a plugin's `aphex/agent/tool` input schemas. A tool's schema is
+ * turned into JSON Schema for MCP clients by core, so it must come from the same zod
+ * copy core uses; an app needn't depend on zod itself.
+ */
+export { z } from 'zod';
+export { fetchRemoteFile, type RemoteFile } from '../utils/fetch-remote-file';

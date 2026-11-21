@@ -41,7 +41,9 @@ import {
 } from '../components/admin/fields/richtext/block-defaults';
 
 export interface McpToolResult {
-	content: Array<{ type: 'text'; text: string }>;
+	content: Array<
+		{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
+	>;
 	isError?: boolean;
 }
 
@@ -809,7 +811,16 @@ export const contentAgentTools: ContentAgentTool[] = [
 
 function toMcpResult(result: AgentToolResult): McpToolResult {
 	if (result.success) {
-		return { content: [{ type: 'text', text: JSON.stringify(result.data, null, 2) }] };
+		return {
+			content: [
+				{ type: 'text', text: JSON.stringify(result.data, null, 2) },
+				...(result.images ?? []).map((image) => ({
+					type: 'image' as const,
+					data: image.data,
+					mimeType: image.mimeType
+				}))
+			]
+		};
 	}
 	return { content: [{ type: 'text', text: result.error ?? 'Tool failed' }], isError: true };
 }

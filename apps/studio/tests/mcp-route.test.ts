@@ -9,6 +9,7 @@
  * Run: pnpm -F @aphexcms/studio test mcp-route
  */
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import {
 	ALL_CAPABILITIES,
 	type AgentInstructionsPart,
@@ -255,5 +256,86 @@ describe('mcp.guides', () => {
 		const { body } = await rpc(locals, 'tools/list');
 		expect(body.result.tools.map((t: { name: string }) => t.name)).not.toContain('get_guide');
 		expect((await initialize(locals)).body.result.instructions).not.toMatch(/## Guides/);
+	});
+});
+
+describe('mcp.prompts', () => {
+	const prompts = {
+		mcp: {
+			prompts: [
+				{
+					name: 'make-my-site',
+					title: 'Make my site',
+					description: 'Build the whole site from what you have.',
+					arguments: [{ name: 'website', description: 'Your current website, if any' }],
+					text: (
+						args: Record<string, string | undefined>,
+						context: { organization: { name: string } }
+					) =>
+						`Make the site for ${context.organization.name}.${args.website ? ` Read ${args.website} first.` : ''}`
+				}
+			]
+		}
+	};
+
+	it('lists a prompt with its arguments and fills it in', async () => {
+		const { locals } = setup([], prompts);
+		const list = (await rpc(locals, 'prompts/list')).body.result.prompts;
+		expect(list).toHaveLength(1);
+		expect(list[0]).toMatchObject({ name: 'make-my-site', title: 'Make my site' });
+		expect(list[0].arguments).toEqual([
+			expect.objectContaining({ name: 'website', required: false })
+		]);
+
+		const got = (
+			await rpc(locals, 'prompts/get', {
+				name: 'make-my-site',
+				arguments: { website: 'https://example.com' }
+			})
+		).body.result;
+		expect(got.messages[0].role).toBe('user');
+		expect(got.messages[0].content.text).toMatch(
+			/^Make the site for .+\. Read https:\/\/example\.com first\.$/
+		);
+	});
+
+	it('refuses a badly named prompt at boot', async () => {
+		const { validateMcpPrompts } = await import('@aphexcms/cms-core/server');
+		expect(() =>
+			validateMcpPrompts([{ name: 'Make My Site', title: 'x', description: 'x', text: () => 'x' }])
+		).toThrow(/valid prompt name/);
+	});
+});
+
+describe('tool results with images', () => {
+	it('sends a plugin tool’s images as MCP image content after its JSON', async () => {
+		const { locals } = setup([]);
+		const pixel =
+			'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+		(
+			locals.aphexCMS.partResolver as { agentToolsForCapabilities: () => unknown[] }
+		).agentToolsForCapabilities = () => [
+			{
+				definition: {
+					name: 'look_at_photo',
+					description: 'Returns a photo',
+					mutates: false,
+					requiredCapabilities: [],
+					execution: 'server',
+					inputSchema: z.object({})
+				},
+				execute: async () => ({
+					success: true,
+					data: { id: 'a1' },
+					images: [{ mimeType: 'image/png', data: pixel }]
+				})
+			}
+		];
+		const result = (await rpc(locals, 'tools/call', { name: 'look_at_photo', arguments: {} })).body
+			.result;
+		expect(result.isError).toBeFalsy();
+		expect(result.content[0]).toMatchObject({ type: 'text' });
+		expect(JSON.parse(result.content[0].text)).toEqual({ id: 'a1' });
+		expect(result.content[1]).toEqual({ type: 'image', mimeType: 'image/png', data: pixel });
 	});
 });

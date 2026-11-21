@@ -58,12 +58,24 @@ export interface AgentToolDefinition<TInput = unknown> {
 	inputSchema: z.ZodType<TInput>;
 }
 
+/** An image a tool hands back for the model to look at, base64 without a `data:` prefix. */
+export interface AgentToolImage {
+	mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+	data: string;
+}
+
 /** Outcome of a single tool call. */
 export interface AgentToolResult {
 	success: boolean;
 	data?: unknown;
 	/** Present when `success` is false — a message safe to show the model/user. */
 	error?: string;
+	/**
+	 * Images for the model to see, after `data`: a photo the owner uploaded, a logo. MCP
+	 * sends them as image content, which Claude and ChatGPT look at. Keep them small
+	 * (resize to about 768px): each costs the client's context like a page of text.
+	 */
+	images?: AgentToolImage[];
 }
 
 /** Everything an `execute` function needs to act on behalf of the calling request. */

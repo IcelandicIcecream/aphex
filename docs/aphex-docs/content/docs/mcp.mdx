@@ -206,6 +206,42 @@ export default createCMSConfig({
 
 A name is lowercase letters, digits and dashes, and two guides can't share one: both fail at boot. `get_guide` is only offered when the app has guides. Guides are a tool rather than MCP resources or prompts because every client calls tools, while support for the other two varies.
 
+### Prompts
+
+Prompts are ready-made requests a client offers its user. Claude lists them in its "+" menu, so "Make my site" is one click instead of a paragraph to type, and asks for any arguments first. Each one becomes a message the user sends as their own:
+
+```ts
+mcp: {
+	prompts: [
+		{
+			name: 'make-my-site',
+			title: 'Make my site',
+			description: 'Build the whole site from what you have.',
+			arguments: [{ name: 'website', description: 'Your current website, if you have one' }],
+			text: (args, { organization }) =>
+				`Make the website for ${organization.name}. Read the make-my-site guide first.` +
+				(args.website ? ` Our current site is ${args.website}.` : '')
+		}
+	];
+}
+```
+
+Some clients never show prompts, so a prompt only starts a job: what the agent must know belongs in the instructions or a guide. Names follow the guides' rule, and argument names are lowercase with underscores; both are checked at boot.
+
+### Tools that return images
+
+A plugin tool may return images beside its data, and MCP sends them as image content the model looks at: a photo the owner uploaded, so the agent can place it and describe it; a logo, to read its colours.
+
+```ts
+execute: async ({ id }) => ({
+	success: true,
+	data: { id, width: 768 },
+	images: [{ mimeType: 'image/jpeg', data: jpeg.toString('base64') }]
+});
+```
+
+Resize first (about 768px is plenty): each image fills the client's context like a page of text.
+
 Validation runs through the same pipeline as the HTTP and Local APIs, so an agent can't write shapes the admin UI couldn't.
 
 ## Editors get the same tools in the admin

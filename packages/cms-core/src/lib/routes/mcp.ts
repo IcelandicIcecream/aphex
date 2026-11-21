@@ -31,6 +31,7 @@ import { mcpWwwAuthenticate } from '../server/oauth-discovery';
 import { buildContentTools } from '../mcp/tools';
 import { buildMcpInstructions } from '../mcp/instructions';
 import { getGuideInput, readGuide } from '../mcp/guides';
+import { promptArgsShape } from '../mcp/prompts';
 import { isMcpEnabled } from '../mcp/paths';
 
 const SERVER_INFO = { name: 'aphexcms', version: '0.1.0' };
@@ -147,6 +148,26 @@ app.all('*', async (c) => {
 			async (args): Promise<CallToolResult> => {
 				const result = await tool.handler(args as Record<string, unknown>);
 				return { content: result.content, isError: result.isError };
+			}
+		);
+	}
+
+	// The app's prompts (`mcp.prompts`): ready-made requests the client offers its user.
+	const promptContext = {
+		organization,
+		auth,
+		capabilities: new Set(resolveCapabilities(auth)),
+		origin: new URL(c.req.url).origin
+	};
+	for (const prompt of locals.aphexCMS.config.mcp?.prompts ?? []) {
+		server.registerPrompt(
+			prompt.name,
+			{ title: prompt.title, description: prompt.description, argsSchema: promptArgsShape(prompt) },
+			async (args) => {
+				const text = await prompt.text(args as Record<string, string | undefined>, promptContext);
+				return {
+					messages: [{ role: 'user', content: { type: 'text', text: text ?? prompt.description } }]
+				};
 			}
 		);
 	}

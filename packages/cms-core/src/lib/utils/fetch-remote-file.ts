@@ -121,6 +121,12 @@ function pinnedDispatcher(Agent: typeof import('undici').Agent, host: PinnedHost
 	});
 }
 
+function tooLarge(limit: number): string {
+	return limit >= 1024 * 1024
+		? `${Math.round(limit / (1024 * 1024))}MB`
+		: `${Math.round(limit / 1024)}KB`;
+}
+
 export interface RemoteFile {
 	buffer: Buffer;
 	contentType: string | null;
@@ -129,8 +135,12 @@ export interface RemoteFile {
 /** Fetch a URL with SSRF guards: http(s)-only, private/link-local/multicast IPs blocked and the
  * validated address pinned for the actual connection (re-checked and re-pinned on every redirect
  * hop), a request timeout, and a streamed size cap (not just a Content-Length check, since that
- * header can lie). */
-export async function fetchRemoteFile(url: string): Promise<RemoteFile> {
+ * header can lie). `maxBytes` lowers the cap for a caller that wants less, such as a web page. */
+export async function fetchRemoteFile(
+	url: string,
+	options: { maxBytes?: number } = {}
+): Promise<RemoteFile> {
+	const limit = Math.min(options.maxBytes ?? MAX_REMOTE_FILE_BYTES, MAX_REMOTE_FILE_BYTES);
 	const { Agent, fetch: undiciFetch } = await loadUndici();
 
 	let current = url;
@@ -183,8 +193,8 @@ export async function fetchRemoteFile(url: string): Promise<RemoteFile> {
 		}
 
 		const contentLength = res.headers.get('content-length');
-		if (contentLength && Number(contentLength) > MAX_REMOTE_FILE_BYTES) {
-			throw new Error(`File too large (max ${MAX_REMOTE_FILE_BYTES / (1024 * 1024)}MB).`);
+		if (contentLength && Number(contentLength) > limit) {
+			throw new Error(`File too large (max ${tooLarge(limit)}).`);
 		}
 		if (!res.body) throw new Error('Response had no body.');
 
@@ -195,9 +205,9 @@ export async function fetchRemoteFile(url: string): Promise<RemoteFile> {
 			const { done, value } = await reader.read();
 			if (done) break;
 			total += value.byteLength;
-			if (total > MAX_REMOTE_FILE_BYTES) {
+			if (total > limit) {
 				await reader.cancel();
-				throw new Error(`File too large (max ${MAX_REMOTE_FILE_BYTES / (1024 * 1024)}MB).`);
+				throw new Error(`File too large (max ${tooLarge(limit)}).`);
 			}
 			chunks.push(value);
 		}

@@ -125,6 +125,8 @@ export type AdminSettingsData =
 			totpAvailable: boolean;
 			/** Apps connected to this organization over OAuth; null when OAuth is off. */
 			connectedApps: OAuthConnection[] | null;
+			/** What this user may switch on for a connected app (they hold it themselves). */
+			connectedAppOptIns: string[];
 	  }
 	| {
 			view: 'settings';

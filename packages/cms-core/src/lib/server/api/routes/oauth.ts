@@ -1,6 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { chooseOAuthSiteRequest, oauthConsentRequest } from '../../../api/schemas/oauth';
+import {
+	chooseOAuthSiteRequest,
+	connectedAppAllowedRequest,
+	oauthConsentRequest
+} from '../../../api/schemas/oauth';
+import { resolveCapabilities } from '../../../types/capabilities';
 import { cmsLogger } from '../../../utils/logger';
 import type { AphexEnv } from '../index';
 
@@ -66,6 +71,39 @@ export const connectedAppsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 		if (!oauth) return c.json({ success: true, data: [] });
 		const data = await oauth.listConnections(auth.user.id, auth.organizationId);
 		return c.json({ success: true, data });
+	})
+	// Switching on what a connected app may do beyond drafts. Only what the user can do
+	// themselves: an app never holds more than the person it acts for.
+	.patch('/:clientId', zValidator('json', connectedAppAllowedRequest, invalid), async (c) => {
+		const auth = c.var.auth;
+		if (!auth || auth.type !== 'session') return c.json(UNAUTHORIZED, 401);
+		const oauth = c.var.aphexCMS.auth?.oauth;
+		if (!oauth) return c.json(NOT_ENABLED, 404);
+		const { allowed } = c.req.valid('json');
+		const held = resolveCapabilities(auth);
+		const missing = allowed.filter((id) => !held.has(id));
+		if (missing.length > 0) {
+			return c.json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: `You can't allow what you can't do yourself: ${missing.join(', ')}.`
+				},
+				403
+			);
+		}
+		const updated = await oauth.setAllowed(
+			auth.user.id,
+			auth.organizationId,
+			c.req.param('clientId'),
+			allowed
+		);
+		if (!updated) return c.json({ success: false, error: 'Not found' }, 404);
+		cmsLogger.info(
+			'[OAuth]',
+			`Connected app ${c.req.param('clientId')} allowed: ${allowed.join(', ') || 'drafts only'}`
+		);
+		return c.json({ success: true });
 	})
 	.delete('/:clientId', async (c) => {
 		const auth = c.var.auth;

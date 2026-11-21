@@ -256,6 +256,7 @@
 					hasChildOrganizations={data.hasChildOrganizations}
 					totpAvailable={data.totpAvailable}
 					connectedApps={data.connectedApps}
+					connectedAppOptIns={data.connectedAppOptIns}
 				/>
 			{:else if data.tab === 'members'}
 				<MembersSettings team={data.team} />

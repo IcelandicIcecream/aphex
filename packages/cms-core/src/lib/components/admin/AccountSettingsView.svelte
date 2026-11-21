@@ -23,6 +23,8 @@
 		totpAvailable: boolean;
 		/** Null when this instance doesn't offer connecting apps. */
 		connectedApps?: OAuthConnection[] | null;
+		/** What this user may switch on for a connected app. */
+		connectedAppOptIns?: string[];
 	}
 
 	let {
@@ -30,7 +32,8 @@
 		userPreferences,
 		hasChildOrganizations,
 		totpAvailable,
-		connectedApps = null
+		connectedApps = null,
+		connectedAppOptIns = []
 	}: Props = $props();
 </script>
 
@@ -55,7 +58,7 @@
 		<PasswordSettings />
 		<TwoFactorSettings {totpAvailable} />
 		{#if connectedApps}
-			<ConnectedAppsSettings apps={connectedApps} />
+			<ConnectedAppsSettings apps={connectedApps} optIns={connectedAppOptIns} />
 		{/if}
 	</section>
 

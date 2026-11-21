@@ -57,10 +57,14 @@ function pkce() {
 	return { verifier, challenge };
 }
 
+/** Registration is limited per address (10 a minute), so each test client comes from its own. */
+let registrations = 0;
+
 async function register(redirectUris = [REDIRECT]) {
+	registrations += 1;
 	return http('/api/auth/oauth2/register', {
 		method: 'POST',
-		headers: { 'content-type': 'application/json' },
+		headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.0.${registrations}` },
 		body: JSON.stringify({
 			client_name: 'Claude',
 			redirect_uris: redirectUris,
@@ -381,6 +385,70 @@ describe('the token', () => {
 		expect(await oauth.disconnect(userId, TEST_ORG_ID, clientId)).toBe(true);
 		expect((await callMcp(access_token, 'tools/list')).response.status).toBe(401);
 
+		await localCleanup(id);
+	});
+
+	it('publishes only once the user allows it, for that app alone', async () => {
+		const { clientId, code, verifier } = await connect();
+		const { access_token } = await (await exchange(clientId, code, verifier)).json();
+		const tools = async () =>
+			(await callMcp(access_token, 'tools/list')).body.result.tools.map(
+				(tool: { name: string }) => tool.name
+			);
+		expect(await tools()).not.toContain('publish_document');
+
+		// Only opt-in capabilities are stored, whatever is sent.
+		expect(
+			await oauth.setAllowed(userId, TEST_ORG_ID, clientId, ['document.publish', 'member.invite'])
+		).toBe(true);
+		const [connection] = (await oauth.listConnections(userId, TEST_ORG_ID)).filter(
+			(c) => c.clientId === clientId
+		);
+		expect(connection.allowed).toEqual(['document.publish']);
+		expect(connection.scopes).toEqual(SCOPE.split(' '));
+
+		// From the very next call.
+		expect(await tools()).toContain('publish_document');
+		const created = await callMcp(access_token, 'tools/call', {
+			name: 'create_document',
+			arguments: { collection: 'page', data: { title: 'Allowed to go live', slug: 'allowed-live' } }
+		});
+		const { id } = JSON.parse(created.body.result.content[0].text).document;
+		const published = await callMcp(access_token, 'tools/call', {
+			name: 'publish_document',
+			arguments: { collection: 'page', id }
+		});
+		expect(published.body.result.isError, published.body.result.content[0].text).toBeFalsy();
+
+		// Another app the same user connected is still drafts only.
+		const other = await connect();
+		const { access_token: otherToken } = await (
+			await exchange(other.clientId, other.code, other.verifier)
+		).json();
+		const otherTools = (await callMcp(otherToken, 'tools/list')).body.result.tools.map(
+			(tool: { name: string }) => tool.name
+		);
+		expect(otherTools).not.toContain('publish_document');
+
+		// Switched off: gone again on the next call.
+		await oauth.setAllowed(userId, TEST_ORG_ID, clientId, []);
+		expect(await tools()).not.toContain('publish_document');
+
+		// Authorizing the same app again (a token renewal) keeps what was allowed.
+		await oauth.setAllowed(userId, TEST_ORG_ID, clientId, ['document.publish']);
+		const { challenge } = pkce();
+		const again = await http(authorizeUrl(clientId, challenge, 'state-2'), { headers: { cookie } });
+		const siteQuery = pageQuery(again.headers.get('location'), '/admin/oauth/site');
+		const { url: next } = await oauth.chooseOrganization(signedIn(), siteQuery, TEST_ORG_ID);
+		// Already consented to: straight back to the app, no consent page.
+		expect(new URL(next, ORIGIN).href.startsWith(REDIRECT)).toBe(true);
+		const [renewed] = (await oauth.listConnections(userId, TEST_ORG_ID)).filter(
+			(c) => c.clientId === clientId
+		);
+		expect(renewed.allowed).toEqual(['document.publish']);
+
+		await oauth.disconnect(userId, TEST_ORG_ID, clientId);
+		await oauth.disconnect(userId, TEST_ORG_ID, other.clientId);
 		await localCleanup(id);
 	});
 });

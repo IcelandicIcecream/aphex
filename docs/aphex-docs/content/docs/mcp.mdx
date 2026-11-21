@@ -74,7 +74,25 @@ What a connected app can do:
 | `aphex:write`    | Creating and editing drafts, uploading media, and plugins' own tools. |
 | `offline_access` | Staying connected (a refresh token) until the user disconnects it.    |
 
-It can **never** publish, unpublish, delete, or manage members, roles, keys or settings, whatever the user's role: what goes live stays with a person in the admin. Tools it can't use aren't listed to it. Users see and disconnect their apps under **Settings → Account → Connected apps**; disconnecting removes the grant and its tokens, so the app's next call fails.
+A new connection works on **drafts only**: it can't publish, unpublish or delete until the user allows it, and it can **never** manage members, roles, keys or settings, whatever the user's role. Tools it can't use aren't listed to it. Users see and disconnect their apps under **Settings → Account → Connected apps**; disconnecting removes the grant and its tokens, so the app's next call fails.
+
+### Letting a connected app publish
+
+Under each app in **Connected apps**, the user can switch on what it may do beyond drafts, one at a time (`OAUTH_OPT_IN_CAPABILITIES`):
+
+| Switch                                 | Capability           |
+| -------------------------------------- | -------------------- |
+| Publish drafts, so its changes go live | `document.publish`   |
+| Take content off the live site         | `document.unpublish` |
+| Delete documents                       | `document.delete`    |
+| Delete media                           | `asset.delete`       |
+
+- Only what the user can do themselves is offered, and the server refuses the rest (403): an app never holds more than the person it acts for, and losing a role takes it from the app too.
+- It applies from the app's next request: the token is checked on every call. With publishing on, the app is told it may publish, and only when the user asks; `publish_document` appears in its tools.
+- It belongs to that one connection, and lasts while the app renews its tokens. Disconnecting removes it; connecting the app again afterwards starts from drafts only.
+- An app reads content it didn't write (websites, form messages), and some of it may try to give it instructions. Publishing removes the person who would catch that before it's live, so switch it on only for an app you watch, and keep the app's own instructions telling it to publish only what the user said yes to.
+
+Stored on the grant itself, as `aphex:allow:<capability>` entries in its consent's scopes, so it needs no table of its own; `PATCH /api/settings/connected-apps/:clientId` with `{ "allowed": ["document.publish"] }` sets it.
 
 Tokens are opaque and checked against the database on every call, and they're issued only for the MCP server on `baseURL`'s origin (`/admin/mcp`, or `/mcp`). Serve the app from that address, and set `baseURL`: without it there's no issuer to advertise.
 

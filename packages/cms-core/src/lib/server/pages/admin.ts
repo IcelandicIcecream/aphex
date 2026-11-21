@@ -1,7 +1,11 @@
 import { error, redirect } from '@sveltejs/kit';
 import { isAccepted, isExpired } from '../../auth/invitation-status';
 import { isViewer } from '../../types/auth';
-import { hasCapability } from '../../types/capabilities';
+import {
+	hasCapability,
+	isOAuthOptInCapability,
+	resolveCapabilities
+} from '../../types/capabilities';
 import type { Auth, AuthFeatures, LoginBranding, SessionAuth } from '../../types/auth';
 import type { Organization } from '../../types/organization';
 import type { SidebarOrganization } from '../../types/sidebar';
@@ -200,7 +204,8 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 				userPreferences,
 				hasChildOrganizations,
 				totpAvailable,
-				connectedApps
+				connectedApps,
+				connectedAppOptIns: [...resolveCapabilities(auth)].filter(isOAuthOptInCapability)
 			};
 		}
 		case 'settings/members': {

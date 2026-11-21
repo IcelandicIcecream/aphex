@@ -71,8 +71,8 @@
 					<li class="flex gap-2.5">
 						<X class="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden="true" />
 						<span class="text-muted-foreground">
-							It can't publish, delete, or change members and settings. What goes live stays with
-							you.
+							It can't publish or delete unless you allow it later in Connected apps, and it can
+							never change members or settings. What goes live stays with you.
 						</span>
 					</li>
 				</ul>

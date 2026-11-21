@@ -90,6 +90,11 @@ export interface OAuthConnection {
 	uri: string | null;
 	icon: string | null;
 	scopes: string[];
+	/**
+	 * What the user switched on for this app beyond its scopes (publishing, deleting),
+	 * out of `OAUTH_OPT_IN_CAPABILITIES`. Empty for a new connection.
+	 */
+	allowed: string[];
 	connectedAt: Date;
 }
 
@@ -117,6 +122,16 @@ export interface OAuthServer {
 	/** Allow or deny, and return where the browser goes next (back to the app). */
 	consent(request: Request, oauthQuery: string, accept: boolean): Promise<{ url: string }>;
 	listConnections(userId: string, organizationId: string): Promise<OAuthConnection[]>;
+	/**
+	 * Replace what the user has switched on for this app (`OAUTH_OPT_IN_CAPABILITIES`
+	 * ids only), from its next request. False when there's no such connection.
+	 */
+	setAllowed(
+		userId: string,
+		organizationId: string,
+		clientId: string,
+		allowed: string[]
+	): Promise<boolean>;
 	/** Remove the grant and every token it issued. False when there was nothing to remove. */
 	disconnect(userId: string, organizationId: string, clientId: string): Promise<boolean>;
 }

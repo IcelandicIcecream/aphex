@@ -436,15 +436,29 @@ export const OAUTH_SCOPES = {
 export type OAuthScope = keyof typeof OAUTH_SCOPES;
 
 /**
- * Never reachable by a connected app, whatever its scopes or the user's role: going
- * live and destroying things stay with a person in the admin, as does running the
- * organization.
+ * What a connected app may do only when the user has switched it on for that app
+ * (Connected apps in the admin): going live, taking down and deleting content. Off
+ * for every new connection; disconnecting the app removes them.
+ */
+export const OAUTH_OPT_IN_CAPABILITIES = {
+	'document.publish': 'Publish drafts, so its changes go live',
+	'document.unpublish': 'Take content off the live site',
+	'document.delete': 'Delete documents',
+	'asset.delete': 'Delete media'
+} as const;
+
+export type OAuthOptInCapability = keyof typeof OAUTH_OPT_IN_CAPABILITIES;
+
+export function isOAuthOptInCapability(id: string): id is OAuthOptInCapability {
+	return Object.hasOwn(OAUTH_OPT_IN_CAPABILITIES, id);
+}
+
+/**
+ * Never reachable by a connected app, whatever its scopes, opt-ins or the user's role:
+ * running the organization (members, keys, roles, settings) stays with a person in
+ * the admin, so an app can never widen its own access or lock the owner out.
  */
 const OAUTH_EXCLUDED_CAPABILITIES = new Set<string>([
-	'document.delete',
-	'document.publish',
-	'document.unpublish',
-	'asset.delete',
 	'member.invite',
 	'member.remove',
 	'member.changeRole',
@@ -462,7 +476,9 @@ const OAUTH_EXCLUDED_CAPABILITIES = new Set<string>([
  */
 export function oauthScopeCapabilities(
 	scopes: readonly string[],
-	grantable: Iterable<string>
+	grantable: Iterable<string>,
+	/** What the user switched on for this app, out of {@link OAUTH_OPT_IN_CAPABILITIES}. */
+	optedIn: readonly string[] = []
 ): string[] {
 	const allowed = new Set<string>();
 	if (scopes.includes('aphex:read') || scopes.includes('aphex:write')) {
@@ -474,7 +490,12 @@ export function oauthScopeCapabilities(
 		for (const id of API_KEY_WRITE_CAPABILITIES) allowed.add(id);
 		for (const id of held) if (!core.has(id)) allowed.add(id);
 	}
-	return held.filter((id) => allowed.has(id) && !OAUTH_EXCLUDED_CAPABILITIES.has(id));
+	return held.filter(
+		(id) =>
+			allowed.has(id) &&
+			!OAUTH_EXCLUDED_CAPABILITIES.has(id) &&
+			(!isOAuthOptInCapability(id) || optedIn.includes(id))
+	);
 }
 
 /**

@@ -13,10 +13,15 @@
  *   compute here, so `/mcp` looks them up directly and revoking is immediate.
  * - **Scopes in Aphex's terms** (`aphex:read`, `aphex:write`), turned into
  *   capabilities by `oauthScopeCapabilities` in core.
+ * - **Opt-ins.** What the user switches on for one app beyond its scopes (publishing,
+ *   deleting) is kept on its consent as `aphex:allow:<capability>` entries, read on
+ *   every call. Authorizing the same app again keeps them (it's the same consent); the
+ *   plugin rewrites a consent's scopes only when it asks for consent again (new scopes),
+ *   which switches them off. Disconnecting deletes the consent, and with it them all.
  */
 import { APIError } from 'better-auth/api';
 import { oauthProvider, getOAuthProviderState } from '@better-auth/oauth-provider';
-import { OAUTH_SCOPES, oauthScopeCapabilities } from '@aphexcms/cms-core';
+import { OAUTH_SCOPES, isOAuthOptInCapability, oauthScopeCapabilities } from '@aphexcms/cms-core';
 import type { DatabaseAdapter, OAuthConnection, OAuthServer } from '@aphexcms/cms-core/server';
 import { ownerGrantableCapabilities } from './service.js';
 import type { AphexAuthInstance } from './instance.js';
@@ -24,6 +29,20 @@ import type { AphexAuthInstance } from './instance.js';
 /** Access tokens start with this, so `/mcp` can tell one from an API key at a glance. */
 export const OAUTH_ACCESS_TOKEN_PREFIX = 'aphex_at_';
 const OAUTH_REFRESH_TOKEN_PREFIX = 'aphex_rt_';
+/** A consent's scopes entry recording one capability the user switched on for the app. */
+const ALLOW_PREFIX = 'aphex:allow:';
+
+/** A consent's scopes, split into the real scopes and what the user switched on. */
+function splitConsentScopes(entries: string[]): { scopes: string[]; allowed: string[] } {
+	const scopes: string[] = [];
+	const allowed: string[] = [];
+	for (const entry of entries) {
+		if (!entry.startsWith(ALLOW_PREFIX)) scopes.push(entry);
+		else if (isOAuthOptInCapability(entry.slice(ALLOW_PREFIX.length)))
+			allowed.push(entry.slice(ALLOW_PREFIX.length));
+	}
+	return { scopes, allowed };
+}
 
 /** How long an authorization in progress (and its site choice) stays valid. */
 const AUTHORIZATION_TTL_SECONDS = 600;
@@ -279,12 +298,25 @@ export function createOAuthServer(
 			const grantable = await ownerGrantableCapabilities(db, token.userId, organizationId);
 			if (!grantable) return null;
 			const scopes = list(token.scopes);
+			const consent: Row | null = await (
+				await adapter()
+			).findOne({
+				model: 'oauthConsent',
+				where: [
+					{ field: 'clientId', value: token.clientId },
+					{ field: 'userId', value: token.userId },
+					{ field: 'referenceId', value: organizationId }
+				]
+			});
+			// No consent means the grant was withdrawn: a stray token reaches nothing.
+			if (!consent) return null;
+			const { allowed } = splitConsentScopes(list(consent.scopes));
 			return {
 				type: 'api_key',
 				keyId: `oauth:${token.clientId}`,
 				name: app.name || 'Connected app',
 				permissions: scopes.includes('aphex:write') ? ['read', 'write'] : ['read'],
-				capabilities: oauthScopeCapabilities(scopes, grantable),
+				capabilities: oauthScopeCapabilities(scopes, grantable, allowed),
 				organizationId
 			};
 		},
@@ -349,16 +381,40 @@ export function createOAuthServer(
 			const connections: OAuthConnection[] = [];
 			for (const consent of consents) {
 				const app = await client(consent.clientId);
+				const { scopes, allowed } = splitConsentScopes(list(consent.scopes));
 				connections.push({
 					clientId: consent.clientId,
 					name: app?.name || 'An app',
 					uri: app?.uri ?? null,
 					icon: app?.icon ?? null,
-					scopes: list(consent.scopes),
+					scopes,
+					allowed,
 					connectedAt: new Date(consent.createdAt)
 				});
 			}
 			return connections.sort((a, b) => b.connectedAt.getTime() - a.connectedAt.getTime());
+		},
+
+		async setAllowed(userId, organizationId, clientId, allowed) {
+			const db = await adapter();
+			const where = [
+				{ field: 'clientId', value: clientId },
+				{ field: 'userId', value: userId },
+				{ field: 'referenceId', value: organizationId }
+			];
+			const consent: Row | null = await db.findOne({ model: 'oauthConsent', where });
+			if (!consent) return false;
+			const { scopes } = splitConsentScopes(list(consent.scopes));
+			const ids = [...new Set(allowed.filter(isOAuthOptInCapability))].sort();
+			await db.update({
+				model: 'oauthConsent',
+				where: [{ field: 'id', value: consent.id }],
+				update: {
+					scopes: [...scopes, ...ids.map((id) => ALLOW_PREFIX + id)],
+					updatedAt: new Date()
+				}
+			});
+			return true;
 		},
 
 		async disconnect(userId, organizationId, clientId) {

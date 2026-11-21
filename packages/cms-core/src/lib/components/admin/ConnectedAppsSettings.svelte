@@ -3,10 +3,15 @@
 	 * The apps (Claude, ChatGPT…) this user has connected to the current organization
 	 * over OAuth, with a way to cut one off. Disconnecting removes the grant and every
 	 * token it issued, so the app's next request fails.
+	 *
+	 * Each app works on drafts only until the user switches more on for it (publishing,
+	 * deleting: `OAUTH_OPT_IN_CAPABILITIES`). Only what the user can do themselves is
+	 * offered, and it takes effect on the app's next request.
 	 */
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
+	import { Switch } from '@aphexcms/ui/shadcn/switch';
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Check, Copy, Plug } from '@lucide/svelte';
@@ -15,10 +20,67 @@
 	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
 	import type { OAuthConnection } from '../../auth/provider';
 	import { MCP_PATH } from '../../mcp/paths';
+	import { OAUTH_OPT_IN_CAPABILITIES, type OAuthOptInCapability } from '../../types/capabilities';
 
-	let { apps }: { apps: OAuthConnection[] } = $props();
+	let { apps, optIns = [] }: { apps: OAuthConnection[]; optIns?: string[] } = $props();
 
 	let removing = $state<string | null>(null);
+	let saving = $state<string | null>(null);
+
+	/** What this user may switch on, in the list's own order. */
+	const offered = $derived(
+		(Object.keys(OAUTH_OPT_IN_CAPABILITIES) as OAuthOptInCapability[]).filter((id) =>
+			optIns.includes(id)
+		)
+	);
+
+	/** Asked before switching on, since each lets the app act without a person checking. */
+	const WARNINGS: Record<OAuthOptInCapability, string> = {
+		'document.publish':
+			'Its changes can go live without you checking them first. Anything it reads (a website, a form message) could try to trick it, so only allow this for an app you watch.',
+		'document.unpublish': 'It can take pages off your live site.',
+		'document.delete': 'It can delete documents. Deleted documents can’t be brought back.',
+		'asset.delete': 'It can delete images and files, including ones your pages use.'
+	};
+
+	async function setAllowed(app: OAuthConnection, id: OAuthOptInCapability, on: boolean) {
+		if (on) {
+			const confirmed = await confirmDialog({
+				title: `Let ${app.name} ${verb(id)}?`,
+				description: `${WARNINGS[id]} You can switch it off here at any time.`,
+				confirmText: 'Allow',
+				variant: id === 'document.publish' ? 'default' : 'destructive'
+			});
+			if (!confirmed) return;
+		}
+		const allowed = on
+			? [...new Set([...app.allowed, id])]
+			: app.allowed.filter((entry) => entry !== id);
+		saving = `${app.clientId}:${id}`;
+		try {
+			const response = await oauth.setAllowed(app.clientId, {
+				allowed: allowed as OAuthOptInCapability[]
+			});
+			if (!response.success) throw new Error(response.message ?? 'Could not save');
+			toast.success(
+				on ? `${app.name} can now ${verb(id)}` : `${app.name} can no longer ${verb(id)}`
+			);
+			await invalidateAll();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'Could not save');
+		} finally {
+			saving = null;
+		}
+	}
+
+	/** "Claude can now …". */
+	const VERBS: Record<OAuthOptInCapability, string> = {
+		'document.publish': 'publish',
+		'document.unpublish': 'unpublish',
+		'document.delete': 'delete documents',
+		'asset.delete': 'delete media'
+	};
+	const verb = (id: string) => VERBS[id as OAuthOptInCapability] ?? id;
 
 	/** What Claude or ChatGPT is given: this site's own address, tenant subdomain and all. */
 	const address = $derived(`${page.url.origin}${MCP_PATH}`);
@@ -34,8 +96,12 @@
 		}
 	}
 
-	const scopeSummary = (scopes: string[]) =>
-		scopes.includes('aphex:write') ? 'Reads and edits drafts' : 'Reads content';
+	const scopeSummary = (app: OAuthConnection) =>
+		!app.scopes.includes('aphex:write')
+			? 'Reads content'
+			: app.allowed.includes('document.publish')
+				? 'Edits drafts and publishes'
+				: 'Reads and edits drafts';
 
 	const connectedOn = (date: Date | string) =>
 		new Date(date).toLocaleDateString(undefined, {
@@ -69,36 +135,64 @@
 	<Card.Header>
 		<Card.Title>Connected apps</Card.Title>
 		<Card.Description>
-			Apps such as Claude or ChatGPT you've let into this site. Each acts as you, can read and edit
-			drafts, and can never publish or delete.
+			Apps such as Claude or ChatGPT you've let into this site. Each acts as you and works on
+			drafts. It can't publish or delete unless you allow it below, and it can never change members
+			or settings.
 		</Card.Description>
 	</Card.Header>
 	<Card.Content class="space-y-6">
 		{#if apps.length > 0}
 			<ul class="divide-y">
 				{#each apps as app (app.clientId)}
-					<li class="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-						{#if app.icon}
-							<img src={app.icon} alt="" class="size-8 shrink-0 rounded-md object-contain" />
-						{:else}
-							<div class="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
-								<Plug class="text-muted-foreground size-4" aria-hidden="true" />
+					<li class="py-3 first:pt-0 last:pb-0">
+						<div class="flex items-center gap-3">
+							{#if app.icon}
+								<img src={app.icon} alt="" class="size-8 shrink-0 rounded-md object-contain" />
+							{:else}
+								<div class="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
+									<Plug class="text-muted-foreground size-4" aria-hidden="true" />
+								</div>
+							{/if}
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm font-medium">{app.name}</p>
+								<p class="text-muted-foreground truncate text-xs">
+									{scopeSummary(app)} · connected {connectedOn(app.connectedAt)}
+								</p>
 							</div>
-						{/if}
-						<div class="min-w-0 flex-1">
-							<p class="truncate text-sm font-medium">{app.name}</p>
-							<p class="text-muted-foreground truncate text-xs">
-								{scopeSummary(app.scopes)} · connected {connectedOn(app.connectedAt)}
-							</p>
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={removing === app.clientId}
+								onclick={() => disconnect(app)}
+							>
+								{removing === app.clientId ? 'Disconnecting…' : 'Disconnect'}
+							</Button>
 						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={removing === app.clientId}
-							onclick={() => disconnect(app)}
-						>
-							{removing === app.clientId ? 'Disconnecting…' : 'Disconnect'}
-						</Button>
+						{#if offered.length > 0 && app.scopes.includes('aphex:write')}
+							<details class="group mt-2 pl-11" open={app.allowed.length > 0}>
+								<summary class="text-muted-foreground hover:text-foreground cursor-pointer text-xs">
+									{app.allowed.length > 0
+										? `Also allowed: ${app.allowed.map(verb).join(', ')}`
+										: 'Allow more'}
+								</summary>
+								<ul class="mt-2 grid gap-2">
+									{#each offered as id (id)}
+										<li class="flex items-center justify-between gap-3">
+											<label for={`${app.clientId}-${id}`} class="text-sm">
+												{OAUTH_OPT_IN_CAPABILITIES[id]}
+											</label>
+											<Switch
+												id={`${app.clientId}-${id}`}
+												bind:checked={
+													() => app.allowed.includes(id), (on) => setAllowed(app, id, on)
+												}
+												disabled={saving !== null}
+											/>
+										</li>
+									{/each}
+								</ul>
+							</details>
+						{/if}
 					</li>
 				{/each}
 			</ul>
@@ -235,9 +329,10 @@
 		<div class="bg-muted/50 space-y-1 rounded-md p-3 text-xs">
 			<p class="font-medium">What it can do</p>
 			<p class="text-muted-foreground">
-				It works as you, in this site only. It can read your content and write drafts, but it can
-				never publish, delete, or change members and settings: you check its work and publish it
-				yourself. Disconnect it here any time and it loses access straight away.
+				It works as you, in this site only. It can read your content and write drafts; you check its
+				work and publish it yourself. Once it's connected you can let it publish too, here. It can
+				never change members or settings. Disconnect it here any time and it loses access straight
+				away.
 			</p>
 		</div>
 	</div>

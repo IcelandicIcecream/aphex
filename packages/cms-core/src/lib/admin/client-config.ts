@@ -124,6 +124,12 @@ export interface AphexClientConfig {
 	 */
 	typesPanel?: boolean;
 	/**
+	 * Open a document with its live preview beside the fields, on a screen wide
+	 * enough for both, for a type with a `previewUrl`. Closing it keeps it closed
+	 * for the rest of the visit. Off by default: the fields alone.
+	 */
+	openPreview?: boolean;
+	/**
 	 * What a bare `/admin` opens, as an admin area: `'plugin:dashboard'` for a
 	 * plugin tool's page. Signing in lands here too. A URL naming a document or a
 	 * `view` still goes there. Defaults to the document types (`'structure'`).

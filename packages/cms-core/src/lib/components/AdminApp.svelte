@@ -64,6 +64,8 @@
 		contentLabel?: string;
 		/** `false` hides the types panel once a type is open. See `AphexClientConfig.typesPanel`. */
 		typesPanel?: boolean;
+		/** See `AphexClientConfig.openPreview`. */
+		openPreview?: boolean;
 		graphqlSettings?: { endpoint: string; enableGraphiQL: boolean } | null;
 		isReadOnly?: boolean;
 		/**
@@ -98,6 +100,7 @@
 		title = 'Aphex CMS',
 		contentLabel = 'Content',
 		typesPanel: typesPanelEnabled = true,
+		openPreview = false,
 		graphqlSettings = null,
 		isReadOnly = false,
 		capabilities = [],
@@ -231,7 +234,8 @@
 					icon: schema?.icon,
 					group: schema?.group,
 					access: schema?.access,
-					singleton: schema?.singleton ?? false
+					singleton: schema?.singleton ?? false,
+					emptyText: schema?.emptyText
 				};
 			})
 			// A type the organization doesn't have (`requiredCapabilities`), as the server refuses it.
@@ -355,13 +359,39 @@
 	// real estate for the preview canvas when presentation mode opens.
 	const sidebar = useSidebar();
 
+	/** Closed by hand this visit: `openPreview` doesn't open it again. */
+	let previewDismissed = false;
+	let previewOpenedFor: string | null = null;
+
+	// `openPreview`: each document with a preview opens with it, on a wide screen.
+	$effect(() => {
+		const id = editingDocumentId;
+		if (
+			!openPreview ||
+			previewDismissed ||
+			currentView !== 'editor' ||
+			!id ||
+			previewOpenedFor === id
+		)
+			return;
+		if (typeof window === 'undefined' || window.innerWidth < 1200) return;
+		if (!schemas.find((s) => s.name === selectedDocumentType)?.previewUrl) return;
+		previewOpenedFor = id;
+		if (!presentationModeOn) {
+			presentationModeOn = true;
+			sidebar?.setOpen(false);
+		}
+	});
+
 	function togglePresentationMode() {
+		if (presentationModeOn) previewDismissed = true;
 		presentationModeOn = !presentationModeOn;
 		// Entering presentation mode: collapse the nav rail so the preview gets the room.
 		if (presentationModeOn) sidebar?.setOpen(false);
 	}
 
 	function exitPresentationMode() {
+		previewDismissed = true;
 		presentationModeOn = false;
 	}
 
@@ -486,6 +516,38 @@
 
 	// Human label for a document type: the schema's `title` (e.g. "Blog Post"),
 	// falling back to a prettified name so `blog_post` never surfaces as "Blog_post".
+	/**
+	 * Whether the signed-in person may make a document of this type, as far as the
+	 * admin can tell: the capability, not a singleton, and the schema's own
+	 * `access.create` (a role list, or a policy asked with what the admin knows of
+	 * them). Only hides the + button: the server checks every create itself.
+	 */
+	function canCreateType(name: string | null | undefined): boolean {
+		const schema = schemas.find((s) => s.name === name);
+		if (!schema || schema.type !== 'document' || schema.singleton || !perms.can('document.create'))
+			return false;
+		const rule = schema.access?.create;
+		if (Array.isArray(rule)) return perms.role === 'super_admin' || rule.includes(perms.role ?? '');
+		if (typeof rule === 'function') {
+			try {
+				return rule({ auth: { type: 'session', organizationRole: perms.role } as never }) !== false;
+			} catch {
+				return true;
+			}
+		}
+		return true;
+	}
+
+	/** "21 Nov", or "21 Nov 2025" from another year, in the reader's own language. */
+	function shortDate(date: Date): string {
+		const sameYear = date.getFullYear() === new Date().getFullYear();
+		return date.toLocaleDateString(undefined, {
+			day: 'numeric',
+			month: 'short',
+			...(sameYear ? {} : { year: 'numeric' })
+		});
+	}
+
 	function typeLabel(name: string | null | undefined): string {
 		if (!name) return '';
 		const title = schemas.find((s) => s.name === name)?.title;
@@ -1590,7 +1652,10 @@
 															{pluralize(currentDocType?.title || selectedDocumentType)}
 														</h3>
 														<p class="text-muted-foreground text-xs">
-															{docTotalDocs} document{docTotalDocs !== 1 ? 's' : ''}
+															{docTotalDocs}
+															{docTotalDocs === 1
+																? typeLabel(selectedDocumentType).toLowerCase()
+																: pluralize(typeLabel(selectedDocumentType).toLowerCase())}
 														</p>
 													</div>
 												</div>
@@ -1604,7 +1669,7 @@
 													>
 														<Search class="h-4 w-4" />
 													</Button>
-													{#if perms.can('document.create') && !schemas.find((s) => s.name === selectedDocumentType)?.singleton}
+													{#if canCreateType(selectedDocumentType)}
 														<Button
 															size="sm"
 															variant="ghost"
@@ -1839,7 +1904,7 @@
 														</div>
 														<div class="flex items-center gap-2">
 															<span class="text-muted-foreground text-xs">
-																{doc.updatedAt?.toLocaleDateString() || ''}
+																{doc.updatedAt ? shortDate(doc.updatedAt) : ''}
 															</span>
 															<div class="flex items-center gap-1">
 																{#if doc.status === 'published'}
@@ -1889,7 +1954,11 @@
 														{@const noun = typeLabel(selectedDocumentType).toLowerCase()}
 														<h3 class="mb-2 font-medium">No {pluralize(noun)} yet</h3>
 														<p class="text-muted-foreground text-sm">
-															Add your first {noun} with the + button above.
+															{#if currentDocType?.emptyText}
+																{currentDocType.emptyText}
+															{:else if canCreateType(selectedDocumentType)}
+																Add your first {noun} with the + button above.
+															{/if}
 														</p>
 													{/if}
 												</div>

@@ -118,6 +118,19 @@
 		)
 	);
 	let insertMenuOpen = $state(false);
+	/**
+	 * What the add button says: the field's name for one of its items ("Add block"
+	 * for Blocks, "Add section" for Sections), rather than "Add item…".
+	 */
+	const addLabel = $derived.by(() => {
+		const title = (field.title || field.name || '').trim();
+		const one = /ies$/i.test(title)
+			? title.replace(/ies$/i, 'y')
+			: /[^s]s$/i.test(title)
+				? title.slice(0, -1)
+				: '';
+		return one ? `Add ${one.toLowerCase()}` : 'Add';
+	});
 
 	// The item's field spec, used to render each primitive item through the shared
 	// FieldInput resolver (so a rich type or a plugin `input` widget works per item).
@@ -1012,7 +1025,7 @@
 				onclick={handleAddPrimitive}
 			>
 				<Plus class="h-4 w-4" />
-				Add item...
+				{addLabel}
 			</button>
 		{/if}
 	{/if}
@@ -1119,7 +1132,7 @@
 				onclick={() => handleTypeSelected(availableTypes[0]!.name)}
 			>
 				<Plus class="h-4 w-4" />
-				Add item...
+				Add {(availableTypes[0]!.title || availableTypes[0]!.name).toLowerCase()}
 			</button>
 		{:else if field.options?.insertMenu}
 			<button
@@ -1128,7 +1141,7 @@
 				onclick={() => (insertMenuOpen = true)}
 			>
 				<Plus class="h-4 w-4" />
-				Add item...
+				{addLabel}
 			</button>
 			<InsertMenu
 				open={insertMenuOpen}
@@ -1147,7 +1160,7 @@
 							class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
 						>
 							<Plus class="h-4 w-4" />
-							Add item...
+							{addLabel}
 						</button>
 					{/snippet}
 				</DropdownMenu.Trigger>

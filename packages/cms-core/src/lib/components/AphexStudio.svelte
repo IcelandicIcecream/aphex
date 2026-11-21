@@ -228,6 +228,7 @@
 			{title}
 			contentLabel={config.labels?.content}
 			typesPanel={config.typesPanel}
+			openPreview={config.openPreview}
 			documentTypes={data.documentTypes}
 			schemaError={data.schemaError}
 			graphqlSettings={data.graphqlSettings}

@@ -541,6 +541,12 @@ export interface DocumentType {
 	name: string;
 	title: string;
 	description?: string;
+	/**
+	 * What an empty list of this type says under "No … yet", in place of "Add your
+	 * first one with the + button above": for a type people don't make themselves
+	 * ("When someone sends your contact form, it shows up here.").
+	 */
+	emptyText?: string;
 	icon?: typeof LucideIcon;
 	group?: string;
 	groups?: FieldGroup[];
@@ -802,6 +808,8 @@ export interface SchemaType {
 	search?: SearchFieldConfig[];
 	orderings?: Ordering[];
 	access?: SchemaAccess;
+	/** See DocumentType.emptyText. */
+	emptyText?: string;
 	/**
 	 * Capabilities a caller needs for this type: every operation on a document
 	 * type, adding an object type to an array. See DocumentType.requiredCapabilities.

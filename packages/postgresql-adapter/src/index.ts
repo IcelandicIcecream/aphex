@@ -1258,6 +1258,18 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	async updatePluginRecord(organizationId: string, id: string, data: Record<string, unknown>) {
+		return this.withOrgContext(organizationId, () =>
+			this.pluginStorageAdapter.updatePluginRecord(organizationId, id, data)
+		);
+	}
+
+	async deletePluginRecord(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.pluginStorageAdapter.deletePluginRecord(organizationId, id)
+		);
+	}
+
 	async scheduleJob(input: ScheduleJobInput) {
 		return this.withOrgContext(input.organizationId, () => this.eventJobAdapter.scheduleJob(input));
 	}

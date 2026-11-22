@@ -286,7 +286,18 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 			};
 		case 'god-mode':
 			requireSuperAdmin(auth);
-			return { view: 'god-mode', tab: 'general' };
+			const organizations = await event.locals.aphexCMS.databaseAdapter.findAllOrganizations();
+			const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+			return {
+				view: 'god-mode',
+				tab: 'general',
+				organizations: {
+					total: organizations.length,
+					lastWeek: organizations.filter(
+						(organization) => new Date(organization.createdAt).getTime() > weekAgo
+					).length
+				}
+			};
 		case 'god-mode/organizations': {
 			requireSuperAdmin(auth);
 			const { databaseAdapter } = event.locals.aphexCMS;
@@ -428,7 +439,8 @@ async function describeOrganization(
 		slug: organization.slug,
 		...membership,
 		memberCount: members.length,
-		ownerEmail: ownerUser?.email
+		ownerEmail: ownerUser?.email,
+		createdAt: new Date(organization.createdAt).toISOString()
 	};
 }
 

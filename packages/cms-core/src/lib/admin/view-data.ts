@@ -199,6 +199,8 @@ export interface AdminOrganizationListItem {
 	isActive: boolean;
 	memberCount: number;
 	ownerEmail?: string;
+	/** When it was made, as an ISO date-time. */
+	createdAt: string;
 }
 
 /** The organizations the signed-in user belongs to. */
@@ -211,7 +213,12 @@ export interface AdminOrganizationsData {
 
 /** Administration of the whole instance, for super admins. */
 export type AdminGodModeData =
-	| { view: 'god-mode'; tab: 'general' }
+	| {
+			view: 'god-mode';
+			tab: 'general';
+			/** How many organizations the instance holds, and how many were made in the last 7 days. */
+			organizations: { total: number; lastWeek: number };
+	  }
 	| {
 			view: 'god-mode';
 			tab: 'organizations';

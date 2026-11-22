@@ -71,10 +71,20 @@
 					<Card.Title>Instance information</Card.Title>
 					<Card.Description>Details about this Aphex instance</Card.Description>
 				</Card.Header>
-				<Card.Content>
+				<Card.Content class="space-y-3">
 					<div class="flex items-center justify-between">
 						<span class="text-muted-foreground text-sm">Admin</span>
 						<span class="text-sm font-medium">{userEmail}</span>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-muted-foreground text-sm">Organizations</span>
+						<a href="/admin/god-mode/organizations" class="text-sm font-medium hover:underline">
+							{data.organizations.total}
+						</a>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-muted-foreground text-sm">Made in the last 7 days</span>
+						<span class="text-sm font-medium">{data.organizations.lastWeek}</span>
 					</div>
 				</Card.Content>
 			</Card.Root>

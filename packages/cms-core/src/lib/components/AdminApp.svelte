@@ -967,15 +967,16 @@
 		}
 	});
 
-	// Watch orgId changes to refetch documents when switching organizations
+	// Watch orgId changes when switching organizations. The id is recorded whatever is
+	// open, so a tool showing (a dashboard, which gets it as `organizationId`) reloads
+	// for the new organization too; an open document list refetches.
 	$effect(() => {
 		const orgId = page.url.searchParams.get('orgId');
-
-		// When orgId changes and we have a selected document type, refetch documents
-		if (orgId && orgId !== currentOrgId && selectedDocumentType) {
+		if (!orgId || orgId === currentOrgId) return;
+		currentOrgId = orgId;
+		if (selectedDocumentType) {
 			docCurrentPage = 1;
 			fetchDocuments(selectedDocumentType);
-			currentOrgId = orgId;
 		}
 	});
 

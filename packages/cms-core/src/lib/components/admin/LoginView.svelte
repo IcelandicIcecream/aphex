@@ -458,7 +458,11 @@
 						</div>
 						<div class="relative flex justify-center text-xs uppercase">
 							<span class="bg-card text-muted-foreground px-2">
-								{mode === 'signin' ? `New to ${brandTitle}?` : 'Already have an account?'}
+								{mode === 'signin'
+									? brand?.logoUrl
+										? 'New here?'
+										: `New to ${brandTitle}?`
+									: 'Already have an account?'}
 							</span>
 						</div>
 					</div>

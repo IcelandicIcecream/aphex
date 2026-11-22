@@ -27,6 +27,9 @@
 			</div>
 		{/if}
 		{@render children()}
-		<p class="text-muted-foreground mt-6 text-center text-xs">{brandTitle}</p>
+		<!-- A logo already names the product; the name under the card is for when there's none. -->
+		{#if !branding?.logoUrl}<p class="text-muted-foreground mt-6 text-center text-xs">
+				{brandTitle}
+			</p>{/if}
 	</div>
 </div>

@@ -5,6 +5,7 @@
  * is enough to find the block to patch. `_meta` keeps only what a model acts on.
  */
 import { readPath } from '../local-api/patch';
+import { SKIM_MARK } from '../field-validation/skim-mark';
 
 export interface DocumentViewOptions {
 	/** Top-level fields to return; all when empty. */
@@ -55,8 +56,7 @@ function entry(item: unknown, depth: number): unknown {
 	const out: Record<string, unknown> = {};
 	if (typeof item._key === 'string') out._key = item._key;
 	if (typeof item._type === 'string') out._type = item._type;
-	const label = labelOf(item);
-	if (label) out.label = label;
+	out[SKIM_MARK] = labelOf(item) ?? '';
 	if (depth < 2) {
 		for (const [key, value] of Object.entries(item)) {
 			if (Array.isArray(value) && value.some(isRecord))

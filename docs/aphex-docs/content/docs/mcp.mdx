@@ -162,7 +162,7 @@ Each caller sees only the tools its capabilities allow, plus any tools your plug
 Every character a tool returns is a token the client pays for, so the tools answer with what was asked:
 
 - `get_schema` sends an outline rather than the raw schema: on a page builder with 22 block types, about 1.6k characters by default and 4k with two blocks' fields, instead of 118k.
-- `get_document` with `skim` gives a page's structure in under half its size; `path` reads one block.
+- `get_document` with `skim` gives a page's structure in under half its size; `path` reads one block. Each skimmed item carries its label as `_skim`, and a save refuses anything still carrying it, so a summary can't be written back over the content.
 - `patch_document` sends the change, not the field it's in, and answers with the new revision.
 - Answers are compact JSON, and `_meta` carries only the type, status, revision and dates.
 

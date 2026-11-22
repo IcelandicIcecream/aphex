@@ -155,9 +155,10 @@ describe('viewDocument', () => {
 			{
 				_key: 'r1',
 				_type: 'richText',
-				content: [{ _key: 'p1', _type: 'block', label: 'Fresh bread every morning' }]
+				_skim: '',
+				content: [{ _key: 'p1', _type: 'block', _skim: 'Fresh bread every morning' }]
 			},
-			{ _key: 'h1', _type: 'hero', label: `${'x'.repeat(59)}…` }
+			{ _key: 'h1', _type: 'hero', _skim: `${'x'.repeat(59)}…` }
 		]);
 	});
 });

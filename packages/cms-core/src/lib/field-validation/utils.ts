@@ -3,6 +3,7 @@ import { Rule, type ValidationContext } from './rule';
 import { normalizeDateFields } from './date-utils';
 import { cmsLogger } from '../utils/logger';
 import { isFieldVisible } from '../schema-utils/visibility';
+import { SKIM_MARK } from './skim-mark';
 
 export interface ValidationError {
 	level: 'error' | 'warning' | 'info';
@@ -477,10 +478,26 @@ async function validateArrayItems(
 ): Promise<ItemError[]> {
 	const of = field.of ?? [];
 	const results: ItemError[] = [];
+	// An item's _key is its address (the editor, patch paths, visual editing all
+	// find it by key), so two items sharing one make either unreachable. The
+	// editor never makes one; a whole list written through the API can.
+	const keyAt = new Map<string, number>();
 
 	for (let index = 0; index < items.length; index++) {
 		const item = items[index];
 		const itemPath = `${field.name}[${index}]`;
+		if (isPlainObject(item) && typeof item._key === 'string' && item._key) {
+			const first = keyAt.get(item._key);
+			if (first === undefined) keyAt.set(item._key, index);
+			else
+				results.push({
+					field: itemPath,
+					errors: [
+						`has _key "${item._key}", already used by ${field.name}[${first}]: give each item its own _key`
+					],
+					kind: 'structural'
+				});
+		}
 		const typeRef = resolveArrayItemTypeRef(of, item);
 
 		if (!typeRef) {
@@ -873,6 +890,29 @@ async function validateFieldSet(
  *   so items of named array types are validated against their registered schema
  * @returns Validation result with isValid flag, errors, and normalized data
  */
+/**
+ * Items that are a skim's summary (get_document with `skim`), not the item: saved,
+ * one would replace a block's content with its label. Refused on every write.
+ */
+function skimmedCopies(value: unknown, path = ''): FieldErrors[] {
+	if (Array.isArray(value))
+		return value.flatMap((item, index) => skimmedCopies(item, `${path}[${index}]`));
+	if (!isPlainObject(value)) return [];
+	if (SKIM_MARK in value)
+		return [
+			{
+				field: path || 'document',
+				errors: [
+					`is a skimmed summary (it has "${SKIM_MARK}"), not the item: read it in full with get_document path and write from that`
+				],
+				kind: 'structural'
+			}
+		];
+	return Object.entries(value).flatMap(([key, item]) =>
+		skimmedCopies(item, path ? `${path}.${key}` : key)
+	);
+}
+
 export async function validateDocumentData(
 	schema: SchemaType,
 	data: Record<string, any>,
@@ -891,7 +931,10 @@ export async function validateDocumentData(
 		dataForValidation
 	});
 
-	const validationErrors = await validateFieldSet(schema.fields, dataForValidation, context);
+	const validationErrors = [
+		...skimmedCopies(data),
+		...(await validateFieldSet(schema.fields, dataForValidation, context))
+	];
 
 	cmsLogger.debug('[validateDocumentData]', 'Final result', {
 		isValid: validationErrors.length === 0,

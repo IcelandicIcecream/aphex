@@ -127,7 +127,8 @@
 						{/if}
 					</div>
 					<div class="text-muted-foreground text-sm">
-						Total members: {org.memberCount} · Made {made.format(new Date(org.createdAt))}
+						Total members: {org.memberCount}{#if org.createdAt}
+							· Made {made.format(new Date(org.createdAt))}{/if}
 					</div>
 					{#if features && features.available.length > 0}
 						<div class="mt-2 flex flex-wrap gap-x-5 gap-y-2" role="group" aria-label="Features">

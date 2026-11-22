@@ -356,7 +356,7 @@ describe('/invitations API', () => {
 		});
 		app.route('/invitations', invitationsRouter);
 		return app.fetch(new Request(`http://localhost${path}`, { method }), {
-			aphexCMS: { databaseAdapter: database },
+			aphexCMS: { databaseAdapter: database, config: {} },
 			auth
 		} as never);
 	}

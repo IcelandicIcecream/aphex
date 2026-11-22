@@ -133,7 +133,9 @@ describe('createAdminLoad', () => {
 					member: { role: 'owner' }
 				}
 			],
-			findAllOrganizations: async () => [{ id: 'org-2', name: 'Other', slug: 'other' }],
+			findAllOrganizations: async () => [
+				{ id: 'org-2', name: 'Other', slug: 'other', createdAt: new Date('2026-01-02T03:04:05Z') }
+			],
 			findOrganizationMembers: async () => [{ role: 'owner', userId: 'user-9' }],
 			getInstanceSettings: async () => ({ allowUserOrgCreation: true }),
 			findUserProfileById: async () => null,
@@ -198,6 +200,8 @@ describe('createAdminLoad', () => {
 			view: 'organizations',
 			organizations: [{ slug: 'acme', isActive: true, ownerEmail: 'owner@example.com' }]
 		});
+		// Acme has no stored date: its row leaves the date off instead of failing the page.
+		expect(data.view === 'organizations' && data.organizations[0]).not.toHaveProperty('createdAt');
 	});
 
 	it('only lets a super admin into God Mode', async () => {
@@ -210,7 +214,7 @@ describe('createAdminLoad', () => {
 			view: 'god-mode',
 			tab: 'organizations',
 			allowUserOrgCreation: true,
-			organizations: [{ slug: 'other', memberCount: 1 }]
+			organizations: [{ slug: 'other', memberCount: 1, createdAt: '2026-01-02T03:04:05.000Z' }]
 		});
 	});
 });

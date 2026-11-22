@@ -199,8 +199,8 @@ export interface AdminOrganizationListItem {
 	isActive: boolean;
 	memberCount: number;
 	ownerEmail?: string;
-	/** When it was made, as an ISO date-time. */
-	createdAt: string;
+	/** When it was made, as an ISO date-time; absent when the stored date can't be read. */
+	createdAt?: string;
 }
 
 /** The organizations the signed-in user belongs to. */

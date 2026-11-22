@@ -293,7 +293,9 @@ When the slug is part of an address (`<slug>.example.site`), your app decides wh
 
 ```ts
 checkOrganizationSlug: (slug) =>
-	/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug) ? null : 'Use lowercase letters, numbers and dashes.'
+	/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug)
+		? null
+		: 'Use lowercase letters, numbers and dashes.';
 ```
 
 A refused slug gets a 400 with that reason. Saving the name alone, or the same slug again, isn't a rename, so an organization keeps a slug it had before your rule existed.
@@ -306,7 +308,7 @@ Deleting an organization erases its files and everything in the database that be
 beforeOrganizationDelete: async ({ organizationId }) => {
 	// Throw to stop the delete: nothing is changed, and the owner sees the message.
 	await cancelSubscription(organizationId);
-}
+};
 ```
 
 If it throws, the API answers 409 with the error's message and the organization is left exactly as it was, so a subscription that couldn't be cancelled never outlives the organization it was paying for.

@@ -284,7 +284,7 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 				organizations: await loadUserOrganizations(event.locals, auth),
 				parentOption: await loadParentOption(event.locals, auth)
 			};
-		case 'god-mode':
+		case 'god-mode': {
 			requireSuperAdmin(auth);
 			const organizations = await event.locals.aphexCMS.databaseAdapter.findAllOrganizations();
 			const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -298,6 +298,7 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 					).length
 				}
 			};
+		}
 		case 'god-mode/organizations': {
 			requireSuperAdmin(auth);
 			const { databaseAdapter } = event.locals.aphexCMS;
@@ -433,6 +434,8 @@ async function describeOrganization(
 	const members = await databaseAdapter.findOrganizationMembers(organization.id);
 	const owner = members.find((member) => member.role === 'owner');
 	const ownerUser = owner ? await provider?.getUserById(owner.userId) : null;
+	// One row with a missing or unreadable date leaves its date off rather than failing the list.
+	const created = new Date(organization.createdAt);
 	return {
 		id: organization.id,
 		name: organization.name,
@@ -440,7 +443,7 @@ async function describeOrganization(
 		...membership,
 		memberCount: members.length,
 		ownerEmail: ownerUser?.email,
-		createdAt: new Date(organization.createdAt).toISOString()
+		...(Number.isNaN(created.getTime()) ? {} : { createdAt: created.toISOString() })
 	};
 }
 

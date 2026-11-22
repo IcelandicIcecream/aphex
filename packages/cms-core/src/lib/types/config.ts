@@ -578,6 +578,20 @@ export interface CMSConfig {
 	 */
 	memberLimits?: MemberLimitResolver;
 	/**
+	 * Says whether an organization may use a slug, when one is created and when it's
+	 * renamed through the API or the settings page: return a reason to refuse it (the
+	 * person sees it), or nothing to allow it. For an app that puts the slug in an
+	 * address (`<slug>.example.site`): its own format, reserved names, blocked words.
+	 * A rename that keeps the same slug isn't asked about.
+	 */
+	checkOrganizationSlug?: (
+		slug: string,
+		context: {
+			/** The organization being renamed; absent when one is being created. */
+			organizationId?: string;
+		}
+	) => string | null | undefined | Promise<string | null | undefined>;
+	/**
 	 * Runs when an owner deletes an organization, after the permission check and
 	 * before anything is erased. Throw to stop the delete: nothing is changed, and
 	 * the owner sees the error's message. For what the app keeps outside the CMS,

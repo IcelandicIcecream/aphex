@@ -287,6 +287,17 @@ A visitor's form submission is saved as the system, so `documentLimits` wouldn't
 
 Keep the plan itself somewhere the organization can't edit, such as [a table of your own](#your-own-tables) your billing webhook writes, not its `metadata`.
 
+### Rules for slugs
+
+When the slug is part of an address (`<slug>.example.site`), your app decides which ones are allowed. `checkOrganizationSlug` is asked when an organization is created and when it's renamed, from the API or the settings page. Return a reason to refuse it, which the person sees, or nothing to allow it:
+
+```ts
+checkOrganizationSlug: (slug) =>
+	/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug) ? null : 'Use lowercase letters, numbers and dashes.'
+```
+
+A refused slug gets a 400 with that reason. Saving the name alone, or the same slug again, isn't a rename, so an organization keeps a slug it had before your rule existed.
+
 ### When an organization is deleted
 
 Deleting an organization erases its files and everything in the database that belongs to it, your own tables included when they reference it with `onDelete: 'cascade'`. What lives outside the CMS, such as a billing subscription, doesn't know. `beforeOrganizationDelete` runs after the owner's permission is checked and before anything is erased:

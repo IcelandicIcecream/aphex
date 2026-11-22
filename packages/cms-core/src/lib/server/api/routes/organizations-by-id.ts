@@ -255,6 +255,20 @@ export const organizationsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				const body = c.req.valid('json');
 
+				// The app's own rules for a slug (its address format, reserved names), the
+				// same as at creation. Saving the name alone, or the slug unchanged, isn't
+				// a rename: an organization keeps a slug made before a rule existed.
+				const checkSlug = c.var.aphexCMS.config?.checkOrganizationSlug;
+				if (body.slug !== undefined && checkSlug) {
+					const current = await databaseAdapter.findOrganizationById(id);
+					if (body.slug !== current?.slug) {
+						const slugProblem = await checkSlug(body.slug, { organizationId: id });
+						if (slugProblem) {
+							return c.json({ success: false, error: 'Invalid slug', message: slugProblem }, 400);
+						}
+					}
+				}
+
 				if (body.slug) {
 					const existingOrg = await databaseAdapter.findOrganizationBySlug(body.slug);
 					if (existingOrg && existingOrg.id !== id) {

@@ -229,6 +229,25 @@ describe('POST /organizations', () => {
 		expect(res.status).toBe(409);
 	});
 
+	it("400 with the app's reason when its slug rule refuses the slug", async () => {
+		const cms = buildFakeCMS({ orgs: [] }) as any;
+		cms.config = {
+			...cms.config,
+			checkOrganizationSlug: (slug: string) =>
+				slug === 'support' ? "That address isn't available." : null
+		};
+		const res = await makeApp().fetch(
+			new Request('http://localhost/organizations', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ name: 'Support', slug: 'support' })
+			}),
+			buildEnv(cms) as any
+		);
+		expect(res.status).toBe(400);
+		expect((await res.json()).message).toBe("That address isn't available.");
+	});
+
 	it('201 on successful create', async () => {
 		const cms = buildFakeCMS({ orgs: [] });
 		const res = await makeApp().fetch(
@@ -328,6 +347,53 @@ describe('PATCH /organizations/:id', () => {
 			buildEnv(cms, { capabilities: [], role: 'editor', organizationRole: 'viewer' }) as any
 		);
 		expect(res.status).toBe(403);
+	});
+
+	/** A fake CMS whose app refuses `support` as a slug, recording what it was asked. */
+	function withSlugRule() {
+		const asked: Array<[string, { organizationId?: string }]> = [];
+		const cms = buildFakeCMS({ orgs: [] }) as any;
+		const orgs = [{ id: TEST_ORG, name: 'Test Org', slug: 'test', metadata: null }];
+		cms.databaseAdapter.findOrganizationById = async (id: string) =>
+			orgs.find((o) => o.id === id) ?? null;
+		cms.databaseAdapter.updateOrganization = async (id: string, patch: any) => ({
+			...orgs[0],
+			id,
+			...patch
+		});
+		cms.config = {
+			...cms.config,
+			checkOrganizationSlug: (slug: string, context: { organizationId?: string }) => {
+				asked.push([slug, context]);
+				return slug === 'support' ? "That address isn't available." : null;
+			}
+		};
+		return { cms, asked };
+	}
+	const patch = (cms: any, body: unknown) =>
+		makeApp().fetch(
+			new Request(`http://localhost/organizations/${TEST_ORG}`, {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			}),
+			buildEnv(cms) as any
+		);
+
+	it("refuses a rename to a slug the app's rule refuses, with its reason", async () => {
+		const { cms, asked } = withSlugRule();
+		const res = await patch(cms, { slug: 'support' });
+		expect(res.status).toBe(400);
+		expect((await res.json()).message).toBe("That address isn't available.");
+		expect(asked).toEqual([['support', { organizationId: TEST_ORG }]]);
+	});
+
+	it('allows one it accepts, and never asks about a slug that stays the same', async () => {
+		const { cms, asked } = withSlugRule();
+		expect((await patch(cms, { slug: 'bluebird' })).status).toBe(200);
+		expect((await patch(cms, { name: 'Renamed', slug: 'test' })).status).toBe(200);
+		expect((await patch(cms, { name: 'Renamed again' })).status).toBe(200);
+		expect(asked).toEqual([['bluebird', { organizationId: TEST_ORG }]]);
 	});
 });
 

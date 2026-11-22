@@ -94,6 +94,11 @@ export const organizationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				const body = c.req.valid('json');
 
+				const slugProblem = await c.var.aphexCMS.config?.checkOrganizationSlug?.(body.slug, {});
+				if (slugProblem) {
+					return c.json({ success: false, error: 'Invalid slug', message: slugProblem }, 400);
+				}
+
 				const existingOrg = await databaseAdapter.findOrganizationBySlug(body.slug);
 				if (existingOrg) {
 					return c.json(

@@ -40,7 +40,7 @@ import type { StringField } from '@aphexcms/cms-core';
 
 | Option       | Type                              | Default      | Description                                                          |
 | ------------ | --------------------------------- | ------------ | -------------------------------------------------------------------- |
-| `layout`     | `'dropdown' \| 'radio' \| 'tabs'` | `'dropdown'` | How to render the list of options.                                   |
+| `layout`     | `'dropdown' \| 'radio' \| 'tabs' \| 'cards'` | `'dropdown'` | How to render the list of options.                                   |
 | `direction`  | `'horizontal' \| 'vertical'`      | `'vertical'` | Layout direction for radio buttons.                                  |
 | `showTitles` | `boolean`                         | `false`      | Tabs with icons: show each title beside its icon, not only on hover. |
 
@@ -96,6 +96,28 @@ Use the `list` property to restrict input to a set of values:
   }
 }
 ```
+
+### Cards with pictures
+
+`layout: 'cards'` renders each option as a card: its `icon` drawn large, as a picture of the choice, over its title. Use it for choices people recognise by looking, such as a block's layouts. The icon can be any Svelte component, not only a Lucide icon. It fills a 4:3 box, and drawing it in `currentColor` lets it follow light and dark mode and the selection.
+
+```ts
+import LayoutGridPicture from './pictures/LayoutGrid.svelte';
+import LayoutListPicture from './pictures/LayoutList.svelte';
+
+{
+  name: 'variant',
+  type: 'string',
+  title: 'Layout',
+  list: [
+    { title: 'Grid', value: 'grid', icon: LayoutGridPicture },
+    { title: 'List', value: 'list', icon: LayoutListPicture }
+  ],
+  options: { layout: 'cards' }
+}
+```
+
+Options without an icon show their title alone. Arrow keys move between cards, as in a radio group.
 
 ### Segmented tabs with icons
 

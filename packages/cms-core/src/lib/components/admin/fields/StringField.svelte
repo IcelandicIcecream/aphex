@@ -3,6 +3,7 @@
 	import * as Select from '@aphexcms/ui/shadcn/select';
 	import * as RadioGroup from '@aphexcms/ui/shadcn/radio-group';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
+	import { RadioGroup as RadioPrimitive } from 'bits-ui';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import * as Command from '@aphexcms/ui/shadcn/command';
 	import Check from '@lucide/svelte/icons/check';
@@ -232,6 +233,52 @@
 				{/each}
 			</div>
 		</RadioGroup.Root>
+	{:else if layout === 'cards'}
+		<!-- Cards: each choice as a picture of itself (its icon, drawn large) over its
+		     name, for choices you recognise by looking: a block's layouts. Arrow keys
+		     move between them, as in any radio group. -->
+		<RadioPrimitive.Root
+			value={value || ''}
+			onValueChange={handleSelectChange}
+			disabled={readonly}
+			class="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2 {validationClasses ?? ''}"
+		>
+			{#each listItems as item (item.value)}
+				{@const Icon = item.icon}
+				{@const chosen = item.value === value}
+				{@const inheritedChoice = item === inheritedItem}
+				<RadioPrimitive.Item
+					value={item.value}
+					title={inheritedChoice ? `${item.title} (inherited)` : item.title}
+					class={[
+						'group grid content-start gap-1.5 rounded-md border p-1.5 text-left transition-colors outline-none',
+						'focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-60',
+						chosen
+							? 'border-primary bg-primary/5 ring-primary ring-1'
+							: inheritedChoice
+								? 'border-muted-foreground/40 border-dashed'
+								: 'hover:border-foreground/30 hover:bg-muted/40'
+					]}
+				>
+					{#if Icon}
+						<span
+							class={[
+								'bg-muted/60 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-sm',
+								chosen ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+							]}
+						>
+							<Icon class="size-full" />
+						</span>
+					{/if}
+					<span
+						class={[
+							'px-0.5 text-xs leading-snug',
+							chosen ? 'text-foreground font-medium' : 'text-muted-foreground'
+						]}>{item.title}</span
+					>
+				</RadioPrimitive.Item>
+			{/each}
+		</RadioPrimitive.Root>
 	{:else if layout === 'tabs'}
 		<!-- Segmented / tabs layout — icon-friendly (alignment-style pickers). -->
 		<Tabs.Root

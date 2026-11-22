@@ -2,6 +2,7 @@
 import type { DocumentHookReader } from '../local-api/hook-reader';
 import type { Rule } from '../field-validation/rule';
 import type { Icon as LucideIcon } from '@lucide/svelte';
+import type { Component } from 'svelte';
 import type { OrganizationRole } from './organization';
 import type { FileValue, ImageValue } from './asset';
 
@@ -218,12 +219,22 @@ export interface FieldGroup {
 	hidden?: boolean;
 }
 
+/**
+ * A list option's picture: a Lucide icon, or any component that takes a `class`
+ * (a drawing of a layout for the `'cards'` layout).
+ */
+export type ListOptionIcon = Component<{ class?: string }>;
+
+/** One option of a string field's `list`, in its title/value form. */
+export interface ListOption {
+	title: string;
+	value: string;
+	icon?: ListOptionIcon;
+}
+
 export interface DependentList {
 	dependsOn: string;
-	options: Record<
-		string,
-		Array<string | { title: string; value: string; icon?: typeof LucideIcon }>
-	>;
+	options: Record<string, Array<string | ListOption>>;
 }
 
 export interface StringField extends BaseField {
@@ -231,10 +242,16 @@ export interface StringField extends BaseField {
 	maxLength?: number;
 	placeholder?: string;
 	initialValue?: string | (() => string | Promise<string>);
-	list?: Array<string | { title: string; value: string; icon?: typeof LucideIcon }> | DependentList;
+	list?: Array<string | ListOption> | DependentList;
 	options?: {
-		/** `'tabs'` renders a segmented control (great for alignment-style pickers with `icon`s). */
-		layout?: 'dropdown' | 'radio' | 'tabs';
+		/**
+		 * `'tabs'` renders a segmented control (great for alignment-style pickers with
+		 * `icon`s). `'cards'` renders a grid of cards, each option's `icon` drawn large
+		 * as a picture of the choice over its title: for choices recognised by looking,
+		 * like a block's layouts. The icon is any component; it fills a 4:3 box and
+		 * should draw in `currentColor`, so it follows the theme and the selection.
+		 */
+		layout?: 'dropdown' | 'radio' | 'tabs' | 'cards';
 		direction?: 'horizontal' | 'vertical';
 		/**
 		 * Tabs whose options have an `icon` show only the icon, with the title on

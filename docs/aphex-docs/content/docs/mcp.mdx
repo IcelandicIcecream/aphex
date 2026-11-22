@@ -141,11 +141,12 @@ Once connected, the tools appear under the server name you chose (e.g. `mcp__aph
 | ------------------- | -------------------------------------------------------------------------------------- |
 | `describe_cms`      | Orientation: all content types, relationships, field-type vocabulary, key permissions. |
 | `list_collections`  | List document collections with names and titles.                                       |
-| `get_schema`        | Field schema for one collection — the shape to use when writing documents.             |
+| `get_schema`        | One collection's shape as a compact TypeScript outline. A page builder lists its block types; pass `types` for the ones you'll write, or `detail: 'full'` for the raw schema. |
 | `query_documents`   | Query with `where` filters, sorting, pagination, and draft/published perspective.      |
-| `get_document`      | Read a single document by id.                                                          |
+| `get_document`      | Read a document by id: whole, `fields`, one `path`, or `skim` (each block's key, type and label). |
 | `create_document`   | Create a document (optionally publish).                                                |
 | `update_document`   | Update a document's fields (optionally publish).                                       |
+| `patch_document`    | Edit part of a document by path (one block's heading, a phrase in rich text, a block added, moved or removed) and get back only the new revision. |
 | `publish_document`  | Publish an existing draft.                                                             |
 | `get_singleton`     | Read a singleton (e.g. site settings) without needing an id.                           |
 | `update_singleton`  | Update a singleton's fields.                                                           |
@@ -155,6 +156,15 @@ Once connected, the tools appear under the server name you chose (e.g. `mcp__aph
 | `upload_asset`      | Upload an image or file from base64 data or a URL, ready to drop into a field.         |
 
 Each caller sees only the tools its capabilities allow, plus any tools your plugins add (`aphex/agent/tool`).
+
+### Keeping it cheap
+
+Every character a tool returns is a token the client pays for, so the tools answer with what was asked:
+
+- `get_schema` sends an outline rather than the raw schema: on a page builder with 22 block types, about 1.6k characters by default and 4k with two blocks' fields, instead of 118k.
+- `get_document` with `skim` gives a page's structure in under half its size; `path` reads one block.
+- `patch_document` sends the change, not the field it's in, and answers with the new revision.
+- Answers are compact JSON, and `_meta` carries only the type, status, revision and dates.
 
 All schema information is derived live from the running config — never stale.
 
@@ -167,7 +177,7 @@ When a client connects, the MCP server sends it instructions, which Claude, Chat
 - start with `describe_cms`, and call `get_schema` before writing to a collection
 - slugs are bare strings
 - singletons use `get_singleton` and `update_singleton`
-- validate before saving, and pass `expectedRevision`
+- read only what's needed (`skim`, then `path`), edit with `patch_document`, let saving validate, and pass `expectedRevision`
 - images go through `upload_asset`, never as a raw URL
 - everything is a draft until published; a connection that can't publish hands over to the owner, with a link to the admin
 - don't invent prices, hours or addresses

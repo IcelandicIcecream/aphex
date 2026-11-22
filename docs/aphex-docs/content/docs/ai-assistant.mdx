@@ -149,7 +149,7 @@ These are `execution: 'workspace'` tools: the server can't run them, because the
 
 The bridge validates candidate data before applying it. Structurally invalid patches, such as fields copied from a Post schema into an open Page, are returned to the model as failures without changing the editor. A successful patch result is still marked `persisted: false`; only a successful `content_save_draft` result means the draft reached the database.
 
-Because a prompt preference isn't a guarantee, `update_document` is **removed from the tool list entirely** while a document is bridged. Otherwise the model would occasionally reach for it, write straight to the database behind the open editor, and leave you looking at a stale form until you reloaded.
+Because a prompt preference isn't a guarantee, `update_document` and `patch_document` are **removed from the tool list entirely** while a document is bridged. Otherwise the model would occasionally reach for one, write straight to the database behind the open editor, and leave you looking at a stale form until you reloaded.
 
 <Callout type="warn">
 	The chat endpoint is **stateless per call**. Each request carries the full running conversation —

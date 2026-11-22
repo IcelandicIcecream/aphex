@@ -25,6 +25,7 @@ import {
 	type McpTool
 } from '../src/lib/mcp/tools';
 import { fetchRemoteFile } from '../src/lib/utils/fetch-remote-file';
+import { RevisionConflictError } from '../src/lib/db/interfaces/document';
 import type { CMSInstances } from '../src/lib/hooks';
 import type { LocalAPIContext } from '../src/lib/local-api/types';
 import type { ApiKeyAuth } from '../src/lib/types/auth';
@@ -256,6 +257,112 @@ describe('MCP content tools — smoke test every tool', () => {
 			{ title: 'Updated' },
 			expect.objectContaining({ expectedRevision: 3 })
 		);
+	});
+
+	describe('patch_document', () => {
+		const page = () => ({
+			id: 'doc-1',
+			title: 'Home',
+			blocks: [
+				{ _type: 'hero', _key: 'h1', heading: 'Hello' },
+				{ _type: 'cta', _key: 'c1', heading: 'Visit' }
+			],
+			_meta: { revision: 7, status: 'draft' }
+		});
+		const saved = {
+			document: { id: 'doc-1', _meta: { revision: 8, status: 'draft' } },
+			validation: { isValid: true, errors: [] }
+		};
+
+		it('sends only the field it changed, guarded by the revision it read, and answers briefly', async () => {
+			const { byName, postCollection } = setup();
+			postCollection.findByID.mockResolvedValue(page());
+			postCollection.update.mockResolvedValue(saved);
+			const result = await byName('patch_document').handler({
+				collection: 'post',
+				id: 'doc-1',
+				operations: [{ op: 'set', path: 'blocks[_key=="h1"].heading', value: 'Fresh bread' }]
+			});
+			expect(result.isError).toBeFalsy();
+			const [, id, data, options] = postCollection.update.mock.calls[0];
+			expect(id).toBe('doc-1');
+			expect(Object.keys(data)).toEqual(['blocks']);
+			expect(data.blocks[0].heading).toBe('Fresh bread');
+			expect(data.blocks[1]).toEqual({ _type: 'cta', _key: 'c1', heading: 'Visit' });
+			expect(options).toMatchObject({ expectedRevision: 7 });
+			const text = JSON.stringify(result.content);
+			expect(text).toMatch(/revision.{0,6}8/);
+			expect(text).not.toContain('Fresh bread');
+		});
+
+		it('re-reads and re-applies once when someone saved in between', async () => {
+			const { byName, postCollection } = setup();
+			postCollection.findByID
+				.mockResolvedValueOnce(page())
+				.mockResolvedValueOnce({ ...page(), _meta: { revision: 9 } });
+			postCollection.update
+				.mockRejectedValueOnce(new RevisionConflictError('changed', 'doc-1', 7, 9))
+				.mockResolvedValueOnce(saved);
+			const result = await byName('patch_document').handler({
+				collection: 'post',
+				id: 'doc-1',
+				operations: [{ op: 'unset', path: 'blocks[_key=="c1"]' }]
+			});
+			expect(result.isError).toBeFalsy();
+			expect(postCollection.update).toHaveBeenCalledTimes(2);
+			expect(postCollection.update.mock.calls[1][3]).toMatchObject({ expectedRevision: 9 });
+		});
+
+		it('does not retry over a revision the caller pinned', async () => {
+			const { byName, postCollection } = setup();
+			postCollection.findByID.mockResolvedValue(page());
+			postCollection.update.mockRejectedValue(new RevisionConflictError('changed', 'doc-1', 5, 7));
+			const result = await byName('patch_document').handler({
+				collection: 'post',
+				id: 'doc-1',
+				expectedRevision: 5,
+				operations: [{ op: 'set', path: 'title', value: 'x' }]
+			});
+			expect(result.isError).toBe(true);
+			expect(postCollection.update).toHaveBeenCalledOnce();
+		});
+
+		it('finds a singleton without an id', async () => {
+			const { byName, settingsCollection } = setup();
+			settingsCollection.findByID.mockResolvedValue({
+				id: 'settings',
+				siteName: 'Old',
+				_meta: { revision: 2 }
+			});
+			settingsCollection.update.mockResolvedValue(saved);
+			const result = await byName('patch_document').handler({
+				collection: 'settings',
+				operations: [{ op: 'replaceText', path: 'siteName', find: 'Old', replace: 'New' }]
+			});
+			expect(result.isError).toBeFalsy();
+			expect(settingsCollection.update).toHaveBeenCalledWith(
+				expect.anything(),
+				'settings',
+				{ siteName: 'New' },
+				expect.anything()
+			);
+		});
+
+		it('says which operation failed and writes nothing', async () => {
+			const { byName, postCollection } = setup();
+			postCollection.findByID.mockResolvedValue(page());
+			const result = await byName('patch_document').handler({
+				collection: 'post',
+				id: 'doc-1',
+				operations: [
+					{ op: 'set', path: 'title', value: 'x' },
+					{ op: 'set', path: 'blocks[_key=="gone"].heading', value: 'y' }
+				]
+			});
+			expect(result.isError).toBe(true);
+			expect(JSON.stringify(result.content)).toContain('Operation 2: No item with _key');
+			expect(postCollection.update).not.toHaveBeenCalled();
+		});
 	});
 
 	it('publish_document calls collection.publish', async () => {

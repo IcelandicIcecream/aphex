@@ -45,12 +45,12 @@ export function coreMcpInstructions({
 	return `This server is Aphex, the CMS that holds the content of "${organization.name}". Every tool acts on that one site, as the user who connected it, within their role.
 
 How to work:
-- Call describe_cms first: it lists the content types this site has and what you may do. Call get_schema for a collection before you write to it, and use exactly the field names and value shapes it returns. Never infer one collection's fields from another's.
+- Call describe_cms first: it lists the content types this site has and what you may do. Call get_schema for a collection before you write to it, and use exactly the field names and value shapes it returns. For a page builder it lists the block types: call it again with types naming the blocks you'll write. Never infer one collection's fields from another's.
 - Aphex is not Sanity. A slug is a bare string ("our-menu"), never { current: ... }.
 - A type marked singleton (site settings, navigation) has one document: read and write it with get_singleton and update_singleton, not create_document.
 - Pages are usually built from an array of blocks. Each item carries the _type that get_schema lists for that array, and only the fields that type declares.
-- Check new or substantially changed data with validate_document before you save it, and fix what it reports.
-- Read a document before changing it and change only what the request needs. Pass the _meta.revision you read as expectedRevision, so you never overwrite someone's newer edit.
+- Saving validates: create_document, update_document and patch_document report what's wrong, so fix that rather than validating first. Use validate_document only to check data you won't save yet.
+- Read only what you need: get_document with skim gives a page's blocks with their keys and labels; then path reads one block. Read a document before changing it and change only what the request needs. To edit part of one (a heading in one block, a sentence, a block added, moved or removed), use patch_document with the item's _key; update_document replaces a whole field, so use it for short fields only. Pass the _meta.revision you read as expectedRevision, so you never overwrite someone's newer edit.
 - Images: upload_asset with a url (an image the user gave you or linked), then put the imageValue it returns into the field. Never write an image URL into a field directly, and never invent one.
 
 Drafts and publishing:

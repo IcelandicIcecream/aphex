@@ -3,7 +3,7 @@ import type { Asset, AssetVariant } from '../types/asset';
 import type { StorageAdapter } from '../storage/interfaces/storage';
 import type { DatabaseAdapter } from '../db/interfaces/index';
 import { buildVariantKey, buildVariantUrl, VARIANT_FORMAT } from '../storage/keys';
-import { getVariants, type ImageConfig } from './variants';
+import { animationFits, getVariants, MAX_ANIMATED_PIXELS, type ImageConfig } from './variants';
 import { cmsLogger } from '../utils/logger';
 
 /**
@@ -88,23 +88,16 @@ export class GenerationBusyError extends Error {
 }
 
 /**
- * Thrown for a source whose animation would be destroyed by resizing.
+ * Thrown for an animation past the caps in `variants.ts`, which is served as-is.
  *
- * Sharp reads only the first frame unless told otherwise, so an animated GIF
- * run through this pipeline comes out as a single still — the image still
- * "works", which is what makes it dangerous: nothing errors, the animation is
- * just silently gone.
- *
- * Preserving it is possible (`animated: true` out to an animated WebP) and
- * deliberately not done here, because the memory cost is unbounded in the one
- * dimension nothing else caps: a decoded animation is frames × width × height ×
- * 4, so a couple of hundred frames at 800×600 is well over a gigabyte. That is
- * exactly the out-of-memory case the concurrency gate exists to prevent, and no
- * per-image pixel limit catches it. Animated sources are served as-is instead.
+ * Sharp reads only the first frame unless told otherwise, so an animated GIF run
+ * through the still pipeline comes out as a single still. Nothing errors; the
+ * animation is just silently gone. So an animation is either resized whole
+ * (`animated: true`) or refused, never flattened.
  */
 export class AnimatedSourceError extends Error {
 	constructor(pages: number) {
-		super(`Refusing to flatten an animated source (${pages} frames)`);
+		super(`Animated source too large to resize (${pages} frames)`);
 		this.name = 'AnimatedSourceError';
 	}
 }
@@ -177,20 +170,27 @@ async function produce(
 	}
 }
 
-async function resize(
-	opts: Parameters<typeof generateVariant>[0],
-	key: string
-): Promise<GeneratedVariant> {
-	const { asset, width, config, configHash, storage, database } = opts;
-
-	const source = await storage.getObject(asset.path);
-
+/**
+ * Resize one source to `width` in the variant format: the decode and encode,
+ * with no storage, so it's tested on its own. An animation comes out animated,
+ * every frame resized; one past the caps in `variants.ts` throws
+ * `AnimatedSourceError`, and the caller serves the original.
+ */
+export async function encodeVariant(
+	source: Buffer,
+	width: number,
+	quality: number
+): Promise<{ data: Buffer; width: number; height: number; frames: number }> {
 	// Header-only read, so this costs nothing next to the resize. Checked here
 	// rather than trusting the row, because assets uploaded before `pages` was
 	// recorded have no such field and would otherwise be flattened.
+	// Without `animated`, `height` here is one frame's.
 	const sourceMeta = await sharp(source).metadata();
 	const pages = sourceMeta.pages ?? 1;
-	if (pages > 1) throw new AnimatedSourceError(pages);
+	const animated = pages > 1;
+	if (animated && !animationFits(pages, sourceMeta.width ?? 0, sourceMeta.height ?? 0)) {
+		throw new AnimatedSourceError(pages);
+	}
 
 	// `.rotate()` with no argument applies the EXIF orientation tag. Without it
 	// a photo taken in portrait on a phone comes out sideways, because the
@@ -199,8 +199,12 @@ async function resize(
 	//
 	// Stripping metadata is also why derivatives carry no EXIF GPS: the privacy
 	// win is a side effect of the default, not extra work.
+	//
+	// An animation decodes every frame, and Sharp counts all of them against
+	// `limitInputPixels`, so it gets the animation cap, already checked above.
 	const pipeline = sharp(source, {
-		limitInputPixels: MAX_INPUT_PIXELS,
+		animated,
+		limitInputPixels: animated ? MAX_ANIMATED_PIXELS : MAX_INPUT_PIXELS,
 		// Decode in row order instead of random access. For a downscale — which
 		// is all this ever does — libvips can then stream the source rather than
 		// holding the whole decoded image, which is the single biggest reduction
@@ -215,9 +219,23 @@ async function resize(
 			withoutEnlargement: true,
 			fit: 'inside'
 		})
-		[VARIANT_FORMAT]({ quality: config.quality });
+		[VARIANT_FORMAT]({ quality });
 
 	const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
+	// An animation's `height` is every frame stacked; one frame's is `pageHeight`.
+	return { data, width: info.width, height: info.pageHeight ?? info.height, frames: pages };
+}
+
+async function resize(
+	opts: Parameters<typeof generateVariant>[0],
+	key: string
+): Promise<GeneratedVariant> {
+	const { asset, width, config, configHash, storage, database } = opts;
+
+	const source = await storage.getObject(asset.path);
+
+	const encoded = await encodeVariant(source, width, config.quality);
+	const data = encoded.data;
 
 	const stored = await storage.store({
 		buffer: data,
@@ -228,8 +246,8 @@ async function resize(
 	});
 
 	const variant: AssetVariant = {
-		w: info.width,
-		h: info.height,
+		w: encoded.width,
+		h: encoded.height,
 		key: stored.key,
 		path: stored.path,
 		url: buildVariantUrl(asset.id, width, configHash),

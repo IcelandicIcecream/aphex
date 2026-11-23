@@ -147,8 +147,27 @@ const UNDECODABLE_SOURCE_MIME_TYPES = new Set([
  * falls back to a 14MB original renders perfectly and costs a hundred times what
  * it should.
  */
+/**
+ * How much animation the pipeline will resize. Past either cap an animated
+ * source is served as-is, like an SVG.
+ *
+ * Frames are resized in strips, not held whole: a 329-frame 1280×720 WebP
+ * (303M pixels) peaked under 110MB and took about 7s. Time, not memory, grows
+ * with the total, and a resize holds one of the generation slots while it runs,
+ * so the total is what's capped. The frame cap stops a long, tiny animation
+ * (thousands of frames of a spinner) from passing the total and still taking
+ * minutes.
+ */
+export const MAX_ANIMATED_PIXELS = 500_000_000;
+export const MAX_ANIMATED_FRAMES = 1_000;
+
+/** Whether an animation of this size is within the caps above. */
+export function animationFits(frames: number, width: number, height: number): boolean {
+	return frames <= MAX_ANIMATED_FRAMES && frames * width * height <= MAX_ANIMATED_PIXELS;
+}
+
 export function canGenerateVariants(
-	asset: Pick<Asset, 'assetType' | 'mimeType' | 'metadata'>
+	asset: Pick<Asset, 'assetType' | 'mimeType' | 'metadata' | 'width' | 'height'>
 ): boolean {
 	if (asset.assetType !== 'image') return false;
 	// Already resolution-independent; a raster derivative is strictly worse.
@@ -158,8 +177,13 @@ export function canGenerateVariants(
 	// a derivative here only produces a thumbnail URL that 500s. An image plugin
 	// that transcodes on upload is the way these become renderable.
 	if (UNDECODABLE_SOURCE_MIME_TYPES.has(asset.mimeType ?? '')) return false;
-	// An animated source is served as-is — resizing flattens it to one frame.
-	if ((asset.metadata?.pages ?? 1) > 1) return false;
+	// An animated source is resized frame by frame, to an animated WebP, within
+	// the caps above. Without its size there's no knowing that, so it's served as-is.
+	const pages = asset.metadata?.pages ?? 1;
+	if (pages > 1) {
+		if (!asset.width || !asset.height) return false;
+		return animationFits(pages, asset.width, asset.height);
+	}
 	return true;
 }
 

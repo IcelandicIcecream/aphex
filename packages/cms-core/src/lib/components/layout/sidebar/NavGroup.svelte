@@ -224,11 +224,10 @@
 				</SidebarMenuItem>
 			</SidebarMenu>
 			<Collapsible.Content>
-				<!-- Indented on a rule under its heading (a nested list's look), except
-				     folded to icons, where there's no room to indent. -->
-				<SidebarMenu
-					class="border-sidebar-border ml-3.5 border-l pl-2 group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:border-l-0 group-data-[collapsible=icon]:pl-0"
-				>
+				<!-- Flush with every other group's links: the heading already says what
+				     they belong to. Indenting a full-width list pushed it past the
+				     sidebar's edge, which scrolled sideways. -->
+				<SidebarMenu>
 					{@render entries()}
 				</SidebarMenu>
 			</Collapsible.Content>

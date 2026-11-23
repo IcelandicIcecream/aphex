@@ -6,6 +6,7 @@ import {
 	AnimatedSourceError
 } from '@aphexcms/cms-core/images/generate';
 import { configHashFor, getVariants, resolveImageConfig } from '@aphexcms/cms-core/server';
+import { MAX_ANIMATED_FRAMES } from '@aphexcms/cms-core/images/variants';
 
 /**
  * Actually runs Sharp.
@@ -459,11 +460,15 @@ describe('generation concurrency', () => {
 /**
  * Sharp reads only the first frame unless told otherwise, so an animated GIF
  * run through a resize comes out a single still. Nothing errors — the image
- * still renders — which is exactly what makes it dangerous.
+ * still renders — which is exactly what makes it dangerous. An animation within
+ * the caps (images/variants.ts) is resized as an animation; one over them is
+ * refused, and the route serves the original. Never flattened.
  */
 describe('animated sources', () => {
 	let ANIMATED: Buffer;
 	let STATIC_GIF: Buffer;
+	/** More frames than MAX_ANIMATED_FRAMES, each tiny: over the caps, cheaply. */
+	let OVER_CAP: Buffer;
 
 	beforeAll(async () => {
 		const W = 120,
@@ -493,6 +498,18 @@ describe('animated sources', () => {
 		})
 			.gif()
 			.toBuffer();
+		const frames = MAX_ANIMATED_FRAMES + 1;
+		// Each frame different, written as its number in black and white channel
+		// values: the encoder merges identical (or merely similar) frames.
+		const shades = Buffer.alloc(2 * 2 * frames * 3);
+		for (let f = 0; f < frames; f++) {
+			for (let bit = 0; bit < 12; bit++) shades[f * 12 + bit] = (f >> bit) & 1 ? 255 : 0;
+		}
+		OVER_CAP = await sharp(shades, {
+			raw: { width: 2, height: 2 * frames, channels: 3, pageHeight: 2 }
+		})
+			.gif()
+			.toBuffer();
 	});
 
 	it('the fixture really is animated', async () => {
@@ -500,11 +517,31 @@ describe('animated sources', () => {
 		// the refusal test below pass for entirely the wrong reason.
 		expect((await sharp(ANIMATED).metadata()).pages).toBe(3);
 		expect((await sharp(STATIC_GIF).metadata()).pages ?? 1).toBe(1);
+		expect((await sharp(OVER_CAP).metadata()).pages).toBe(MAX_ANIMATED_FRAMES + 1);
 	});
 
-	it('refuses to flatten an animated GIF', async () => {
+	it('resizes an animated GIF as an animation', async () => {
 		const asset = makeAsset({ mimeType: 'image/gif' });
 		const storage = makeStorage(asset.path, () => ANIMATED);
+		const database = makeDatabase(asset);
+
+		const { buffer } = await generateVariant({
+			asset,
+			width: 60,
+			config: CONFIG,
+			configHash: CONFIG_HASH,
+			storage: storage as any,
+			database: database as any
+		});
+
+		const meta = await sharp(buffer, { animated: true }).metadata();
+		expect(meta.pages).toBe(3);
+		expect(meta.width).toBe(60);
+	});
+
+	it('refuses an animation over the caps rather than flattening it', async () => {
+		const asset = makeAsset({ mimeType: 'image/gif' });
+		const storage = makeStorage(asset.path, () => OVER_CAP);
 		const database = makeDatabase(asset);
 
 		await expect(
@@ -544,7 +581,7 @@ describe('animated sources', () => {
 
 	it('releases the concurrency slot when refusing', async () => {
 		setGenerationConcurrency(1);
-		const storage = makeStorage('mem/asset-1/original.png', () => ANIMATED);
+		const storage = makeStorage('mem/asset-1/original.png', () => OVER_CAP);
 		const database = makeDatabase(makeAsset());
 
 		await expect(

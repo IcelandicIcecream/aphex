@@ -44,6 +44,10 @@ There are two ways in, and both act as one user in one organization:
 
 Whichever it is, the user's role in that organization is the ceiling, and it's checked on every request: removing someone from the organization, or changing their role, applies to their keys and connected apps at once.
 
+### Rate limits
+
+Every tool call counts against the caller's share a minute, the same one as the [HTTP API](/http-api#rate-limits): 120 reads, 60 changes and 10 uploads for each API key or connected app by default. Over it, the tool answers an error such as "Too many changes at once. Wait 12 seconds, then try again.", so the agent waits instead of retrying blindly. Set the numbers with `rateLimit` in `aphex.config.ts`.
+
 ## Connecting Claude and ChatGPT
 
 Turn OAuth on in `aphex.config.ts`:

@@ -41,7 +41,7 @@ Both endpoints require authentication. `/api/openapi.json` enumerates your entir
 The reference UI loads [Scalar](https://scalar.com) from a public CDN — the one thing it does that the JSON endpoint doesn't. On an instance that shouldn't pull third-party scripts, unmount it, after which it answers `404`:
 
 ```ts title="aphex.config.ts"
-export default defineConfig({
+export default createCMSConfig({
 	openapi: { docsUi: false }
 });
 ```
@@ -263,6 +263,34 @@ Each API key is scoped to the organization that was active when the key was crea
 Mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) require write permission. API keys with only `read` permission receive a `403` response on mutations.
 
 The one exception is `POST /api/documents/query`, which is treated as a read operation (it uses POST only because the filter payload can be complex).
+
+### Rate limits
+
+Each caller gets a share a minute, counted per API key, per connected app and per signed-in person:
+
+| Caller                                      | Reads | Changes | Uploads |
+| ------------------------------------------- | ----- | ------- | ------- |
+| API key or connected app (`agent`)          | 120   | 60      | 10      |
+| Signed-in person in the admin (`session`)   | 600   | 240     | 60      |
+
+Reads are `GET` and `POST /api/documents/query`; uploads are `POST /api/assets` and `POST /api/assets/upload-url`; every other `POST`, `PUT`, `PATCH` and `DELETE` is a change. Over the limit, the API answers `429` with a `Retry-After` header in seconds:
+
+```json
+{ "success": false, "error": "Too many requests", "message": "Too many changes at once. Wait 12 seconds, then try again." }
+```
+
+[MCP](/mcp) tool calls count against the same share. Sign-in, password reset and other anonymous endpoints keep limits of their own.
+
+Change any number, or turn it off, in `aphex.config.ts`:
+
+```ts
+export default createCMSConfig({
+	rateLimit: { agent: { write: 30, upload: 5 } }
+	// rateLimit: false
+});
+```
+
+The counts are kept in each server process, so behind several instances each one allows the full share. For a hard ceiling, add a limit in front of the app as well (a Cloudflare rate-limiting rule on `/api/*` and `/mcp`, for one).
 
 ## Response format
 

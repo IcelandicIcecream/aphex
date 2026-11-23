@@ -29,6 +29,7 @@ import { hasRequiredCapabilities } from '../schema-utils/required-capabilities';
 import { resolveCapabilities } from '../types/capabilities';
 import { mcpWwwAuthenticate } from '../server/oauth-discovery';
 import { buildContentTools } from '../mcp/tools';
+import { callerLimits, tooManyCallsMessage } from '../server/api/caller-limits';
 import { buildMcpInstructions } from '../mcp/instructions';
 import { getGuideInput, readGuide } from '../mcp/guides';
 import { promptArgsShape } from '../mcp/prompts';
@@ -146,6 +147,13 @@ app.all('*', async (c) => {
 			// The registry stays SDK-agnostic; adapt its neutral result to the SDK's
 			// CallToolResult (which adds an index signature) here at the boundary.
 			async (args): Promise<CallToolResult> => {
+				// Each caller's fair share (`config.rateLimit`): over it, the agent is told how
+				// long to wait, in words, so it backs off rather than retrying blindly.
+				const kind = tool.name === 'upload_asset' ? 'upload' : tool.mutates ? 'write' : 'read';
+				const limit = callerLimits.check(auth, kind, config.rateLimit);
+				if (!limit.allowed) {
+					return { content: [{ type: 'text', text: tooManyCallsMessage(limit) }], isError: true };
+				}
 				const result = await tool.handler(args as Record<string, unknown>);
 				return { content: result.content, isError: result.isError };
 			}

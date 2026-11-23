@@ -295,7 +295,10 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				// Keyed on the normalized address so casing/whitespace can't mint a fresh bucket.
 				const limited = enforceRateLimits(c, [
-					{ limiter: resetRequestByAddress, key: clientAddress(c.req.raw.headers) },
+					{
+						limiter: resetRequestByAddress,
+						key: c.env.clientAddress ?? clientAddress(c.req.raw.headers)
+					},
 					{ limiter: resetRequestByEmail, key: email.trim().toLowerCase() }
 				]);
 				if (limited) return limited;
@@ -346,7 +349,10 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				const { token, newPassword } = c.req.valid('json');
 
 				const limited = enforceRateLimits(c, [
-					{ limiter: resetSubmitByAddress, key: clientAddress(c.req.raw.headers) },
+					{
+						limiter: resetSubmitByAddress,
+						key: c.env.clientAddress ?? clientAddress(c.req.raw.headers)
+					},
 					{ limiter: resetSubmitByToken, key: token }
 				]);
 				if (limited) return limited;

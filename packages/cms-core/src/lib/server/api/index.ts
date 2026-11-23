@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { CMSInstances } from '../../hooks';
 import type { Auth } from '../../types/auth';
+import { apiCallKind, callerLimits, tooManyCallsMessage } from './caller-limits';
 import type { Organization } from '../../types/organization';
 import type { StorageAdapter } from '../../storage/interfaces/storage';
 import { formatMegabytes, resolveMaxUploadBytes } from '../../api/limits';
@@ -111,6 +112,27 @@ export function createAphexApi() {
 		c.set('auth', c.env.auth);
 		c.set('tenant', c.env.tenant ?? null);
 		await next();
+	});
+
+	// Each caller's fair share (`config.rateLimit`, ./caller-limits.ts). Anonymous calls
+	// (sign-in, a form post) have limits of their own, and the worker endpoint is the
+	// instance's cron, not a caller.
+	app.use('*', async (c, next) => {
+		const auth = c.var.auth;
+		// A test or tool driving the app with a bare stand-in has no config to read.
+		const config = c.var.aphexCMS?.config;
+		if (!auth || !config || c.req.path.startsWith('/api/internal/')) return next();
+		const result = callerLimits.check(
+			auth,
+			apiCallKind(c.req.method, c.req.path),
+			config.rateLimit
+		);
+		if (result.allowed) return next();
+		c.header('Retry-After', String(result.retryAfterSeconds));
+		return c.json(
+			{ success: false, error: 'Too many requests', message: tooManyCallsMessage(result) },
+			429
+		);
 	});
 
 	return app;

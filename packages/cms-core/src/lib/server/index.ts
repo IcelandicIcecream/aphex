@@ -74,6 +74,12 @@ export {
 	type RateLimitRule,
 	type RateLimitResult
 } from './api/rate-limit';
+export {
+	DEFAULT_CALLER_LIMITS,
+	type CallKind,
+	type CallLimits,
+	type CallerLimitsConfig
+} from './api/caller-limits';
 
 // Job execution — the DB-backed job runner (claim → run handler → complete/retry/fail).
 export * from '../jobs/index';

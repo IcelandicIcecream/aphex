@@ -56,6 +56,8 @@ export interface McpTool {
 	description: string;
 	/** zod raw shape describing the tool's arguments. */
 	inputSchema: z.ZodRawShape;
+	/** Whether it changes content, from its definition: counted as a change, not a read. */
+	mutates: boolean;
 	handler: (args: Record<string, unknown>) => Promise<McpToolResult>;
 }
 
@@ -1093,6 +1095,7 @@ export function buildContentTools(deps: McpToolDeps): McpTool[] {
 		name: definition.name,
 		description: definition.description,
 		inputSchema: (definition.inputSchema as z.ZodObject<z.ZodRawShape>).shape,
+		mutates: definition.mutates,
 		handler: async (args: Record<string, unknown>) =>
 			toMcpResult(await execute(args, { aphexCMS, context }))
 	}));

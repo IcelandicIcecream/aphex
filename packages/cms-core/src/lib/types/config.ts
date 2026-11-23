@@ -2,6 +2,7 @@
 import type { Hono } from 'hono';
 import type { AuthProvider } from '../auth/provider';
 import type { CacheAdapter } from '../cache/index';
+import type { CallerLimitsConfig } from '../server/api/caller-limits';
 import type { DatabaseAdapter } from '../db/index';
 import type { StorageAdapter } from '../storage/interfaces/index';
 import type { EmailAdapter } from '../email/index';
@@ -538,6 +539,21 @@ export interface CMSConfig {
 		 */
 		prompts?: readonly McpPrompt[];
 	};
+	/**
+	 * How many calls a minute one caller may make to `/api` and the MCP server, counted
+	 * per API key, per connected app and per signed-in person, as reads, changes and
+	 * uploads. Over it, `/api` answers `429` with `Retry-After` and an MCP tool answers
+	 * an error saying how long to wait. The defaults (`DEFAULT_CALLER_LIMITS`) suit a
+	 * person or an agent at work; set any of them, or `false` to turn it off.
+	 *
+	 * Counted per process: behind several instances, put a limit in front of them too.
+	 *
+	 * @example
+	 * ```ts
+	 * rateLimit: { agent: { write: 30 } }
+	 * ```
+	 */
+	rateLimit?: CallerLimitsConfig | false;
 	/**
 	 * How many documents of a type an organization may create, such as a plan's
 	 * "5 invoices a month". Checked on every create, from the studio, the Local API,

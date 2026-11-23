@@ -233,7 +233,33 @@
 			? (field.options as { collapsible?: boolean; collapsed?: boolean } | undefined)
 			: undefined
 	);
+	/**
+	 * An on/off field: its checkbox carries its title, so it has no label above it
+	 * (that read as the same words twice), and its description sits under the box.
+	 */
+	const ownLabel = $derived(field.type === 'boolean' && !CustomInput);
+	/**
+	 * An object of nothing but on/off fields (a dish's dietary marks): a set of
+	 * checkboxes under one heading, close together, two to a row where there's room.
+	 */
+	const checklist = $derived(
+		field.type === 'object' &&
+			!CustomInput &&
+			!field.fieldsets?.length &&
+			field.fields?.length &&
+			field.fields.every((sub) => sub.type === 'boolean' && !sub.input)
+			? field.fields
+			: null
+	);
+	/** A folded checklist still says what's ticked, beside its heading. */
+	const ticked = $derived(
+		checklist
+			? checklist.filter((sub) => value?.[sub.name] === true).map((sub) => sub.title ?? sub.name)
+			: []
+	);
 	const foldable = $derived(!!(objectOptions?.collapsible || objectOptions?.collapsed));
+	/** A checklist that folds is drawn like a folding fieldset: its heading inside the box. */
+	const foldedBox = $derived(!!checklist && foldable);
 	// svelte-ignore state_referenced_locally
 	let unfolded = $state(
 		!(field.type === 'object' && (field.options as { collapsed?: boolean } | undefined)?.collapsed)
@@ -309,7 +335,10 @@
 		data-field-error={hasErrors ? '' : undefined}
 		onfocusout={validateOnLeave}
 	>
-		<div class="flex items-center justify-between">
+		<div
+			class="flex items-center justify-between"
+			hidden={(ownLabel || foldedBox) && !overridden && !titleAlert}
+		>
 			<div class="flex items-center gap-1.5">
 				{#if foldable}
 					<button
@@ -397,7 +426,7 @@
 		<!-- Inline description: always in inline mode; in tooltip mode only on mobile
 	     (`lg:hidden`), where the desktop info icon is hidden. -->
 		<!-- A folded object's description would read as the next field's: it shows unfolded. -->
-		{#if field.description && !(foldable && !unfolded)}
+		{#if field.description && !ownLabel && !foldedBox && !(foldable && !unfolded)}
 			<p class="text-muted-foreground text-sm {descriptionMode === 'tooltip' ? 'lg:hidden' : ''}">
 				{field.description}
 			</p>
@@ -412,7 +441,48 @@
 					error
 				)}
 		>
-			{#if field.type === 'object' && field.fields && !CustomInput}
+			{#if checklist && foldedBox}
+				<!-- The same box as a folding fieldset (FieldsetSection), so the two read
+				     as one thing; folded, it says what's ticked. -->
+				<details class="border-border rounded-md border" bind:open={unfolded}>
+					<summary
+						class="hover:bg-muted/50 flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-2.5 select-none [&::-webkit-details-marker]:hidden"
+					>
+						<ChevronRight
+							class="text-muted-foreground size-4 shrink-0 transition-transform {unfolded
+								? 'rotate-90'
+								: ''}"
+						/>
+						<span class="text-sm font-medium">{field.title}</span>
+						{#if !unfolded}
+							<span class="text-muted-foreground ml-auto truncate text-xs">
+								{ticked.length ? ticked.join(', ') : 'None'}
+							</span>
+						{/if}
+					</summary>
+					<div class="space-y-3 px-3 pt-1 pb-3">
+						{#if field.description}
+							<p class="text-muted-foreground text-sm">{field.description}</p>
+						{/if}
+						<fieldset class="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
+							<legend class="sr-only">{field.title}</legend>
+							{#each checklist as sub (sub.name)}
+								{@render subField(sub)}
+							{/each}
+						</fieldset>
+					</div>
+				</details>
+			{:else if checklist}
+				<fieldset
+					class="border-border grid gap-x-6 gap-y-2.5 rounded-md border p-3 sm:grid-cols-2"
+					hidden={foldable && !unfolded}
+				>
+					<legend class="sr-only">{field.title}</legend>
+					{#each checklist as sub (sub.name)}
+						{@render subField(sub)}
+					{/each}
+				</fieldset>
+			{:else if field.type === 'object' && field.fields && !CustomInput}
 				<!-- Object container: recurse. A custom `input` widget would override this.
 			     The field's title is already shown by the <Label> above, so the card is
 			     just a bordered group — no repeated heading. -->
@@ -458,6 +528,9 @@
 					{organizationId}
 					{onOpenReference}
 				/>
+				{#if ownLabel && field.description}
+					<p class="text-muted-foreground pl-6 text-xs leading-relaxed">{field.description}</p>
+				{/if}
 			{/if}
 
 			{#snippet failed(error, reset)}

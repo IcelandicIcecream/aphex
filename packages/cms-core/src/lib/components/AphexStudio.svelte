@@ -157,6 +157,12 @@
 		// `view` out to mean "the start view" lost a click on it from an invoice.
 		if (area === 'structure' && startArea === 'structure') params.delete('view');
 		else params.set('view', area);
+		// Another area leaves the open document, as `nav.openArea` does. Kept, its
+		// `docId` kept the editor's header (its title, View switch and Preview) over
+		// a tool that has nothing to do with it. The editor saves on its way out.
+		if (area !== 'structure') {
+			for (const key of ['docId', 'docType', 'stack', 'action']) params.delete(key);
+		}
 		const query = params.toString();
 		goto(`/admin${query ? `?${query}` : ''}`, { replaceState: true, keepFocus: true });
 	}

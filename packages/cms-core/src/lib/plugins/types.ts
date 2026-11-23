@@ -286,16 +286,17 @@ export interface AdminToolProps {
 	schemas: SchemaType[];
 	/** Switch the active admin area/tab (e.g. back to `'structure'`). */
 	navigate: (area: AdminArea) => void;
-	/** Open a document in the editor. */
 	/**
 	 * Open a document in the editor. `tab` opens it on one of its field groups (the
 	 * group's `name`), as `?tab=` does in a link; `field` opens it on the group that
-	 * field sits in, so a "fix your phone number" button lands where the phone is.
+	 * field sits in and scrolls to the field, so a "fix your phone number" button
+	 * lands on the phone. `objectPath` goes further inside that field, as a preview
+	 * click does: `[2].heading` opens its third item and focuses that item's heading.
 	 */
 	openDocument: (
 		documentType: string,
 		documentId: string,
-		options?: { tab?: string; field?: string }
+		options?: { tab?: string; field?: string; objectPath?: string }
 	) => void;
 	/**
 	 * Start a new document of this type in the editor, as the type's own "+"

@@ -188,29 +188,47 @@
 <SidebarGroup class={demoted ? 'mt-auto' : undefined}>
 	{#if collapsible && label}
 		<Collapsible.Root {open} onOpenChange={remember} class="group/more">
-			<SidebarMenu>
+			<!-- A heading like every other group's, with a chevron to fold it, so what
+			     opens reads as its contents rather than more items beside it. -->
+			<Collapsible.Trigger>
+				{#snippet child({ props })}
+					<SidebarGroupLabel>
+						{#snippet child({ props: labelProps })}
+							<button
+								{...props}
+								{...labelProps}
+								type="button"
+								data-tour={id ? `group:${id}` : undefined}
+								class="{labelProps.class} hover:text-sidebar-foreground w-full cursor-pointer gap-1"
+							>
+								<span>{label}</span>
+								<ChevronRight
+									class="size-3.5! transition-transform duration-200 group-data-[state=open]/more:rotate-90"
+								/>
+							</button>
+						{/snippet}
+					</SidebarGroupLabel>
+				{/snippet}
+			</Collapsible.Trigger>
+			<!-- With the sidebar folded to icons the heading's hidden: a "…" opens it there. -->
+			<SidebarMenu class="hidden group-data-[collapsible=icon]:flex">
 				<SidebarMenuItem>
 					<Collapsible.Trigger>
 						{#snippet child({ props })}
-							<SidebarMenuButton
-								{...props}
-								data-tour={id ? `group:${id}` : undefined}
-								tooltipContent={label}
-								{size}
-								class="cursor-pointer"
-							>
+							<SidebarMenuButton {...props} tooltipContent={label} {size} class="cursor-pointer">
 								<Ellipsis class="h-4 w-4" />
 								<span>{label}</span>
-								<ChevronRight
-									class="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/more:rotate-90"
-								/>
 							</SidebarMenuButton>
 						{/snippet}
 					</Collapsible.Trigger>
 				</SidebarMenuItem>
 			</SidebarMenu>
 			<Collapsible.Content>
-				<SidebarMenu>
+				<!-- Indented on a rule under its heading (a nested list's look), except
+				     folded to icons, where there's no room to indent. -->
+				<SidebarMenu
+					class="border-sidebar-border ml-3.5 border-l pl-2 group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:border-l-0 group-data-[collapsible=icon]:pl-0"
+				>
 					{@render entries()}
 				</SidebarMenu>
 			</Collapsible.Content>

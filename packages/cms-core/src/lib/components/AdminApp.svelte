@@ -212,6 +212,11 @@
 			// navigateToDocumentType does) so opening a doc from a plugin tab actually
 			// shows the editor instead of leaving state stranded on the plugin tab.
 			if (activeTab.value !== 'structure') handleTabChange('structure');
+			// The editor lands on the field once the document has loaded, as it does
+			// for a field clicked in a preview (`focusTargetFor`).
+			pendingFocus = options?.field
+				? { documentId, target: { fieldPath: options.field, objectPath: options.objectPath } }
+				: null;
 			await navigateToEditDocument(documentId, documentType);
 			// On one of its field groups, as `?tab=` does in a link: the one named, or
 			// the one the named field sits in (its first, when it's in several).
@@ -375,6 +380,13 @@
 	// `openPreview`: each document with a preview opens with it, on a wide screen.
 	$effect(() => {
 		const id = editingDocumentId;
+		// Out of the editor, the preview closed with it: coming back to the same
+		// document (Design's "Colours, fonts and logo" opens Site settings) opens it
+		// again, rather than finding it already "opened for" this document.
+		if (currentView !== 'editor' || !id) {
+			previewOpenedFor = null;
+			return;
+		}
 		if (
 			!openPreview ||
 			previewDismissed ||

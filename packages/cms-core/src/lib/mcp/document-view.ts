@@ -88,7 +88,14 @@ export function skim(value: unknown): unknown {
 function slimMeta(meta: unknown): Record<string, unknown> | undefined {
 	if (!isRecord(meta)) return undefined;
 	const out: Record<string, unknown> = {};
-	for (const key of ['type', 'status', 'revision', 'updatedAt', 'publishedAt']) {
+	for (const key of [
+		'type',
+		'status',
+		'hasUnpublishedChanges',
+		'revision',
+		'updatedAt',
+		'publishedAt'
+	]) {
 		if (meta[key] !== undefined && meta[key] !== null) out[key] = meta[key];
 	}
 	return out;

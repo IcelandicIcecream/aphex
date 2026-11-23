@@ -142,6 +142,19 @@ describe('viewDocument', () => {
 		expect(viewDocument(doc)._meta).toEqual({ type: 'page', status: 'draft', revision: 4 });
 	});
 
+	it('keeps whether a live document has edits the site doesn’t show yet', () => {
+		const live = {
+			...doc,
+			_meta: { ...doc._meta, status: 'published', hasUnpublishedChanges: true }
+		};
+		expect(viewDocument(live, { skim: true })._meta).toEqual({
+			type: 'page',
+			status: 'published',
+			hasUnpublishedChanges: true,
+			revision: 4
+		});
+	});
+
 	it('picks fields, or one value by path', () => {
 		expect(Object.keys(viewDocument(doc, { fields: ['title'] }))).toEqual(['id', '_meta', 'title']);
 		expect(viewDocument(doc, { path: 'blocks[_key=="h1"].heading' }).value).toBe('x'.repeat(200));

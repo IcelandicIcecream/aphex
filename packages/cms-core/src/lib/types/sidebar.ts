@@ -43,6 +43,17 @@ export interface SidebarNavGroup {
 	 * that leave the studio, help, version.
 	 */
 	placement?: 'top' | 'bottom';
+	/**
+	 * Fold the group into one row, its `label` with a chevron, that opens to show
+	 * its links: for the things an editor reaches for rarely (a "More"). It opens by
+	 * itself while one of its links is the current page, and remembers being opened.
+	 */
+	collapsible?: boolean;
+	/**
+	 * Plugin admin tools this group takes, by id, whatever group the plugin named
+	 * (or none): so an app files another package's tool under its own heading.
+	 */
+	tools?: string[];
 }
 
 export interface SidebarBranding {

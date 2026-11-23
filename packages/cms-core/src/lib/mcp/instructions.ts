@@ -55,6 +55,7 @@ How to work:
 
 Drafts and publishing:
 - Everything you create or edit is saved as a draft. The live site shows only published content, so a draft is safe to work on.
+- A document's _meta.status says whether it's live: draft (never published), published, or unpublished (taken down). A published one with _meta.hasUnpublishedChanges: true has draft edits the live site doesn't show yet; read it with perspective "published" to see what's live.
 - ${publishing}
 
 Facts about the business:

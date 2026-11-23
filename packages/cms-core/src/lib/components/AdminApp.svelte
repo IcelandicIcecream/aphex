@@ -20,7 +20,7 @@
 	import type { RelatedPreviewData } from './admin/related-preview';
 	import { setAdminNav } from '../admin/nav.svelte';
 	import type { Component } from 'svelte';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { setFieldComponents } from '../admin/field-components.svelte';
 	import { setBlockPreviews, type BlockPreviewProps } from '../admin/block-previews.svelte';
 	import AdminSlot from './admin/AdminSlot.svelte';
@@ -386,18 +386,64 @@
 		if (typeof window === 'undefined' || window.innerWidth < 1200) return;
 		if (!schemas.find((s) => s.name === selectedDocumentType)?.previewUrl) return;
 		previewOpenedFor = id;
-		if (!presentationModeOn) {
-			presentationModeOn = true;
-			sidebar?.setOpen(false);
-		}
+		presentationModeOn = true;
 	});
 
 	function togglePresentationMode() {
 		if (presentationModeOn) previewDismissed = true;
 		presentationModeOn = !presentationModeOn;
-		// Entering presentation mode: collapse the nav rail so the preview gets the room.
-		if (presentationModeOn) sidebar?.setOpen(false);
 	}
+
+	/**
+	 * The nav rail with the preview open. It folds away to give the preview room,
+	 * unless this person opened it again the last time the preview was showing:
+	 * that choice is remembered (in this browser), so it isn't undone on every
+	 * document. Closing the preview puts the rail back the way it was before.
+	 */
+	const SIDEBAR_WITH_PREVIEW = 'aphex:sidebar-with-preview';
+	let sidebarBeforePreview: boolean | null = null;
+	/** The rail's state as last set or seen, to tell a person's change from ours. */
+	let sidebarSeen: boolean | null = null;
+	let wasPresenting = false;
+
+	function keepsSidebarWithPreview(): boolean {
+		try {
+			return localStorage.getItem(SIDEBAR_WITH_PREVIEW) === 'open';
+		} catch {
+			return false;
+		}
+	}
+
+	$effect(() => {
+		const on = presentationModeOn;
+		if (on === wasPresenting) return;
+		wasPresenting = on;
+		untrack(() => {
+			if (!sidebar || sidebar.isMobile) return;
+			if (on) {
+				sidebarBeforePreview = sidebar.open;
+				if (!keepsSidebarWithPreview()) sidebar.setOpen(false);
+				sidebarSeen = sidebar.open;
+			} else {
+				if (sidebarBeforePreview && !sidebar.open) sidebar.setOpen(true);
+				sidebarBeforePreview = null;
+				sidebarSeen = null;
+			}
+		});
+	});
+
+	// Opened or closed by hand while the preview shows: remember it for next time.
+	$effect(() => {
+		if (!sidebar || !presentationModeOn || sidebar.isMobile) return;
+		const open = sidebar.open;
+		if (sidebarSeen === null || open === sidebarSeen) return;
+		sidebarSeen = open;
+		try {
+			localStorage.setItem(SIDEBAR_WITH_PREVIEW, open ? 'open' : 'closed');
+		} catch {
+			// Not remembered, only this time.
+		}
+	});
 
 	function exitPresentationMode() {
 		previewDismissed = true;

@@ -330,7 +330,8 @@
 					/>
 				{/snippet}
 				{#if schema.fields}
-					{#each layoutFields(schema.fields, schema.fieldsets) as item, index (index)}
+					<!-- Keyed by name: `fieldRefs` finds each field's component by name. -->
+					{#each layoutFields(schema.fields, schema.fieldsets) as item (item.kind === 'field' ? `field:${item.field.name}` : `fieldset:${item.fieldset.name}`)}
 						{#if item.kind === 'field'}
 							{@render itemField(item.field)}
 						{:else if item.fields.some((f) => isFieldVisible(f, value ?? {}, documentData))}

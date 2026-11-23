@@ -29,6 +29,7 @@ import type { DocumentLimitGuard } from './limits';
 import { collectReferenceIds } from '../utils/reference-walk';
 import { expandReferences } from './expand-references';
 import { emitDocumentPublished } from '../events/emit';
+import { hasUnpublishedChanges } from '../utils/content-hash';
 import type { AppendEventInput, Job } from '../types/events';
 import { DOCUMENT_PUBLISH_JOB, DOCUMENT_UNPUBLISH_JOB } from '../jobs/document-jobs';
 import {
@@ -130,6 +131,13 @@ function transformDocument<T>(
 			updatedBy: doc.updatedBy,
 			publishedAt: doc.publishedAt,
 			publishedHash: doc.publishedHash,
+			// On a draft read of a document that's live: whether the draft differs
+			// from what the site shows. `status` stays 'published' after an edit, so
+			// this is the only signal a reader without the editor (an agent) gets.
+			// Hashed from the stored draft, never the field-stripped copy above.
+			...(perspective === 'draft' && doc.status === 'published'
+				? { hasUnpublishedChanges: hasUnpublishedChanges(doc.draftData, doc.publishedHash) }
+				: {}),
 			// CAS guard — callers echo this back as `expectedRevision` on their next
 			// write so a stale save (second tab, an agent) surfaces as a conflict
 			// instead of silently overwriting a change made after this read.

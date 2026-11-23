@@ -119,12 +119,21 @@
 			exact: !data?.navGroups?.length && !data?.navItems?.length && item.href === '/admin'
 		}));
 
-	// A tool names a group by id. One that names nothing — or a group this app
-	// doesn't define — lands in the default Tools group rather than vanishing.
+	// A tool goes where a group claims it by id (`tools`), else to the group it
+	// names. One that names nothing, or a group this app doesn't define, lands in the
+	// default Tools group rather than vanishing.
 	const groupIds = $derived(new Set(resolvedGroups.map((g) => g.id).filter(Boolean)));
+	const claimedBy = $derived(
+		new Map(resolvedGroups.flatMap((g) => (g.tools ?? []).map((id) => [id, g.id] as const)))
+	);
 	const toolsFor = (groupId: string | undefined) =>
 		sidebarTools.filter((tool) => {
-			const target = tool.group && groupIds.has(tool.group) ? tool.group : DEFAULT_TOOLS_GROUP;
+			const claimed = claimedBy.get(tool.id);
+			const target = claimed
+				? claimed
+				: tool.group && groupIds.has(tool.group)
+					? tool.group
+					: DEFAULT_TOOLS_GROUP;
 			return target === groupId;
 		});
 
@@ -170,7 +179,10 @@
 			<NavGroup
 				{items}
 				{tools}
+				id={group.id}
 				label={group.label}
+				collapsible={group.collapsible}
+				holdsActive={items.some(isNavActive) || tools.some((tool) => isToolActive(tool.id))}
 				isActive={isNavActive}
 				{isToolActive}
 				{onSelectTool}

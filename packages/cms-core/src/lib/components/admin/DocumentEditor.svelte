@@ -2627,43 +2627,51 @@
 			{@const isPublished =
 				fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
 			{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
-			<div class="flex items-center gap-1.5">
+			<!-- Which version the editor shows: a choice, so it looks like one (one
+			     track, the chosen side raised), never like status pills. "View" names it
+			     inside the track, set off by a rule so it doesn't read as a third option.
+			     The dot on Draft: edits the live site doesn't show yet. -->
+			<div
+				class="bg-muted inline-flex items-center gap-0.5 rounded-lg p-[3px]"
+				role="radiogroup"
+				aria-label="View"
+				data-tour="view-switch"
+			>
+				<span class="text-muted-foreground/80 pr-2 pl-2 text-xs select-none" aria-hidden="true"
+					>View</span
+				>
+				<span class="bg-foreground/15 mr-1 h-4 w-px" aria-hidden="true"></span>
 				<button
-					class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+					type="button"
+					role="radio"
+					aria-checked={perspective === 'draft'}
+					class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors {perspective ===
 					'draft'
-						? 'bg-primary/90 text-primary-foreground border-transparent'
-						: 'text-muted-foreground hover:bg-muted'}"
+						? 'bg-background text-foreground shadow-sm'
+						: 'text-muted-foreground hover:text-foreground'}"
 					onclick={() => switchPerspective('draft')}
 				>
-					<span
-						class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft'
-							? 'bg-primary-foreground/60'
-							: ''}"
-					></span>
+					{#if hasUnpublishedContent}
+						<span class="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>
+						<span class="sr-only">(changes not live yet)</span>
+					{/if}
 					{labels.draft}
 				</button>
 				<button
-					class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+					type="button"
+					role="radio"
+					aria-checked={perspective === 'published'}
+					class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors {perspective ===
 					'published'
-						? 'bg-primary text-primary-foreground border-transparent'
-						: 'text-muted-foreground hover:bg-muted'}"
+						? 'bg-background text-foreground shadow-sm'
+						: 'text-muted-foreground hover:text-foreground'}"
 					onclick={() => switchPerspective('published')}
 				>
 					{#if isPublished}
-						<span
-							class="h-1.5 w-1.5 rounded-full {perspective === 'published'
-								? 'bg-primary-foreground/60'
-								: 'bg-green-500'}"
-						></span>
-						{labels.published}<span class="hidden sm:inline"
+						{labels.published}<span class="text-muted-foreground hidden font-normal sm:inline"
 							>&nbsp;· {timeAgo(new Date(fullDocument._meta.publishedAt))}</span
 						>
 					{:else if isUnpub}
-						<span
-							class="h-1.5 w-1.5 rounded-full {perspective === 'published'
-								? 'bg-primary-foreground/60'
-								: 'bg-muted-foreground/60'}"
-						></span>
 						{labels.unpublished}
 					{:else}
 						{labels.published}
@@ -3094,7 +3102,10 @@
 							onerror={(error) =>
 								cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
 						>
-							{#each layoutFields( schema.fields.filter((f) => fieldInGroup(f, activeGroup) && !hiddenFieldNames.has(f.name)), schema.fieldsets ) as item, index (index)}
+							<!-- Keyed by name, never by position: `schemaFields` finds each field's
+							     component by name, and a slot reused for another field on a tab
+							     switch would be validated with the old field's value. -->
+							{#each layoutFields( schema.fields.filter((f) => fieldInGroup(f, activeGroup) && !hiddenFieldNames.has(f.name)), schema.fieldsets ) as item (item.kind === 'field' ? `field:${item.field.name}` : `fieldset:${item.fieldset.name}`)}
 								{#if item.kind === 'field'}
 									{@render topField(item.field)}
 								{:else if item.fields.some((f) => isFieldVisible(f, viewData, viewData))}
@@ -3374,6 +3385,7 @@
 						>
 							<iframe
 								bind:this={iframeRef}
+								data-tour="preview"
 								src={iframeUrl}
 								class="h-full w-full border-none"
 								title="Page preview"
@@ -3495,7 +3507,7 @@
 						{/if}
 						{#if fullDocument?._meta?.status === 'unpublished'}
 							{#if canPublishDoc}
-								<Button size="sm" onclick={publishDocument} disabled={saving}
+								<Button size="sm" onclick={publishDocument} disabled={saving} data-tour="publish"
 									>{labels.publish}</Button
 								>
 							{/if}
@@ -3618,6 +3630,7 @@
 						{/if}
 						{#if canPublishDoc && !isViewingPublished}
 							<Button
+								data-tour="publish"
 								onclick={publishDocument}
 								disabled={!canPublish}
 								size="sm"

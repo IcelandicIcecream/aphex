@@ -491,6 +491,8 @@ ${fields}
     updatedBy?: string;
     publishedAt?: Date | null;
     publishedHash?: string | null;
+    /** Draft reads of a published document: the draft differs from what's live. */
+    hasUnpublishedChanges?: boolean;
   };`;
 	} else {
 		// Object types include _type for array item discrimination

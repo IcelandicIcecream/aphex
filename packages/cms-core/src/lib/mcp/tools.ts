@@ -97,13 +97,20 @@ function asRecord(args: Record<string, unknown>, key: string): Record<string, un
 const perspectiveArg = (v: unknown): 'draft' | 'published' =>
 	v === 'published' ? 'published' : 'draft';
 
-/** The revision and status a saved document now has. */
-function documentMeta(doc: object): { revision?: number; status?: string } {
+/** The revision and status a saved document now has, and whether it differs from what's live. */
+function documentMeta(doc: object): {
+	revision?: number;
+	status?: string;
+	hasUnpublishedChanges?: boolean;
+} {
 	const meta = '_meta' in doc ? doc._meta : undefined;
 	if (!meta || typeof meta !== 'object') return {};
 	return {
 		...('revision' in meta && typeof meta.revision === 'number' ? { revision: meta.revision } : {}),
-		...('status' in meta && typeof meta.status === 'string' ? { status: meta.status } : {})
+		...('status' in meta && typeof meta.status === 'string' ? { status: meta.status } : {}),
+		...('hasUnpublishedChanges' in meta && typeof meta.hasUnpublishedChanges === 'boolean'
+			? { hasUnpublishedChanges: meta.hasUnpublishedChanges }
+			: {})
 	};
 }
 

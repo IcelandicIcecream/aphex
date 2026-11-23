@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { Label } from '@aphexcms/ui/shadcn/label';
-	import * as Alert from '@aphexcms/ui/shadcn/alert';
 	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
-	import { ChevronRight, CircleAlert, Info, RotateCcw } from '@lucide/svelte';
+	import { ChevronRight, CircleAlert, Info, RotateCcw, TriangleAlert } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import type {
 		Field,
@@ -404,25 +403,6 @@
 			</p>
 		{/if}
 
-		<!-- Validation errors display -->
-		{#if listedErrors.length > 0}
-			<div class="space-y-2">
-				{#each listedErrors as error, index (index)}
-					<Alert.Root
-						variant={error.level === 'error'
-							? 'destructive'
-							: error.level === 'warning'
-								? 'default'
-								: 'default'}
-					>
-						<Alert.Description class="text-xs">
-							{humanizeValidationMessage(error.message, { field, value })}
-						</Alert.Description>
-					</Alert.Root>
-				{/each}
-			</div>
-		{/if}
-
 		<!-- Field type routing to individual components -->
 		<svelte:boundary
 			onerror={(error) =>
@@ -492,5 +472,30 @@
 				</div>
 			{/snippet}
 		</svelte:boundary>
+
+		<!-- What's wrong, under the input it's about: a line of small coloured text,
+		     never a box, so a message can't be mistaken for another field. -->
+		{#if listedErrors.length > 0}
+			<ul class="grid gap-1" aria-live="polite">
+				{#each listedErrors as error, index (index)}
+					{@const Icon =
+						error.level === 'error'
+							? CircleAlert
+							: error.level === 'warning'
+								? TriangleAlert
+								: Info}
+					<li
+						class="flex items-start gap-1.5 text-xs {error.level === 'error'
+							? 'text-destructive'
+							: error.level === 'warning'
+								? 'text-amber-700 dark:text-amber-400'
+								: 'text-muted-foreground'}"
+					>
+						<Icon class="mt-px size-3.5 shrink-0" aria-hidden="true" />
+						<span>{humanizeValidationMessage(error.message, { field, value })}</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
 	</div>
 {/if}

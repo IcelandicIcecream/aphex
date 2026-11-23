@@ -6,6 +6,8 @@ icon: Globe
 
 The HTTP API gives you full CRUD access to documents, assets, and schemas. All document and asset endpoints require authentication via session or [API key](/api-keys).
 
+The HTTP API, [GraphQL](/graphql) and the [MCP server](/mcp) are three doors onto one engine: each goes through the [Local API](/local-api), with the same permissions, validation, hooks, revisions and events. A document written over MCP is the same as one written here. The one thing MCP has that HTTP doesn't is `patch_document`, which edits one item in an array by its `_key`; over HTTP, `PUT` replaces whole fields.
+
 ## Live API reference
 
 Your running studio describes its own API. Two endpoints, both generated from the instance itself:
@@ -155,6 +157,33 @@ The full list of URLs the CMS owns. (`/api/docs` renders this same list from the
 | `POST`  | `/api/user/request-password-reset` | Trigger a password-reset email.                   |
 | `POST`  | `/api/user/reset-password`         | Complete a password reset with the emailed token. |
 
+### API keys and connected apps
+
+Session only: an API key can't make or list keys, and a connected app can't manage connections. Making or revoking a key also needs `apiKey.manage`. See [API Keys](/api-keys) and [MCP](/mcp).
+
+| Method   | Path                                       | Notes                                                                                     |
+| -------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `GET`    | `/api/settings/api-keys`                   | The active organization's keys (never the secret).                                        |
+| `POST`   | `/api/settings/api-keys`                   | Make a key. The secret is in this response only.                                          |
+| `DELETE` | `/api/settings/api-keys/:id`               | Revoke a key.                                                                             |
+| `GET`    | `/api/settings/connected-apps`             | The apps (Claude, ChatGPT…) the signed-in person has connected over OAuth.                |
+| `PATCH`  | `/api/settings/connected-apps/:clientId`   | What one app may do beyond drafts (publishing, deleting). Never more than you can.        |
+| `DELETE` | `/api/settings/connected-apps/:clientId`   | Disconnect an app: its tokens stop working straight away.                                 |
+| `POST`   | `/api/oauth/site`                          | Step of the connect flow the admin drives: the site the app gets. `404` without OAuth.    |
+| `POST`   | `/api/oauth/consent`                       | Step of the connect flow: allow or deny. Answers with the URL the browser goes to next.   |
+
+### In-admin agent
+
+Session only. These are the admin's own assistant, not [MCP](/mcp): writes made over MCP aren't recorded as change sets. `/api/agent/chat` and `/api/agent/operations` answer `404` unless `aiProvider` is configured.
+
+| Method | Path                               | Notes                                                                 |
+| ------ | ---------------------------------- | --------------------------------------------------------------------- |
+| `POST` | `/api/agent/chat`                  | One streamed turn of the admin's assistant.                           |
+| `POST` | `/api/agent/operations`            | Records a write the assistant made in the browser, for its change set. |
+| `GET`  | `/api/agent/change-sets`           | What agents changed, newest first. Needs `document.read`.             |
+| `GET`  | `/api/agent/change-sets/:id`       | One change set and its writes.                                        |
+| `POST` | `/api/agent/change-sets/:id/undo`  | Undo a change set's writes. Needs `document.update`.                  |
+
 ### Jobs and events
 
 Read-only observability over the [event, queue and job spine](/events-and-jobs), plus the two operator actions that make a dead letter recoverable. `?scope=all` widens a read from the active organization to the whole instance and is super-admin only.
@@ -208,7 +237,7 @@ Session only — these reject API keys. Secret values are returned redacted and 
 
 ### Picking a safe path for custom endpoints
 
-When you mount your own `+server.ts` under `/api/*`, avoid these prefixes: `/api/auth`, `/api/documents`, `/api/assets`, `/api/organizations`, `/api/roles`, `/api/schemas`, `/api/user`, `/api/graphql`, `/api/instance-settings`. The convention some teams adopt to be future-proof:
+When you mount your own `+server.ts` under `/api/*`, avoid these prefixes: `/api/auth`, `/api/documents`, `/api/assets`, `/api/organizations`, `/api/invitations`, `/api/roles`, `/api/schemas`, `/api/user`, `/api/settings`, `/api/oauth`, `/api/agent`, `/api/jobs`, `/api/events`, `/api/internal`, `/api/plugin-settings`, `/api/instance-settings`, `/api/graphql`, `/api/docs`, `/api/openapi.json` and `/api/aphex-health`. Plugins can add routes of their own too (the forms plugin's `/api/form-submissions`, for one). The convention some teams adopt to be future-proof:
 
 - Namespace custom routes under a stable prefix, e.g. `/api/app/*` or `/api/v1/*`.
 - For one-off webhooks: `/api/webhooks/<provider>` (Stripe, Slack, GitHub).

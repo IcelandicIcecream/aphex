@@ -17,6 +17,10 @@
 		type ValidationError
 	} from '../../field-validation/utils';
 	import { isFieldVisible } from '../../schema-utils/visibility';
+	import { hasRequiredCapabilities } from '../../schema-utils/required-capabilities';
+	import { getSchemaByName } from '../../schema-utils/utils';
+	import { getSchemaContext } from '../../schema-context.svelte';
+	import { findPermissions } from '../../permissions-context.svelte';
 	import {
 		describeValue,
 		inheritedValue,
@@ -224,7 +228,28 @@
 	 * field is skipped by validation too and a required control on the inactive
 	 * branch can't block a save with an error nobody can see.
 	 */
-	const visible = $derived(isFieldVisible(field, scope, documentData));
+	const schemaContext = getSchemaContext();
+	const permissions = findPermissions();
+	/**
+	 * An empty reference to types the organization doesn't have
+	 * (`requiredCapabilities`): its picker could find nothing and create nothing, so
+	 * it's hidden. One that holds a value stays, so it can still be cleared.
+	 */
+	const lockedReference = $derived.by(() => {
+		if (field.type !== 'reference' || value) return false;
+		const types = (field.to ?? []).map((t) => t.type).filter((t): t is string => Boolean(t));
+		return (
+			types.length > 0 &&
+			types.every(
+				(t) =>
+					!hasRequiredCapabilities(
+						getSchemaByName(schemaContext, t),
+						permissions?.capabilities ?? []
+					)
+			)
+		);
+	});
+	const visible = $derived(!lockedReference && isFieldVisible(field, scope, documentData));
 
 	// An object can fold away (`options.collapsible`/`collapsed`). Its fields stay
 	// mounted while folded, so their validation keeps running.

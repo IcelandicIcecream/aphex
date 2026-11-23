@@ -230,6 +230,13 @@ export interface ListOption {
 	title: string;
 	value: string;
 	icon?: ListOptionIcon;
+	/**
+	 * Capabilities the organization needs for this choice to be offered (a link to
+	 * a booking page, on a site with bookings). The admin leaves it out otherwise;
+	 * a value already stored still shows. Not enforced on save: pair it with
+	 * `validation` where the value must be refused.
+	 */
+	requiredCapabilities?: string[];
 }
 
 export interface DependentList {

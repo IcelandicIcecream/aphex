@@ -11,6 +11,8 @@
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import type { StringField, DependentList } from '../../../types/schemas';
 	import { cmsLogger } from '../../../utils/logger';
+	import { hasRequiredCapabilities } from '../../../schema-utils/required-capabilities';
+	import { findPermissions } from '../../../permissions-context.svelte';
 
 	interface Props {
 		field: StringField;
@@ -122,13 +124,24 @@
 		return '';
 	});
 
+	const permissions = findPermissions();
+
 	// Normalize list items to a uniform { title, value, icon } shape (icon may be undefined).
+	// A choice needing a capability the organization lacks is left out, unless it's
+	// the stored value, which still shows so it reads true and can be changed.
 	const listItems = $derived(
-		resolvedList().map((item) =>
-			typeof item === 'string'
-				? { title: item.toUpperCase(), value: item, icon: undefined }
-				: { title: item.title, value: item.value, icon: item.icon }
-		)
+		resolvedList()
+			.filter(
+				(item) =>
+					typeof item === 'string' ||
+					item.value === value ||
+					hasRequiredCapabilities(item, permissions?.capabilities ?? [])
+			)
+			.map((item) =>
+				typeof item === 'string'
+					? { title: item.toUpperCase(), value: item, icon: undefined }
+					: { title: item.title, value: item.value, icon: item.icon }
+			)
 	);
 
 	const layout = $derived(field.options?.layout || 'dropdown');

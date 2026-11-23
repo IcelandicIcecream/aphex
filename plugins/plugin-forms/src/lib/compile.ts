@@ -59,6 +59,18 @@ export interface FormDocument {
 	confirmationMessage?: unknown;
 	redirectUrl?: string;
 	emails?: NotificationEmailValue[];
+	confirmationEmail?: ConfirmationEmailValue;
+}
+
+/**
+ * The email a visitor gets back, at the address they gave. Only the owner's own
+ * words: no `{{answers}}` in it, so a form can't be used to send someone else's
+ * text to an address typed in by a stranger.
+ */
+export interface ConfirmationEmailValue {
+	enabled?: boolean;
+	subject?: string;
+	message?: string;
 }
 
 export interface NotificationEmailValue {

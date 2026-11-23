@@ -31,7 +31,8 @@ import { definePlugin, effectiveOrganizationRole } from '@aphexcms/cms-core';
 import type { AccessRule, PluginPart, SchemaAccess, SchemaType } from '@aphexcms/cms-core';
 import { formSchema, formSubmissionSchema } from './schema';
 import { handleSubmit } from './submit';
-import { notifyOnSubmission } from './notify';
+import { confirmSubmission, notifyOnSubmission } from './notify';
+import type { FormSiteResolver } from './sender';
 import { formSubmissionCreated } from './events';
 
 const PLUGIN_ID = '@aphexcms/plugin-forms';
@@ -44,6 +45,15 @@ export interface FormsPluginOptions {
 	 * configured notification retries, then dead-letters visibly in Activity.
 	 */
 	from?: string;
+
+	/**
+	 * The site a form belongs to, for an app that runs several: its name, shown in
+	 * front of `from` on every email (`"Lily's Bakery" <forms@example.com>`), and
+	 * its own address, which hears about messages from a form that names nobody
+	 * and takes replies to a visitor's confirmation. Server only; read when a form
+	 * is submitted and kept with the submission.
+	 */
+	site?: FormSiteResolver;
 
 	/**
 	 * Override submission collection access. Defaults to owner/admin read and
@@ -92,7 +102,7 @@ export function formsPlugin(options: FormsPluginOptions = {}) {
 			id: 'forms.submit',
 			method: 'POST',
 			path: '/form-submissions',
-			handler: handleSubmit,
+			handler: (c) => handleSubmit(c, options.site),
 			/*
 			 * The one endpoint here that must be open: a form is for people who
 			 * don't have accounts. Opting out of the capability gate is deliberate
@@ -107,6 +117,12 @@ export function formsPlugin(options: FormsPluginOptions = {}) {
 			id: 'forms.notify',
 			events: [formSubmissionCreated.type],
 			handler: notifyOnSubmission(options.from)
+		},
+		{
+			implements: 'aphex/event/consumer',
+			id: 'forms.confirm',
+			events: [formSubmissionCreated.type],
+			handler: confirmSubmission(options.from)
 		}
 	];
 
@@ -120,7 +136,14 @@ export {
 	formFieldTypes
 } from './schema';
 export { compileForm, isInputField, optionValue } from './compile';
-export type { FormDocument, FormFieldValue, NotificationEmailValue } from './compile';
+export type {
+	ConfirmationEmailValue,
+	FormDocument,
+	FormFieldValue,
+	NotificationEmailValue
+} from './compile';
 export { formSubmissionCreated } from './events';
+export { fromHeader, isEmailAddress } from './sender';
+export type { FormSite, FormSiteResolver } from './sender';
 export { renderTemplate, fieldLabels, toStoredValue } from './template';
 export type { Answer } from './template';

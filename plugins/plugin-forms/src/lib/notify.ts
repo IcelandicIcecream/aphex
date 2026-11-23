@@ -1,7 +1,9 @@
 import type { EventConsumerHandler } from '@aphexcms/cms-core';
+import { z } from 'zod';
 import { formSubmissionCreated } from './events';
 import type { NotificationEmailValue } from './compile';
 import { renderTemplate, type Answer } from './template';
+import { fromHeader } from './sender';
 
 /**
  * Sends a form's notification emails, out of band.
@@ -46,6 +48,7 @@ export function notifyOnSubmission(from?: string): EventConsumerHandler {
 			submissionData?: Answer[];
 			notificationEmails?: NotificationEmailValue[];
 			notificationFieldLabels?: Array<{ field?: string; label?: string }>;
+			senderName?: string;
 		};
 		const emails = submission.notificationEmails ?? [];
 		if (emails.length === 0) return;
@@ -72,7 +75,7 @@ export function notifyOnSubmission(from?: string): EventConsumerHandler {
 			if (to.length === 0) continue;
 
 			const result = await emailAdapter.send({
-				from: sender,
+				from: fromHeader(sender, submission.senderName),
 				to,
 				replyTo: email.replyTo,
 				subject: renderTemplate(email.subject ?? 'New form submission', answers, labels)
@@ -84,5 +87,50 @@ export function notifyOnSubmission(from?: string): EventConsumerHandler {
 		}
 
 		logger.info(`[forms] sent ${emails.length} notification(s) for submission ${submissionId}`);
+	};
+}
+
+/**
+ * Sends the visitor their confirmation, when the form has one: the owner's own
+ * words, to the address the visitor gave, replies going to the site.
+ *
+ * Its own consumer, so its delivery retries on its own: a notification to the
+ * owner that fails and retries never sends the visitor a second copy.
+ */
+/** What a stored submission holds for the visitor's confirmation (see submit.ts). */
+const storedConfirmation = z.object({
+	senderName: z.string().optional(),
+	confirmationEmail: z
+		.object({
+			to: z.string().min(1),
+			replyTo: z.string().optional(),
+			subject: z.string().min(1),
+			message: z.string().min(1)
+		})
+		.optional()
+});
+
+export function confirmSubmission(from?: string): EventConsumerHandler {
+	return async ({ event, databaseAdapter, emailAdapter, logger }) => {
+		const { submissionId } = formSubmissionCreated.parse(event.payload);
+		const row = await databaseAdapter.findByDocIdAdvanced(event.organizationId, submissionId);
+		const parsed = storedConfirmation.safeParse(row?.draftData ?? {});
+		// Gone, or a submission from before confirmations: nothing to send.
+		if (!parsed.success || !parsed.data.confirmationEmail) return;
+		const submission = parsed.data;
+		const email = parsed.data.confirmationEmail;
+		if (!emailAdapter) throw new Error('[forms] confirmation email adapter is not configured');
+		const sender = from ?? process.env.APHEX_EMAIL_FROM;
+		if (!sender) throw new Error('[forms] confirmation from-address is not configured');
+
+		const result = await emailAdapter.send({
+			from: fromHeader(sender, submission.senderName),
+			to: email.to,
+			replyTo: email.replyTo,
+			subject: email.subject.replace(/[\r\n]+/g, ' ').slice(0, 998),
+			text: email.message
+		});
+		if (result.error) throw new Error(`[forms] confirmation email failed: ${result.error}`);
+		logger.info(`[forms] sent the visitor's confirmation for submission ${submissionId}`);
 	};
 }

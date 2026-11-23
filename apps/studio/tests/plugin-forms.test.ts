@@ -5,7 +5,11 @@ import type { AphexEnv } from '@aphexcms/cms-core/server';
 import { formSchema, formSubmissionSchema } from '../../../plugins/plugin-forms/src/lib/schema';
 import { formsPlugin } from '../../../plugins/plugin-forms/src/lib/index';
 import { handleSubmit } from '../../../plugins/plugin-forms/src/lib/submit';
-import { notifyOnSubmission } from '../../../plugins/plugin-forms/src/lib/notify';
+import {
+	confirmSubmission,
+	notifyOnSubmission
+} from '../../../plugins/plugin-forms/src/lib/notify';
+import { fromHeader, type FormSiteResolver } from '../../../plugins/plugin-forms/src/lib/sender';
 import { compileForm } from '../../../plugins/plugin-forms/src/lib/compile';
 import { keyFromLabel, withFieldKeys } from '../../../plugins/plugin-forms/src/lib/keys';
 import { validateFormData } from '@aphexcms/cms-core';
@@ -24,7 +28,9 @@ function formDocument(version = 'published-hash') {
 	};
 }
 
-function submissionApp(options: { version?: string } = {}) {
+function submissionApp(
+	options: { version?: string; form?: Record<string, unknown>; site?: FormSiteResolver } = {}
+) {
 	const create = vi.fn().mockResolvedValue({ document: { id: 'unused' } });
 	const resolvePublishedDocumentOrganizationId = vi.fn().mockResolvedValue(organizationId);
 	const findAllOrganizations = vi.fn(() => {
@@ -37,7 +43,11 @@ function submissionApp(options: { version?: string } = {}) {
 			checkDocumentLimit: vi.fn().mockResolvedValue(undefined),
 			getCollection: (name: string) =>
 				name === 'form'
-					? { findByID: vi.fn().mockResolvedValue(formDocument(options.version)) }
+					? {
+							findByID: vi
+								.fn()
+								.mockResolvedValue({ ...formDocument(options.version), ...options.form })
+						}
 					: name === 'formSubmission'
 						? { create }
 						: undefined
@@ -51,7 +61,7 @@ function submissionApp(options: { version?: string } = {}) {
 		c.set('tenant', c.env.tenant ?? null);
 		await next();
 	});
-	app.post('/api/form-submissions', handleSubmit);
+	app.post('/api/form-submissions', (c) => handleSubmit(c, options.site));
 	return { app, cms, create, resolvePublishedDocumentOrganizationId };
 }
 
@@ -306,6 +316,192 @@ describe('form notifications', () => {
 				logger: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() }
 			} as never)
 		).rejects.toThrow('mailbox unavailable');
+	});
+});
+
+describe('who form emails are from and to', () => {
+	const site: FormSiteResolver = () => ({ name: 'Lily’s Bakery', email: 'hello@lilys.example' });
+	let address = 30;
+	/** Submit once (each from its own address, past the rate limit) and return what was stored. */
+	async function submit(
+		options: Parameters<typeof submissionApp>[0],
+		data = { email: 'visitor@example.com' }
+	) {
+		const { app, cms, create } = submissionApp(options);
+		address += 1;
+		const response = await app.fetch(request({ form: formId, version: 'published-hash', data }), {
+			aphexCMS: cms,
+			auth: null,
+			clientAddress: `198.51.100.${address}`
+		} as never);
+		expect(response.status).toBe(200);
+		return create.mock.calls[0]?.[1];
+	}
+
+	it('sends replies to the visitor unless the form names someone', async () => {
+		expect((await submit({})).notificationEmails[0].replyTo).toBe('visitor@example.com');
+		const named = await submit({
+			form: {
+				emails: [
+					{ to: 'owner@example.com', replyTo: 'desk@example.com', subject: 'S', message: 'M' }
+				]
+			}
+		});
+		expect(named.notificationEmails[0].replyTo).toBe('desk@example.com');
+	});
+
+	it('sends a form that names nobody to the site’s own address, and nowhere without one', async () => {
+		const stored = await submit({ form: { emails: [] }, site });
+		expect(stored.notificationEmails).toEqual([
+			expect.objectContaining({
+				to: 'hello@lilys.example',
+				replyTo: 'visitor@example.com',
+				subject: 'New message: Contact'
+			})
+		]);
+		expect((await submit({ form: { emails: [] } })).notificationEmails).toEqual([]);
+	});
+
+	it('keeps the site’s name, and the visitor’s confirmation with replies going to the site', async () => {
+		const stored = await submit({
+			form: {
+				confirmationEmail: {
+					enabled: true,
+					subject: 'Got it',
+					message: 'Thanks, we’ll be in touch.'
+				}
+			},
+			site
+		});
+		expect(stored.senderName).toBe('Lily’s Bakery');
+		expect(stored.confirmationEmail).toEqual({
+			to: 'visitor@example.com',
+			replyTo: 'hello@lilys.example',
+			subject: 'Got it',
+			message: 'Thanks, we’ll be in touch.'
+		});
+	});
+
+	it('sends no confirmation when it is off, or carries an answer', async () => {
+		const off = await submit({
+			form: { confirmationEmail: { enabled: false, subject: 'S', message: 'M' } }
+		});
+		expect(off.confirmationEmail).toBeUndefined();
+		const templated = await submit({
+			form: { confirmationEmail: { enabled: true, subject: 'Hi', message: 'You said {{message}}' } }
+		});
+		expect(templated.confirmationEmail).toBeUndefined();
+	});
+
+	it('still stores the message when the site’s details can’t be read', async () => {
+		const stored = await submit({
+			site: () => {
+				throw new Error('settings unavailable');
+			}
+		});
+		expect(stored.senderName).toBeUndefined();
+		expect(stored.notificationEmails).toHaveLength(1);
+	});
+
+	it('puts the site’s name in front of the app’s address', () => {
+		expect(fromHeader('Aphex Sites <hello@aphex.site>', 'Lily’s Bakery')).toBe(
+			'"Lily’s Bakery" <hello@aphex.site>'
+		);
+		expect(fromHeader('hello@aphex.site', 'Say "hi"\r\nBcc: x@y.z')).toBe(
+			'"Say hiBcc: x@y.z" <hello@aphex.site>'
+		);
+		expect(fromHeader('Aphex Sites <hello@aphex.site>', '  ')).toBe(
+			'Aphex Sites <hello@aphex.site>'
+		);
+	});
+
+	it('refuses answers in the visitor’s confirmation, and an empty one switched on', async () => {
+		const messages = async (confirmationEmail: unknown) =>
+			(
+				await validateDocumentData(formSchema, {
+					title: 'Contact',
+					fields: [],
+					emails: [],
+					confirmationEmail
+				})
+			).errors.flatMap((entry) => entry.errors);
+		// Nested errors read `Field "confirmationEmail.subject" …`.
+		expect(
+			await messages({ enabled: true, subject: 'Hi {{name}}', message: 'Thanks' })
+		).toContainEqual(expect.stringContaining('Answers can’t go in the email to the visitor'));
+		expect(await messages({ enabled: true, subject: 'Hi', message: '' })).toContainEqual(
+			expect.stringContaining('Write the message')
+		);
+		expect(await messages({ enabled: false, subject: '', message: '' })).not.toContainEqual(
+			expect.stringContaining('confirmationEmail')
+		);
+	});
+
+	const logger = { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() };
+	const event = { organizationId, payload: { submissionId: 'submission-id', formId } };
+	const stored = (draftData: Record<string, unknown>) => ({
+		findByDocIdAdvanced: vi.fn().mockResolvedValue({ draftData })
+	});
+
+	it('sends the owner’s email as the site', async () => {
+		const send = vi.fn().mockResolvedValue({ id: 'sent' });
+		await notifyOnSubmission('Aphex Sites <hello@aphex.site>')({
+			event,
+			databaseAdapter: stored({
+				senderName: 'Lily’s Bakery',
+				submissionData: [],
+				notificationEmails: [
+					{
+						to: 'owner@example.com',
+						replyTo: 'visitor@example.com',
+						subject: 'New',
+						message: 'Body'
+					}
+				]
+			}),
+			emailAdapter: { name: 'test', send },
+			logger
+		} as never);
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				from: '"Lily’s Bakery" <hello@aphex.site>',
+				replyTo: 'visitor@example.com'
+			})
+		);
+	});
+
+	it('sends the visitor their confirmation, and nothing when there is none', async () => {
+		const send = vi.fn().mockResolvedValue({ id: 'sent' });
+		const confirm = confirmSubmission('Aphex Sites <hello@aphex.site>');
+		await confirm({
+			event,
+			databaseAdapter: stored({
+				senderName: 'Lily’s Bakery',
+				confirmationEmail: {
+					to: 'visitor@example.com',
+					replyTo: 'hello@lilys.example',
+					subject: 'Got it',
+					message: 'Thanks'
+				}
+			}),
+			emailAdapter: { name: 'test', send },
+			logger
+		} as never);
+		expect(send).toHaveBeenCalledWith({
+			from: '"Lily’s Bakery" <hello@aphex.site>',
+			to: 'visitor@example.com',
+			replyTo: 'hello@lilys.example',
+			subject: 'Got it',
+			text: 'Thanks'
+		});
+		send.mockClear();
+		await confirm({
+			event,
+			databaseAdapter: stored({ submissionData: [] }),
+			emailAdapter: { name: 'test', send },
+			logger
+		} as never);
+		expect(send).not.toHaveBeenCalled();
 	});
 });
 

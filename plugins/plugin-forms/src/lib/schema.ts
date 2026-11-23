@@ -1,5 +1,6 @@
 import type { Field, Fieldset, SchemaAccess, SchemaType, TypeReference } from '@aphexcms/cms-core';
 import { effectiveOrganizationRole } from '@aphexcms/cms-core';
+import { z } from 'zod';
 import {
 	AlignLeft,
 	CalendarDays,
@@ -107,6 +108,36 @@ function validEmailList(value: unknown, multiple: boolean): true | string {
 		: multiple
 			? 'Enter valid email addresses separated by commas'
 			: 'Enter a valid email address';
+}
+
+/**
+ * The visitor's confirmation holds only what the owner wrote: never a `{{token}}`,
+ * which would fill it with what a stranger typed and send that to an address they
+ * chose.
+ */
+function ownWords(value: unknown): true | string {
+	const text = typeof value === 'string' ? value : '';
+	return text.includes('{{') || text.includes('}}')
+		? 'Answers can’t go in the email to the visitor'
+		: true;
+}
+
+/**
+ * Switched on, the confirmation needs its subject and message. Judged on the whole
+ * object: an empty optional field never reaches its own custom rule.
+ */
+const switchedOn = z.object({
+	enabled: z.literal(true),
+	subject: z.string().nullish(),
+	message: z.string().nullish()
+});
+
+function completeConfirmation(value: unknown): true | string {
+	const on = switchedOn.safeParse(value);
+	if (!on.success) return true;
+	if (!on.data.subject?.trim()) return 'Write a subject for the email to the visitor';
+	if (!on.data.message?.trim()) return 'Write the message for the email to the visitor';
+	return true;
 }
 
 function validateAuthoredFields(value: unknown): true | string {
@@ -460,7 +491,7 @@ export const formSchema: SchemaType = {
 			type: 'array',
 			title: 'Emails about new messages',
 			description:
-				'Who hears about each message. {{allFields}} puts in every answer; {{phone}} puts in one, by its answer key.',
+				'Who hears about each message. {{allFields}} puts in every answer; {{phone}} puts in one, by its answer key. With none here, messages go to your site’s own email address, where the site has one.',
 			group: 'notifications',
 			validation: (Rule) => Rule.max(20),
 			of: [
@@ -480,6 +511,7 @@ export const formSchema: SchemaType = {
 							name: 'replyTo',
 							type: 'string',
 							title: 'Reply to',
+							description: 'Empty: the email address the visitor gave, so replying answers them.',
 							validation: (Rule) => Rule.custom((value) => validEmailList(value, false))
 						},
 						{
@@ -499,6 +531,37 @@ export const formSchema: SchemaType = {
 						}
 					],
 					preview: { select: { title: 'to', subtitle: 'subject' } }
+				}
+			]
+		},
+		{
+			name: 'confirmationEmail',
+			type: 'object',
+			title: 'Email to the visitor',
+			description:
+				'A short note to the address they gave, so they know it arrived. Replies to it come to your site’s email address.',
+			group: 'notifications',
+			validation: (Rule) => Rule.custom(completeConfirmation),
+			fields: [
+				{ name: 'enabled', type: 'boolean', title: 'Send it' },
+				{
+					name: 'subject',
+					type: 'string',
+					title: 'Subject',
+					initialValue: 'We got your message',
+					hidden: ({ siblingData }) => siblingData.enabled !== true,
+					validation: (Rule) => Rule.custom(ownWords)
+				},
+				{
+					name: 'message',
+					type: 'text',
+					title: 'Message',
+					rows: 4,
+					initialValue: 'Thanks for getting in touch. We’ll reply as soon as we can.',
+					description:
+						'Your words only: answers can’t go in, so nobody can use your form to email someone else their own text.',
+					hidden: ({ siblingData }) => siblingData.enabled !== true,
+					validation: (Rule) => Rule.custom(ownWords)
 				}
 			]
 		}
@@ -605,6 +668,25 @@ export const formSubmissionSchema: SchemaType = {
 						{ name: 'message', type: 'text', title: 'Message' }
 					]
 				}
+			]
+		},
+		{
+			name: 'senderName',
+			type: 'string',
+			title: 'Sent as',
+			description: 'The site’s name, in front of the address its emails come from.',
+			access: NO_WRITES
+		},
+		{
+			name: 'confirmationEmail',
+			type: 'object',
+			title: 'Email to the visitor',
+			access: NO_WRITES,
+			fields: [
+				{ name: 'to', type: 'string', title: 'To' },
+				{ name: 'replyTo', type: 'string', title: 'Reply to' },
+				{ name: 'subject', type: 'string', title: 'Subject' },
+				{ name: 'message', type: 'text', title: 'Message' }
 			]
 		},
 		{

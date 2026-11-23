@@ -1,7 +1,7 @@
 {
 	"name": "@aphexcms/plugin-seo",
 	"version": "0.1.0",
-	"description": "SEO plugin for AphexCMS — meta fields, auto-generation, length metering, live search preview, and an audit tool",
+	"description": "SEO plugin for AphexCMS — meta fields, auto-generation, length metering, live search preview, page head tags, IndexNow, and an SEO dashboard",
 	"license": "MIT",
 	"publishConfig": {
 		"access": "public"
@@ -24,6 +24,10 @@
 		"./schema": {
 			"types": "./src/lib/schema.d.ts",
 			"default": "./src/lib/schema.js"
+		},
+		"./head": {
+			"types": "./src/lib/head.d.ts",
+			"default": "./src/lib/head.js"
 		}
 	},
 	"files": [
@@ -35,7 +39,8 @@
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
 		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib",
-		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib"
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"test": "vitest run"
 	},
 	"keywords": [
 		"aphex",
@@ -48,7 +53,8 @@
 		"@sveltejs/package": "^2.5.6",
 		"svelte": "^5.0.0",
 		"svelte-check": "^4.0.0",
-		"typescript": "^5.9.3"
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.10"
 	},
 	"peerDependencies": {
 		"@aphexcms/cms-core": "workspace:>=9",

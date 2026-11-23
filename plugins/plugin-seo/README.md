@@ -39,8 +39,9 @@ Registering the plugin adds, per configured collection:
 - A **live search preview** (the `seo-preview` widget) — a Google-style result
   card that updates as you type.
 - A **✨ Generate SEO** document action that auto-fills meta from the document.
-- An **SEO** admin tool (audit) that scores documents on title, description, and
-  social image.
+- An **SEO** dashboard that checks every page for missing, long and duplicate
+  titles and descriptions, images without alt text, and share images, and lists
+  what to fix first.
 
 ## Enabling SEO on a document
 
@@ -139,6 +140,61 @@ document's own title / excerpt / cover image.
 	"noIndex": false
 }
 ```
+
+## Page head tags
+
+`resolveSeo` gives a page everything its `<head>` needs, with the same fallbacks the
+admin's search preview uses (SEO field, then the document's own title, excerpt and
+picture). `<SeoHead>` writes the tags:
+
+```ts
+// +page.server.ts
+import { resolveSeo } from '@aphexcms/plugin-seo/head';
+
+const seo = resolveSeo(post, { url, siteName: 'Lily’s Bakery', typeName: 'post', type: 'article' });
+```
+
+```svelte
+<script lang="ts">
+	import { SeoHead } from '@aphexcms/plugin-seo';
+	let { data } = $props();
+</script>
+
+<SeoHead meta={data.seo} />
+```
+
+It returns `{ title, headline, description, canonical, robots, type, siteName, image }`:
+the canonical is the page's address without its query, `robots` is `noindex` for a
+page hidden from search, and `image` is absolute with its size. Pass `canonical`,
+`titleTemplate` or `fallbackImage` (the site's logo) to change those.
+
+## IndexNow
+
+Tell Bing (and Yandex, Seznam, Naver) the moment a page is published, instead of
+waiting for a crawl. Google doesn't use IndexNow; it reads your sitemap.
+
+```ts
+seoPlugin({
+	collections: ['page', 'post'],
+	indexNow: {
+		key: env.INDEXNOW_KEY, // 8 to 128 letters, digits and dashes
+		siteUrl: () => 'https://www.example.com'
+	}
+});
+```
+
+Serve the key so search engines can check it:
+
+```ts
+// src/routes/indexnow.txt/+server.ts
+import { indexNowKeyResponse } from '@aphexcms/plugin-seo';
+export const GET = () => indexNowKeyResponse(env.INDEXNOW_KEY);
+```
+
+It runs as an event consumer, so it never slows a publish and retries when
+IndexNow is busy. It sends the address from `generateURL`; pass `paths` to add
+pages that list the document (a blog's index). Nothing is sent for a page hidden
+from search or for a site that isn't on https.
 
 ## Reading it on the frontend
 

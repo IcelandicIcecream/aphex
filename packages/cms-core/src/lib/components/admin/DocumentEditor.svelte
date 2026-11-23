@@ -2216,7 +2216,9 @@
 		if (newPerspective === perspective) return;
 
 		if (newPerspective === 'published') {
-			if (!documentId) return;
+			// Unpublished: nothing is live, so there's no version to show (the read
+			// refuses one that isn't published). The switch says so on that side.
+			if (!documentId || isUnpublished) return;
 			// Fetch published version of the document
 			try {
 				const response = await documents.getById(`${documentId}?perspective=published`);
@@ -2276,6 +2278,9 @@
 					...fullDocument,
 					_meta: { ...fullDocument?._meta, status: 'unpublished' }
 				};
+				// Viewing the published version: it's gone, so back to the draft.
+				perspective = 'draft';
+				publishedData = null;
 				notifyDocumentChanged(documentId);
 				toast.success('Document unpublished — you can re-publish anytime');
 				if (onUnpublished && documentId) {
@@ -2657,14 +2662,19 @@
 					{/if}
 					{labels.draft}
 				</button>
+				<!-- Unpublished: a state, not a version to open (nothing is live), so
+				     it can't be chosen and says why on hover. -->
 				<button
 					type="button"
 					role="radio"
 					aria-checked={perspective === 'published'}
-					class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors {perspective ===
-					'published'
-						? 'bg-background text-foreground shadow-sm'
-						: 'text-muted-foreground hover:text-foreground'}"
+					aria-disabled={isUnpub || undefined}
+					title={isUnpub ? 'Not on the live site. Publish to put it back.' : undefined}
+					class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors {isUnpub
+						? 'text-muted-foreground/70 cursor-default'
+						: perspective === 'published'
+							? 'bg-background text-foreground cursor-pointer shadow-sm'
+							: 'text-muted-foreground hover:text-foreground cursor-pointer'}"
 					onclick={() => switchPerspective('published')}
 				>
 					{#if isPublished}

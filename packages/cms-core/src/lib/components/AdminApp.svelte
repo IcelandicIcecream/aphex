@@ -196,8 +196,10 @@
 		can: (capability) =>
 			rbacRole === 'super_admin' || rbacRole === 'admin' || capabilities.includes(capability),
 		schemas,
+		// Through the URL like the sidebar, so the open document is left too.
 		navigate: (area) => {
 			activeTab.value = area;
+			nav.openArea(area);
 		},
 		openDocument: async (documentType, documentId, options) => {
 			// Guard: without a type the editor can't resolve a schema ("No schema found").
@@ -2100,8 +2102,11 @@
 								</div>
 							{/if}
 
-							<!-- Primary Editor Panel -->
-							{#if primaryEditorState.visible}
+							<!-- Primary Editor Panel. Only in the content area: the tabs keep every
+							     area mounted, and an editor left behind a tool (a URL naming both, a
+							     tool's `navigate`) kept its header (title, View switch, Preview) in the
+							     top bar over that tool. Leaving saves it; coming back reopens it. -->
+							{#if primaryEditorState.visible && activeTab.value === 'structure'}
 								<!-- `overflow-y` is `auto` normally but `hidden` in presentation mode, and that
 								     is load-bearing rather than cosmetic. The stacked reference panel below is
 								     an `absolute inset-y-0` sibling inside this box, and for a *scroll

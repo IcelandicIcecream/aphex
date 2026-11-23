@@ -138,6 +138,15 @@ export interface BaseField {
 	 */
 	hidden?: FieldCondition;
 	/**
+	 * Capabilities the organization needs for the admin to show this field, such as
+	 * a site-wide "Project pages" setting that means nothing without `site.projects`.
+	 * The same rule as a type's (`hasRequiredCapabilities`).
+	 *
+	 * Display only, like `hidden`: a stored value is kept and still reaches the API.
+	 * Gate a whole type with its own `requiredCapabilities` where access matters.
+	 */
+	requiredCapabilities?: string[];
+	/**
 	 * What this field is while it's empty, when that isn't nothing: a value it takes
 	 * from elsewhere (a theme's style, a site-wide default) until it's set here. The
 	 * admin shows that value in the empty control, marks the field once it's set by

@@ -398,7 +398,7 @@
 						<DropdownMenuGroup>
 							<DropdownMenuItem onclick={openFileDialog} disabled={isUploading}>
 								<Upload size={16} />
-								Replace
+								Upload
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onclick={() => {
@@ -407,7 +407,7 @@
 								disabled={isUploading}
 							>
 								<ImageIcon size={16} />
-								Browse media
+								Replace
 							</DropdownMenuItem>
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
@@ -417,7 +417,7 @@
 							class="text-destructive focus:text-destructive"
 						>
 							<CircleX size={16} />
-							Clear field
+							Remove
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -495,7 +495,7 @@
 										disabled={isUploading}
 									>
 										<ImageIcon size={16} />
-										Browse media
+										Replace
 									</DropdownMenuItem>
 								</DropdownMenuGroup>
 								<DropdownMenuSeparator />
@@ -516,7 +516,7 @@
 									class="text-destructive focus:text-destructive"
 								>
 									<CircleX size={16} />
-									Clear field
+									Remove
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>

@@ -249,7 +249,14 @@
 			)
 		);
 	});
-	const visible = $derived(!lockedReference && isFieldVisible(field, scope, documentData));
+	/** A field for a feature the organization doesn't have (`requiredCapabilities`). */
+	const lockedField = $derived(
+		Boolean(field.requiredCapabilities?.length && permissions) &&
+			!hasRequiredCapabilities(field, permissions?.capabilities ?? [])
+	);
+	const visible = $derived(
+		!lockedReference && !lockedField && isFieldVisible(field, scope, documentData)
+	);
 
 	// An object can fold away (`options.collapsible`/`collapsed`). Its fields stay
 	// mounted while folded, so their validation keeps running.

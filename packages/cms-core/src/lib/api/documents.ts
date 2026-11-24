@@ -42,6 +42,11 @@ export class DocumentsApi {
 		return apiClient.get<DocumentDTO>(`/documents/${id}`);
 	}
 
+	/** Only the document's id and `_meta` (its revision among them): a cheap check for changes. */
+	static async getMeta(id: string): Promise<ApiResponse<Pick<DocumentDTO, 'id' | '_meta'>>> {
+		return apiClient.get<Pick<DocumentDTO, 'id' | '_meta'>>(`/documents/${id}?meta=1`);
+	}
+
 	/**
 	 * Find all documents that reference the given document. Used by the
 	 * unpublish flow to warn the user that taking this doc down will leave
@@ -222,6 +227,7 @@ export class DocumentsApi {
 export const documents = {
 	list: DocumentsApi.list.bind(DocumentsApi),
 	getById: DocumentsApi.getById.bind(DocumentsApi),
+	getMeta: DocumentsApi.getMeta.bind(DocumentsApi),
 	getMany: DocumentsApi.getMany.bind(DocumentsApi),
 	getBackReferences: DocumentsApi.getBackReferences.bind(DocumentsApi),
 	create: DocumentsApi.create.bind(DocumentsApi),

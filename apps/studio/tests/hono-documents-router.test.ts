@@ -250,6 +250,21 @@ describe('GET/PUT/DELETE /documents/:id', () => {
 		expect(body.data.id).toBe('abc');
 	});
 
+	it('GET ?meta=1 returns only the id and _meta, for an editor checking for changes', async () => {
+		const localAPI = buildFakeLocalAPI({
+			docs: [{ id: 'abc', type: 'page', data: { title: 'X' } }]
+		});
+		const res = await makeApp().fetch(
+			new Request('http://localhost/documents/abc?meta=1'),
+			buildEnv(localAPI)
+		);
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.data.id).toBe('abc');
+		expect(body.data).not.toHaveProperty('title');
+		expect(Object.keys(body.data).sort()).toEqual('_meta' in body.data ? ['_meta', 'id'] : ['id']);
+	});
+
 	it('GET 404 when missing', async () => {
 		const localAPI = buildFakeLocalAPI();
 		const res = await makeApp().fetch(

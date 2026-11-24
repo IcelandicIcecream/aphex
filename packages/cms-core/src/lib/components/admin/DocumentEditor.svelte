@@ -27,6 +27,8 @@
 	import { setSaveStateContext } from '../../save-state-context.svelte';
 	import { setDocumentWriter } from '../../admin/document-writer.svelte';
 	import { autosaveIn, classifySaveError, saveRetryDelay, type SaveFailure } from './save-policy';
+	import { documentSync, SYNC_EVERY_MS } from './document-sync';
+	import { sameValue, type RemoteAction } from './document-merge';
 	import { usePermissions } from '../../permissions-context.svelte';
 	import AdminSlot from './AdminSlot.svelte';
 	import ScheduleDialog from './ScheduleDialog.svelte';
@@ -1954,10 +1956,8 @@
 				loadVersions();
 			}
 		} else if (result.conflict) {
-			// Once: autosave stops here (see the effect), so there's no toast per pause.
-			if (!saveConflict) {
-				toast.error('This document was changed elsewhere. Reload to see the latest version.');
-			}
+			// Autosave stops (see the effect) while the other version is fetched and
+			// merged below; only a field both changed keeps it stopped.
 			saveConflict = true;
 			retrying = false;
 			saveError = result.error ?? 'Failed to save document';
@@ -1977,6 +1977,14 @@
 		}
 
 		saving = false;
+		if (result.conflict) {
+			// Someone else saved first: bring their version in and merge, rather than stop.
+			void sync.check().then((outcome) => {
+				if (outcome === 'skipped' && saveConflict && generation === editorGeneration) {
+					toast.error('This document was changed elsewhere. Reload to see the latest version.');
+				}
+			});
+		}
 		return result;
 	}
 
@@ -1984,8 +1992,104 @@
 	async function reloadAfterConflict() {
 		saveConflict = false;
 		saveError = null;
+		conflictFields = [];
 		await loadDocumentData();
 	}
+
+	// Saves made elsewhere (another tab, an AI agent over MCP), noticed within a few
+	// seconds: with nothing unsaved here the editor shows them; with unsaved edits to
+	// other fields, both are merged and autosave carries on; only a field both changed
+	// stops it, named in the bar (document-sync.ts, document-merge.ts).
+
+	/** Fields both this editor and someone else changed, by title, while that stands. */
+	let conflictFields = $state<string[]>([]);
+
+	const fieldTitle = (path: string): string => {
+		const name = path.split(/[.[]/)[0] ?? path;
+		return schema?.fields.find((field) => field.name === name)?.title ?? name;
+	};
+
+	const sync = documentSync({
+		getMeta: (id) => documents.getMeta(id),
+		getById: (id) =>
+			documents.getById(id) as Promise<{ success?: boolean; data?: Record<string, unknown> }>,
+		read: () => {
+			if (
+				isCreating ||
+				!fullDocument?.id ||
+				isViewingPublished ||
+				isPreviewingVersion ||
+				batchActive
+			) {
+				return null;
+			}
+			const { id, _meta, ...base } = $state.snapshot(fullDocument) as Record<string, any>;
+			return {
+				id,
+				revision: _meta?.revision as number | undefined,
+				base,
+				local: $state.snapshot(documentData) as Record<string, unknown>,
+				busy: saving || inFlight !== null
+			};
+		},
+		apply: (action, saved) => void applyRemote(action, saved)
+	});
+
+	async function applyRemote(action: RemoteAction, saved: Record<string, unknown>) {
+		if (action.kind === 'conflict') {
+			const names = [...new Set(action.conflicts.map(fieldTitle))];
+			if (!saveConflict || conflictFields.join() !== names.join()) {
+				toast.error(
+					`${names.join(', ')} ${names.length === 1 ? 'was' : 'were'} also changed elsewhere. Reload to see that version.`
+				);
+			}
+			conflictFields = names;
+			saveConflict = true;
+			return;
+		}
+		fullDocument = saved;
+		// Only the fields that changed: the rest stay the very same values, so a field
+		// being typed in elsewhere on the page (a cursor in rich text) isn't disturbed.
+		for (const key of Object.keys(documentData)) {
+			if (!(key in action.data)) delete documentData[key];
+		}
+		for (const [key, value] of Object.entries(action.data)) {
+			if (!sameValue(documentData[key], value)) documentData[key] = structuredClone(value);
+		}
+		saveConflict = false;
+		saveError = null;
+		conflictFields = [];
+		toast.info(
+			action.kind === 'take'
+				? 'Updated with a change saved elsewhere.'
+				: 'A change saved elsewhere was merged with yours.',
+			{ id: 'aphex-remote-update' }
+		);
+		if (action.kind === 'take' && presentationMode && iframeRef?.contentWindow) {
+			iframeRef.contentWindow.postMessage({ type: 'aphex:refresh' }, '*');
+		}
+		await tick();
+		for (const [name, fieldComponent] of Object.entries(schemaFields)) {
+			fieldComponent?.performValidation(documentData[name], documentData);
+		}
+		validateAllFields();
+	}
+
+	// Check while the tab is visible, and as soon as it's looked at again.
+	$effect(() => {
+		if (!documentId || isCreating) return;
+		const check = () => {
+			if (document.visibilityState === 'visible') void sync.check();
+		};
+		const timer = setInterval(check, SYNC_EVERY_MS);
+		document.addEventListener('visibilitychange', check);
+		window.addEventListener('focus', check);
+		return () => {
+			clearInterval(timer);
+			document.removeEventListener('visibilitychange', check);
+			window.removeEventListener('focus', check);
+		};
+	});
 
 	/**
 	 * Save what's unsaved when the editor leaves this document: another document
@@ -2599,12 +2703,14 @@
 	<!-- Wraps rather than overflowing: plugin actions can add any number of buttons. -->
 	<div class="flex max-w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
 		{#if saveConflict}
-			<!-- Someone else saved first: nothing more saves until a reload. -->
+			<!-- A field both this editor and someone else changed: nothing more saves until a reload. -->
 			<span
 				class="text-destructive inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
 			>
 				<span class="bg-destructive h-1.5 w-1.5 rounded-full"></span>
-				Changed elsewhere
+				{conflictFields.length
+					? `${conflictFields.join(', ')} changed elsewhere`
+					: 'Changed elsewhere'}
 			</span>
 			<Button size="sm" variant="outline" class="h-7 text-xs" onclick={reloadAfterConflict}>
 				Reload

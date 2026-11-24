@@ -50,6 +50,13 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Document not found' }, 404);
 			}
 
+			// `?meta=1`: only its id and _meta (the revision, when and by whom it last
+			// changed), for an open editor checking whether someone else saved it.
+			if (c.req.query('meta') === '1') {
+				const { id: docId, _meta } = document as { id: string; _meta?: unknown };
+				return c.json({ success: true, data: { id: docId, _meta } });
+			}
+
 			return c.json({ success: true, data: document });
 		} catch (error) {
 			cmsLogger.error('Failed to fetch document:', error);

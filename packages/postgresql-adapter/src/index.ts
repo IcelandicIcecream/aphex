@@ -986,7 +986,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			rolesAdapter: this.rolesAdapter,
 			referenceAdapter: this.referenceAdapter,
 			eventJobAdapter: this.eventJobAdapter,
-			pluginStorageAdapter: this.pluginStorageAdapter
+			pluginStorageAdapter: this.pluginStorageAdapter,
+			agentChangeSetAdapter: this.agentChangeSetAdapter
 		};
 		this.db = txDb;
 		this.documentAdapter = new (prev.documentAdapter.constructor as any)(txDb, this.tables);
@@ -1001,6 +1002,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			txDb,
 			this.tables
 		);
+		this.agentChangeSetAdapter = new (prev.agentChangeSetAdapter.constructor as any)(
+			txDb,
+			this.tables
+		);
 		return () => {
 			this.db = prevDb;
 			this.documentAdapter = prev.documentAdapter;
@@ -1012,6 +1017,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			this.referenceAdapter = prev.referenceAdapter;
 			this.eventJobAdapter = prev.eventJobAdapter;
 			this.pluginStorageAdapter = prev.pluginStorageAdapter;
+			this.agentChangeSetAdapter = prev.agentChangeSetAdapter;
 		};
 	}
 

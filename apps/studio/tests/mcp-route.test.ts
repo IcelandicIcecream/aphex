@@ -8,7 +8,7 @@
  *
  * Run: pnpm -F @aphexcms/studio test mcp-route
  */
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
 	ALL_CAPABILITIES,
@@ -132,6 +132,24 @@ describe('mcp.requiredCapabilities gates the whole server', () => {
 		const { status, body } = await rpc(locals, 'tools/list');
 		expect(status).toBe(200);
 		expect(body.result.tools.length).toBeGreaterThan(0);
+	});
+
+	it('gives every tool a title and says whether it reads, adds or overwrites', async () => {
+		const { locals } = setup(['site.shop'], pro);
+		const { body } = await rpc(locals, 'tools/list');
+		type Listed = { name: string; title?: string; annotations?: Record<string, unknown> };
+		const tools = body.result.tools as Listed[];
+		for (const tool of tools) {
+			expect(tool.title, tool.name).toBeTruthy();
+			expect(tool.annotations?.title, tool.name).toBe(tool.title);
+			expect(tool.annotations?.openWorldHint, tool.name).toBe(false);
+		}
+		const by = (name: string) => tools.find((tool) => tool.name === name)?.annotations;
+		expect(by('get_document')).toMatchObject({ readOnlyHint: true });
+		expect(by('get_document')).not.toHaveProperty('destructiveHint');
+		expect(by('create_document')).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+		expect(by('update_document')).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+		expect(by('publish_document')).toMatchObject({ readOnlyHint: false, destructiveHint: true });
 	});
 
 	it('cuts off on the next request after a downgrade', async () => {
@@ -337,5 +355,78 @@ describe('tool results with images', () => {
 		expect(result.content[0]).toMatchObject({ type: 'text' });
 		expect(JSON.parse(result.content[0].text)).toEqual({ id: 'a1' });
 		expect(result.content[1]).toEqual({ type: 'image', mimeType: 'image/png', data: pixel });
+	});
+});
+
+describe('what a connected app changes is recorded for Activity › Agent changes', () => {
+	/** A caller of its own per test: an app's open change set is kept per key. */
+	function asCaller(caller: Partial<ApiKeyAuth>) {
+		const auth = { ...key, ...caller };
+		const { locals } = setup(['site.shop'], {
+			auth: { ...cmsConfig.auth, provider: { validateApiKey: async () => structuredClone(auth) } }
+		});
+		return locals;
+	}
+	const made: string[] = [];
+	const mine = async (keyId: string) =>
+		(await db.listChangeSets({ organizationId: TEST_ORG_ID, limit: 50 })).items.filter(
+			(changeSet) => changeSet.provider === 'mcp' && changeSet.summary?.startsWith(keyId)
+		);
+
+	afterAll(async () => {
+		const { locals } = setup(['site.shop']);
+		const { localAPI } = (
+			locals as unknown as { aphexCMS: { localAPI: ReturnType<typeof createLocalAPI> } }
+		).aphexCMS;
+		const ctx = { organizationId: TEST_ORG_ID, user: { id: 'test', role: 'owner' } } as never;
+		for (const id of made) await localAPI.collections.mcpShopItem.delete(ctx, id).catch(() => {});
+	});
+
+	it('records a write in a change set, with the tool and the document', async () => {
+		const locals = asCaller({ keyId: 'route-write', name: 'route-write app' });
+		const { body } = await rpc(locals, 'tools/call', {
+			name: 'create_document',
+			arguments: { collection: 'mcpShopItem', data: { title: 'Recorded' } }
+		});
+		expect(body.result.isError).toBeFalsy();
+		const id = JSON.parse(body.result.content[0].text).document.id as string;
+		made.push(id);
+
+		const [changeSet] = await mine('route-write');
+		expect(changeSet).toMatchObject({
+			provider: 'mcp',
+			model: 'route-write app',
+			createdBy: 'apikey:route-write'
+		});
+		const detail = await db.getChangeSet(TEST_ORG_ID, changeSet.id);
+		expect(detail?.operations).toEqual([
+			expect.objectContaining({
+				toolName: 'create_document',
+				collection: 'mcpShopItem',
+				documentId: id,
+				success: true
+			})
+		]);
+	});
+
+	it('records nothing for reads', async () => {
+		const locals = asCaller({ keyId: 'route-read', name: 'route-read app' });
+		await rpc(locals, 'tools/call', { name: 'list_collections', arguments: {} });
+		expect(await mine('route-read')).toEqual([]);
+	});
+
+	it("credits a connected app's changes to the person it acts for", async () => {
+		const locals = asCaller({
+			keyId: 'oauth:route-person',
+			name: 'route-person app',
+			userId: 'user-route-person'
+		});
+		const { body } = await rpc(locals, 'tools/call', {
+			name: 'create_document',
+			arguments: { collection: 'mcpShopItem', data: { title: 'Credited' } }
+		});
+		made.push(JSON.parse(body.result.content[0].text).document.id);
+		const [changeSet] = await mine('route-person');
+		expect(changeSet?.createdBy).toBe('user-route-person');
 	});
 });

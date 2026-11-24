@@ -29,6 +29,7 @@ import { hasRequiredCapabilities } from '../schema-utils/required-capabilities';
 import { resolveCapabilities } from '../types/capabilities';
 import { mcpWwwAuthenticate } from '../server/oauth-discovery';
 import { buildContentTools } from '../mcp/tools';
+import { recordMcpWrite } from '../mcp/change-sets';
 import { callerLimits, tooManyCallsMessage } from '../server/api/caller-limits';
 import { buildMcpInstructions } from '../mcp/instructions';
 import { getGuideInput, readGuide } from '../mcp/guides';
@@ -113,7 +114,15 @@ app.all('*', async (c) => {
 	// Build a fresh server per request so tools are bound to this caller's
 	// authenticated context (RBAC + RLS). Stateless: new transport each request.
 	const context = authToContext(auth);
-	const tools = buildContentTools({ aphexCMS: locals.aphexCMS, context });
+	// Every write is recorded in the caller's change set, so the Activity view shows what a
+	// connected app changed and can undo it, as it does for the in-admin agent.
+	const tools = buildContentTools(
+		{ aphexCMS: locals.aphexCMS, context },
+		{
+			onWrite: (name, args, result) =>
+				recordMcpWrite(locals.aphexCMS, context, auth, name, args, result)
+		}
+	);
 
 	// The tenant check above found it on a tenant's address; otherwise look it up.
 	const organization = tenant ?? (await databaseAdapter.findOrganizationById(auth.organizationId));
@@ -131,8 +140,10 @@ app.all('*', async (c) => {
 		server.registerTool(
 			'get_guide',
 			{
+				title: 'Read a guide',
 				description: `Read one of this site's guides before doing that job: ${guides.map((g) => g.name).join(', ')}. The instructions say what each covers.`,
-				inputSchema: getGuideInput
+				inputSchema: getGuideInput,
+				annotations: { title: 'Read a guide', readOnlyHint: true, openWorldHint: false }
 			},
 			async ({ name }): Promise<CallToolResult> => {
 				const { text, isError } = readGuide(guides, name);
@@ -143,7 +154,20 @@ app.all('*', async (c) => {
 	for (const tool of tools) {
 		server.registerTool(
 			tool.name,
-			{ description: tool.description, inputSchema: tool.inputSchema },
+			{
+				title: tool.title,
+				description: tool.description,
+				inputSchema: tool.inputSchema,
+				// What clients show and ask approval by (Claude's directory requires them):
+				// a read is marked read-only; a change says whether it can overwrite or
+				// remove, and whether it reaches past this site (a tool that reads a web page).
+				annotations: {
+					title: tool.title,
+					readOnlyHint: !tool.mutates,
+					...(tool.mutates ? { destructiveHint: tool.destructive } : {}),
+					openWorldHint: tool.openWorld
+				}
+			},
 			// The registry stays SDK-agnostic; adapt its neutral result to the SDK's
 			// CallToolResult (which adds an index signature) here at the boundary.
 			async (args): Promise<CallToolResult> => {

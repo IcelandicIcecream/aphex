@@ -388,6 +388,35 @@ describe('the token', () => {
 		await localCleanup(id);
 	});
 
+	it('acts as the person who connected it, and credits its changes to them in Activity', async () => {
+		const { clientId, code, verifier } = await connect();
+		const { access_token } = await (await exchange(clientId, code, verifier)).json();
+
+		const resolved = await oauth.validateToken(
+			new Request(RESOURCE, { headers: { authorization: `Bearer ${access_token}` } }),
+			db
+		);
+		expect(resolved).toMatchObject({
+			keyId: `oauth:${clientId}`,
+			organizationId: TEST_ORG_ID,
+			userId
+		});
+
+		const created = await callMcp(access_token, 'tools/call', {
+			name: 'create_document',
+			arguments: { collection: 'page', data: { title: 'Credited to its person', slug: 'credited' } }
+		});
+		const { id } = JSON.parse(created.body.result.content[0].text).document;
+		const { items } = await db.listChangeSets({ organizationId: TEST_ORG_ID, limit: 50 });
+		const changeSet = items.find((item) => item.provider === 'mcp' && item.createdBy === userId);
+		expect(changeSet, 'a change set credited to the signed-in user').toBeTruthy();
+		const detail = await db.getChangeSet(TEST_ORG_ID, changeSet!.id);
+		expect(detail?.operations.map((op) => op.documentId)).toContain(id);
+
+		await oauth.disconnect(userId, TEST_ORG_ID, clientId);
+		await localCleanup(id);
+	});
+
 	it('publishes only once the user allows it, for that app alone', async () => {
 		const { clientId, code, verifier } = await connect();
 		const { access_token } = await (await exchange(clientId, code, verifier)).json();

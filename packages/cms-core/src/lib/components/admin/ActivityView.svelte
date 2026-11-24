@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { MCP_PROVIDER } from '../../types/agent-change-sets';
 	import { formatDate } from '../../utils/dates';
 	// Read-only operational history for the durable spine — the queryability Sanity's old
 	// out-of-dataset scheduling lacked. Jobs tab = scheduled/queued work and its outcome;
@@ -619,15 +620,22 @@
 						<span class="text-muted-foreground hidden shrink-0 text-xs sm:inline"
 							>{changeSet.createdByName ?? changeSet.createdBy ?? 'Unknown'}</span
 						>
-						<span class="text-muted-foreground hidden shrink-0 font-mono text-xs sm:inline"
-							>{changeSet.provider}/{changeSet.model}</span
-						>
-						<span
-							class="text-muted-foreground hidden shrink-0 font-mono text-xs sm:inline"
-							title="{changeSet.promptTokens} input tokens, {changeSet.completionTokens} output tokens"
-							>{changeSet.promptTokens.toLocaleString()} in / {changeSet.completionTokens.toLocaleString()}
-							out</span
-						>
+						{#if changeSet.provider === MCP_PROVIDER}
+							<!-- A connected app (mcp/change-sets.ts): its model and tokens are the client's, never shown to us. -->
+							<span class="text-muted-foreground hidden shrink-0 text-xs sm:inline"
+								>through {changeSet.model}</span
+							>
+						{:else}
+							<span class="text-muted-foreground hidden shrink-0 font-mono text-xs sm:inline"
+								>{changeSet.provider}/{changeSet.model}</span
+							>
+							<span
+								class="text-muted-foreground hidden shrink-0 font-mono text-xs sm:inline"
+								title="{changeSet.promptTokens} input tokens, {changeSet.completionTokens} output tokens"
+								>{changeSet.promptTokens.toLocaleString()} in / {changeSet.completionTokens.toLocaleString()}
+								out</span
+							>
+						{/if}
 						<span class="text-muted-foreground shrink-0 text-xs whitespace-nowrap"
 							>{fmt(changeSet.createdAt)}</span
 						>
@@ -671,7 +679,11 @@
 											onclick={() => undoChangeSet(changeSet)}
 										>
 											<Undo2 class="h-3.5 w-3.5" />
-											{undoingId === changeSet.id ? 'Undoing…' : 'Undo this turn'}
+											{undoingId === changeSet.id
+												? 'Undoing…'
+												: changeSet.provider === MCP_PROVIDER
+													? 'Undo these changes'
+													: 'Undo this turn'}
 										</Button>
 									{/if}
 								{/if}

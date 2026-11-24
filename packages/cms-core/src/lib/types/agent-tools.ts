@@ -47,6 +47,25 @@ export interface AgentToolDefinition<TInput = unknown> {
 	 */
 	mutates: boolean;
 	/**
+	 * What people see the tool called, in a client's permission prompt or tool list
+	 * ("Publish document"). Defaults to the name in words (`publish_document` →
+	 * "Publish document"). MCP's `title` annotation.
+	 */
+	title?: string;
+	/**
+	 * Whether a call can overwrite or remove what's there, rather than only add to
+	 * it. Only means anything when `mutates`; MCP's `destructiveHint`, which clients
+	 * use to decide what needs the person's approval. Defaults to true for a
+	 * mutating tool unless its name says it only adds (`create_…`, `upload_…`,
+	 * `add_…`); say so explicitly when the name doesn't tell.
+	 */
+	destructive?: boolean;
+	/**
+	 * Whether it reaches outside this site, such as fetching a web page someone named.
+	 * MCP's `openWorldHint`. Defaults to false: a tool acts on this site's own content.
+	 */
+	openWorld?: boolean;
+	/**
 	 * Capabilities required to see AND to invoke this tool — checked at both
 	 * advertisement (don't list a tool the caller can't use) and execution
 	 * (don't trust the advertisement check alone). A tool hidden from an

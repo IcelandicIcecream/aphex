@@ -315,6 +315,7 @@ export function createOAuthServer(
 				type: 'api_key',
 				keyId: `oauth:${token.clientId}`,
 				name: app.name || 'Connected app',
+				userId: token.userId,
 				permissions: scopes.includes('aphex:write') ? ['read', 'write'] : ['read'],
 				capabilities: oauthScopeCapabilities(scopes, grantable, allowed),
 				organizationId

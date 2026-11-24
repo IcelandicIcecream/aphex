@@ -6,6 +6,13 @@
 
 export type AgentChangeSetStatus = 'in_progress' | 'completed' | 'failed';
 
+/**
+ * The `provider` of a change set an app connected over MCP made (`mcp/change-sets.ts`):
+ * one app's burst of writes rather than an in-admin chat turn. Its `model` is the app's
+ * name, and its tokens are zero, since the client's model and usage are never shown to us.
+ */
+export const MCP_PROVIDER = 'mcp';
+
 /** One agent turn. Created eagerly, before the model is even called, so token usage is
  * captured regardless of whether the turn ends up mutating anything. */
 export interface AgentChangeSet {

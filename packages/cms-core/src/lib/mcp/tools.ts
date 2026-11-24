@@ -58,6 +58,12 @@ export interface McpTool {
 	inputSchema: z.ZodRawShape;
 	/** Whether it changes content, from its definition: counted as a change, not a read. */
 	mutates: boolean;
+	/** What clients call it ("Publish document"). */
+	title: string;
+	/** Whether a call can overwrite or remove, not only add (`AgentToolDefinition.destructive`). */
+	destructive: boolean;
+	/** Whether it reaches outside this site (`AgentToolDefinition.openWorld`). */
+	openWorld: boolean;
 	handler: (args: Record<string, unknown>) => Promise<McpToolResult>;
 }
 
@@ -284,6 +290,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'describe_cms',
+			title: 'Describe the content',
 			description:
 				'Orientation for building against this CMS: all content types and their relationships, the valid field-type vocabulary, and what this API key is allowed to do. Call this first. All data is derived live from the running config — never stale. For exact field/schema TypeScript signatures, read the SchemaType and Field types from the `@aphexcms/cms-core` package (and the real schemas in src/lib/schemaTypes/*.ts).',
 			mutates: false,
@@ -339,6 +346,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'list_collections',
+			title: 'List content types',
 			description:
 				'List the document collections (content types) available in this CMS, with their names and titles.',
 			mutates: false,
@@ -362,6 +370,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'get_schema',
+			title: 'Get a content type',
 			description:
 				"Get the shape of one collection's documents, to write them: TypeScript-style `types` (the collection's own type first; `?` is optional; comments say what a field is for and what its values mean) and `values`, the shapes of Image, Ref and the other names it uses. A page builder with many block types lists them at the end instead: call again with `types` naming the blocks you'll write, e.g. ['hero', 'cta']. `portableText` is present for rich-text fields. `detail: 'full'` returns the raw schema instead, which is far larger: only for writing schema code.",
 			mutates: false,
@@ -428,6 +437,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'validate_document',
+			title: 'Check a document',
 			description:
 				'Dry-run: validate document `data` against its collection schema WITHOUT saving, using the same validator as create/update. Returns field-level errors so you can fix them before create_document/update_document.',
 			mutates: false,
@@ -459,6 +469,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'validate_schema',
+			title: 'Check a content type',
 			description:
 				'Validate a proposed schema definition (structure, field types, references, reserved field names) against the current CMS, WITHOUT writing a file. Use before writing a schema .ts file. Pass the schema as JSON — validation-rule functions are not needed for structural validation.',
 			mutates: false,
@@ -489,6 +500,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'query_documents',
+			title: 'Find documents',
 			description:
 				'Do not call this with `where` or `sort` until you have called get_schema for this exact collection in the current conversation. Query documents using only field names and stored shapes that schema returned. Supports filters, sorting, pagination, and draft/published perspective. Aphex slug fields are bare strings: use `where: { "slug": "home" }`, never `slug.current` or `{ current: "home" }`. Afterward, answer from the returned documents instead of explaining these parameters.',
 			mutates: false,
@@ -554,6 +566,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'get_document',
+			title: 'Get a document',
 			description:
 				'Get a single document by id. Read only what you need: `skim` for a page’s structure and block keys, `path` for one block, `fields` for a few fields.',
 			mutates: false,
@@ -591,6 +604,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'create_document',
+			title: 'Create a document',
 			description:
 				'Create a NEW document in a collection. Use this whenever the user asks for a new post, page, or other document, even if workspace tools for an already-open document are available. Pass field values in `data` (matching the collection schema). Set publish:true to publish immediately, otherwise it is saved as a draft.',
 			mutates: true,
@@ -626,6 +640,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'update_document',
+			title: 'Update a document',
 			description:
 				"Update fields on an existing document. Only include the fields you want to change in `data`; a field is replaced whole, so for an edit inside a list or rich text (one block, one sentence) use patch_document instead. Set publish:true to publish the result. Pass `expectedRevision` (from a prior get_document/update_document/publish_document call's `document._meta.revision`) to guard against overwriting a change made since you last read it — a mismatch fails the call instead of silently overwriting. If `content_patch_fields`/`content_save_draft` are also available, they target the document currently open in the admin editor — prefer those for edits to that specific document, since this tool writes straight to the database and the open editor will not reflect the change until the user reloads.",
 			mutates: true,
@@ -670,6 +685,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'patch_document',
+			title: 'Edit a document',
 			description:
 				'Change part of a document by path, without sending the rest back: one heading in a page of blocks, a sentence in rich text, a block moved, added or removed. Prefer it to update_document for any edit inside a list or rich text. Address list items by their _key (`blocks[_key=="k3"].heading`), read from get_document. Operations apply in order, all or none. ' +
 				'`set` a value; `unset` a field or remove an item; `insert` items before/after an item, or at the start/end of a list (new items get keys); `move` an item before/after another; `replaceText` swaps one exact phrase anywhere under the path (it must occur once; in rich text, a phrase crossing bold or a link is split, so find part of it). ' +
@@ -746,6 +762,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'publish_document',
+			title: 'Publish a document',
 			description:
 				"Publish a document (copies its current draft to the published perspective). Pass `expectedRevision` (from a prior read/write's `document._meta.revision`) to guard against publishing over a change made since you last read it.",
 			mutates: true,
@@ -785,6 +802,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'get_singleton',
+			title: 'Get settings',
 			description:
 				'Get a singleton document (a type where exactly one exists, e.g. site settings — flagged `singleton: true` in describe_cms). No id needed; the canonical row is resolved (and lazily created empty on first access). Use this instead of get_document for singletons.',
 			mutates: false,
@@ -818,6 +836,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'update_singleton',
+			title: 'Edit settings',
 			description:
 				'Update a singleton document (e.g. site settings). No id needed — the canonical row is resolved by type. Include only the fields to change in `data`. Set publish:true to publish the result. Use this instead of update_document for singletons.',
 			mutates: true,
@@ -856,6 +875,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'list_assets',
+			title: 'List files',
 			description:
 				'List media assets (images and files) in this organization, optionally filtered.',
 			mutates: false,
@@ -893,6 +913,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'upload_asset',
+			title: 'Upload a file',
 			description:
 				'Upload an image or file and get back a ready-to-reference value. Provide either ' +
 				'`data` (base64 file contents) or `url` (fetched server-side — use this for an image ' +
@@ -1084,19 +1105,47 @@ export function resolveAgentTools(
 	return base.filter((t) => t.definition.execution !== 'workspace');
 }
 
+/** `publish_document` → "Publish document": a tool's name in words, for clients to show. */
+export function toolTitle(name: string): string {
+	const words = name.replace(/[_-]+/g, ' ').trim();
+	return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Names of tools that only add something new, never change or remove what's there. */
+const ADDS_ONLY = /^(create|upload|add)_/;
+
 /**
  * Adapt `resolveAgentTools` into the MCP SDK's expected shape for one authenticated
  * request. All the actual tool logic lives in `contentAgentTools`/plugin parts above —
  * this is purely a transport-shape + result-shape conversion.
  */
-export function buildContentTools(deps: McpToolDeps): McpTool[] {
+export function buildContentTools(
+	deps: McpToolDeps,
+	options: {
+		/**
+		 * Called after every call of a tool that `mutates`, succeeded or not, with what it
+		 * returned: the MCP route records it in the caller's change set (`mcp/change-sets.ts`).
+		 */
+		onWrite?: (
+			name: string,
+			args: Record<string, unknown>,
+			result: AgentToolResult
+		) => Promise<void>;
+	} = {}
+): McpTool[] {
 	const { aphexCMS, context } = deps;
 	return resolveAgentTools(deps).map(({ definition, execute }) => ({
 		name: definition.name,
 		description: definition.description,
 		inputSchema: (definition.inputSchema as z.ZodObject<z.ZodRawShape>).shape,
 		mutates: definition.mutates,
-		handler: async (args: Record<string, unknown>) =>
-			toMcpResult(await execute(args, { aphexCMS, context }))
+		title: definition.title ?? toolTitle(definition.name),
+		destructive: definition.mutates && (definition.destructive ?? !ADDS_ONLY.test(definition.name)),
+		openWorld: definition.openWorld ?? false,
+		handler: async (args: Record<string, unknown>) => {
+			const result = await execute(args, { aphexCMS, context });
+			if (definition.mutates) await options.onWrite?.(definition.name, args, result);
+			return toMcpResult(result);
+		}
 	}));
 }

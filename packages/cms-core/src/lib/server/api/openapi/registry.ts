@@ -15,7 +15,10 @@
 import type { ZodType } from 'zod';
 import { createApiKeyRequest } from '../../../api/schemas/api-keys';
 import { chooseOAuthSiteRequest, oauthConsentRequest } from '../../../api/schemas/oauth';
-import { updateInstanceSettingsRequest } from '../../../api/schemas/instance';
+import {
+	deleteInstanceUserRequest,
+	updateInstanceSettingsRequest
+} from '../../../api/schemas/instance';
 
 import {
 	listDocumentsQuery,
@@ -621,6 +624,16 @@ export const ROUTE_REGISTRY: RouteMeta[] = [
 		tag: 'Organizations',
 		auth: 'session',
 		request: updateInstanceSettingsRequest
+	},
+	{
+		path: '/api/instance-users/:id',
+		method: 'DELETE',
+		summary: 'Delete an account',
+		description:
+			'Super admins only. Also deletes the organizations only this account belongs to. `email` must be the account’s. 409 when it would leave an organization others use without an owner.',
+		tag: 'Organizations',
+		auth: 'session',
+		request: deleteInstanceUserRequest
 	},
 	{
 		path: '/api/organizations/:id/capabilities',

@@ -6,13 +6,15 @@
 	import { instance } from '../../api/instance';
 	import type { AdminGodModeData } from '../../admin/view-data';
 	import CreateOrganization from './CreateOrganization.svelte';
+	import GodModeUsers from './GodModeUsers.svelte';
 	import OrganizationsList from './OrganizationsList.svelte';
 
 	let { data, userEmail }: { data: AdminGodModeData; userEmail: string } = $props();
 
 	const tabs = [
 		{ id: 'general', label: 'General', href: '/admin/god-mode' },
-		{ id: 'organizations', label: 'Organizations', href: '/admin/god-mode/organizations' }
+		{ id: 'organizations', label: 'Organizations', href: '/admin/god-mode/organizations' },
+		{ id: 'users', label: 'Users', href: '/admin/god-mode/users' }
 	];
 
 	// Seeded from the load, then owned here so a failed save can put it back.
@@ -88,6 +90,8 @@
 					</div>
 				</Card.Content>
 			</Card.Root>
+		{:else if data.tab === 'users'}
+			<GodModeUsers {data} />
 		{:else}
 			<div>
 				<div class="mb-4 flex items-center justify-between">
@@ -97,7 +101,7 @@
 					</h2>
 					<CreateOrganization />
 				</div>
-				<OrganizationsList orgs={data.organizations} features={data.features} />
+				<OrganizationsList orgs={data.organizations} features={data.features} canDelete />
 			</div>
 
 			<div class="flex items-center justify-between rounded-lg border p-4">

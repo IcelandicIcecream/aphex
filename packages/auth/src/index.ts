@@ -1,4 +1,10 @@
-import { authPagesBase, type AuthProvider, type CMSConfigInput } from '@aphexcms/cms-core/server';
+import {
+	authPagesBase,
+	eraseAccountRows,
+	type AccountToErase,
+	type AuthProvider,
+	type CMSConfigInput
+} from '@aphexcms/cms-core/server';
 import { createAuthInstance, securityEmailsOf, type AphexAuthInstance } from './instance.js';
 import { createAuthService, type AuthService } from './service.js';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
@@ -71,7 +77,17 @@ export interface AphexAuth {
  * the pages core serves under `/admin`, use `aphexAuth()`.
  */
 export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
-	const auth = createAuthInstance(config);
+	// Core hands over its eraser once it has started; until then, only what the
+	// database adapter can do. Either way the account's API keys go too: they're held
+	// against the user's id without a foreign key, so deleting the user leaves them.
+	const erasing: { erase?: (user: AccountToErase) => Promise<void> } = {};
+	const eraseAccount = async (user: AccountToErase & { email: string }) => {
+		if (erasing.erase) await erasing.erase(user);
+		else if (config.eraseAccount) await config.eraseAccount(user);
+		else await eraseAccountRows(config.database, user);
+		await service.forgetApiKeys({ userId: user.id });
+	};
+	const auth = createAuthInstance({ ...config, eraseAccount });
 
 	// Match the tables to the dialect the caller's Drizzle client actually speaks;
 	// mixing them produces queries that compile but fail at runtime.
@@ -111,6 +127,25 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 		getUserByEmail: (email) => service.getUserByEmail(email),
 		changeUserName: (userId, name) => service.changeUserName(userId, name),
 		changeUserImage: (userId, image) => service.changeUserImage(userId, image),
+		listUsers: (options) => service.listUsers(options),
+		deleteUser: async (userId) => {
+			await service.forgetApiKeys({ userId });
+			const { internalAdapter } = await auth.$context;
+			await internalAdapter.deleteUserSessions(userId);
+			await internalAdapter.deleteUser(userId);
+		},
+		onAccountDelete: (erase) => {
+			erasing.erase = erase;
+		},
+		forgetOrganization: async (organizationId) => {
+			await service.forgetApiKeys({ organizationId });
+			const { adapter } = await auth.$context;
+			const where = [{ field: 'referenceId', value: organizationId }];
+			// Access tokens first: they point at refresh tokens.
+			for (const model of ['oauthAccessToken', 'oauthRefreshToken', 'oauthConsent']) {
+				await adapter.deleteMany({ model, where });
+			}
+		},
 		requestPasswordReset: (email, redirectTo) => service.requestPasswordReset(email, redirectTo),
 		resetPassword: (token, newPassword) => service.resetPassword(token, newPassword),
 		hasPendingTwoFactor,

@@ -1362,6 +1362,14 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			// the transaction. Add one to this list whenever its writes need to
 			// commit with the caller's.
 			txAdapter.referenceAdapter = new (this.referenceAdapter.constructor as any)(tx, this.tables);
+			txAdapter.organizationAdapter = new (this.organizationAdapter.constructor as any)(
+				tx,
+				this.tables
+			);
+			txAdapter.userProfileAdapter = new (this.userProfileAdapter.constructor as any)(
+				tx,
+				this.tables
+			);
 			txAdapter.pluginStorageAdapter = new (this.pluginStorageAdapter.constructor as any)(
 				tx,
 				this.tables

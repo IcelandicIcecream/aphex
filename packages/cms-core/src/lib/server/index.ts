@@ -19,6 +19,7 @@ export { isInstanceEmpty, canDetermineInstanceEmptiness } from '../auth/instance
 export * from '../auth/bootstrap';
 export * from '../auth/sign-up-policy';
 export * from '../auth/account-deletion';
+export * from '../auth/erase';
 
 // Configuration system
 export { createCMSConfig } from '../config';

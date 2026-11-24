@@ -59,7 +59,8 @@ export async function emitUserDeleted(
 ): Promise<void> {
 	const payload = userDeleted.parse({
 		userId: user.id,
-		email: user.email ?? null,
+		// Never the address: the event log is permanent, and this is an erasure.
+		email: null,
 		image: user.image ?? null
 	});
 

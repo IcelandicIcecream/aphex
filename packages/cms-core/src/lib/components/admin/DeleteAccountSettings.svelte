@@ -68,7 +68,8 @@
 			<p class="text-sm font-medium">Delete account</p>
 			<p class="text-muted-foreground max-w-prose text-sm">
 				Permanently deletes your account, your profile picture, and your membership of every
-				workspace. Content you created stays where it is. This can't be undone.
+				workspace. Workspaces only you belong to are deleted too; content in shared ones stays. This
+				can't be undone.
 			</p>
 		</div>
 
@@ -84,7 +85,8 @@
 			<Dialog.Title>Delete your account?</Dialog.Title>
 			<Dialog.Description>
 				This is permanent. Your profile and profile picture are erased and you're removed from every
-				workspace you belong to.
+				workspace you belong to. Any workspace where you're the only member is deleted with it,
+				along with its pages and files.
 			</Dialog.Description>
 		</Dialog.Header>
 

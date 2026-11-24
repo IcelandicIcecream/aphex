@@ -11,6 +11,7 @@ import type { AuthProvider } from './auth/provider';
 import type { AuthFeatures } from './types/auth';
 import type { GraphQLSettings } from './graphql/index';
 import type { Logger } from './utils/logger';
+import { eraseAccount } from './auth/erase';
 import { handleAuthHook } from './auth/auth-hooks';
 import { resolveTenant } from './auth/tenant';
 import { serveCoreRoute } from './server/core-routes';
@@ -320,6 +321,12 @@ export function createCMSHook(config: CMSConfigInput): Handle {
 				apiApp,
 				partResolver
 			};
+
+			// Read live, so a rebuilt instance is the one used.
+			currentConfig.auth?.provider?.onAccountDelete?.(async (user) => {
+				if (!cmsInstances) throw new Error('The CMS is restarting. Try again.');
+				await eraseAccount(cmsInstances, user);
+			});
 
 			// Start the embedded in-process job loop once, if opted in. It drives the queue
 			// directly (no HTTP, no worker secret) so scheduled publishes and event consumers

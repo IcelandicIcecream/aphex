@@ -24,6 +24,7 @@ import type {
 	AdminInviteData,
 	AdminInvitationsData,
 	AdminTwoFactorData,
+	AdminGodModeData,
 	AdminGodModeFeatures
 } from '../../admin/view-data';
 import { grantedOrganizationCapabilities } from '../../auth/organization-capabilities';
@@ -344,9 +345,59 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 				features: await loadGodModeFeatures(event.locals, organizations)
 			};
 		}
+		case 'god-mode/users':
+			return loadGodModeUsers(event, auth);
 		default:
 			throw error(404, `Unknown admin route: /admin/${path}`);
 	}
+}
+
+const GOD_MODE_USERS_PER_PAGE = 50;
+
+async function loadGodModeUsers(event: AdminLoadEvent, auth: Auth): Promise<AdminGodModeData> {
+	requireSuperAdmin(auth);
+	const { databaseAdapter, auth: provider } = event.locals.aphexCMS;
+	if (!provider?.listUsers) throw error(404, 'Accounts are managed elsewhere');
+	const search = event.url.searchParams.get('q')?.trim() ?? '';
+	const page = Math.max(1, Math.trunc(Number(event.url.searchParams.get('page'))) || 1);
+	const { users, total } = await provider.listUsers({
+		search,
+		limit: GOD_MODE_USERS_PER_PAGE,
+		offset: (page - 1) * GOD_MODE_USERS_PER_PAGE
+	});
+	const selfId = auth.type === 'session' ? auth.user.id : null;
+	return {
+		view: 'god-mode',
+		tab: 'users',
+		total,
+		search,
+		page,
+		pages: Math.max(1, Math.ceil(total / GOD_MODE_USERS_PER_PAGE)),
+		users: await Promise.all(
+			users.map(async (user) => {
+				const [memberships, profile] = await Promise.all([
+					databaseAdapter.findUserOrganizations(user.id),
+					databaseAdapter.findUserProfileById(user.id)
+				]);
+				return {
+					id: user.id,
+					name: user.name,
+					email: user.email,
+					createdAt: new Date(user.createdAt).toISOString(),
+					organizations: await Promise.all(
+						memberships.map(async ({ organization, member }) => ({
+							name: organization.name,
+							role: member.role,
+							isOnlyMember:
+								(await databaseAdapter.findOrganizationMembers(organization.id)).length === 1
+						}))
+					),
+					canDelete:
+						Boolean(provider.deleteUser) && user.id !== selfId && profile?.role !== 'super_admin'
+				};
+			})
+		)
+	};
 }
 
 /**

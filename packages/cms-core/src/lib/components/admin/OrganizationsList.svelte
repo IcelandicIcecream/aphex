@@ -2,8 +2,9 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Switch } from '@aphexcms/ui/shadcn/switch';
-	import { ArrowRight, ExternalLink } from '@lucide/svelte';
+	import { ArrowRight, ExternalLink, Trash2 } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
+	import ConfirmDelete from './ConfirmDelete.svelte';
 	import { organizations } from '../../api/organizations';
 
 	import { formatDate } from '../../utils/dates';
@@ -11,12 +12,27 @@
 
 	let {
 		orgs = [],
-		features = null
+		features = null,
+		canDelete = false
 	}: {
 		orgs: AdminOrganizationListItem[];
 		/** God Mode's per-organization feature switches; none elsewhere. */
 		features?: AdminGodModeFeatures | null;
+		/** God Mode: every row can be deleted. */
+		canDelete?: boolean;
 	} = $props();
+
+	let deleting = $state<AdminOrganizationListItem | null>(null);
+	let confirmOpen = $state(false);
+
+	async function remove() {
+		if (!deleting) return;
+		const { id, name } = deleting;
+		const result = await organizations.remove(id);
+		if (!result.success) throw new Error(result.message || result.error || 'Could not delete it');
+		toast.success(`${name} was deleted`);
+		await invalidateAll();
+	}
 
 	let switchingOrgId = $state<string | null>(null);
 
@@ -173,8 +189,35 @@
 							<ArrowRight class="size-4" />
 						</button>
 					{/if}
+					{#if canDelete}
+						<button
+							class="text-muted-foreground hover:text-destructive hover:bg-muted rounded-md p-2 transition-colors"
+							onclick={() => {
+								deleting = org;
+								confirmOpen = true;
+							}}
+							title="Delete this organization"
+							aria-label="Delete {org.name}"
+						>
+							<Trash2 class="size-4" />
+						</button>
+					{/if}
 				</div>
 			</div>
 		{/each}
 	</div>
+{/if}
+
+{#if deleting}
+	<ConfirmDelete
+		bind:open={confirmOpen}
+		title="Delete {deleting.name}?"
+		phrase={deleting.name}
+		action="Delete organization"
+		onConfirm={remove}
+	>
+		Every document, uploaded file, role and invitation in it is erased, and
+		{deleting.memberCount === 1 ? 'its member is' : `all ${deleting.memberCount} members are`} removed.
+		Their accounts stay. This is permanent.
+	</ConfirmDelete>
 {/if}

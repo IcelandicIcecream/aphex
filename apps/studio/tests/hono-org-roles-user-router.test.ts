@@ -402,7 +402,7 @@ describe('DELETE /organizations/:id', () => {
 		const cms = buildFakeCMS({ memberships: [{ orgId: TEST_ORG, role: 'admin' }] });
 		const res = await makeApp().fetch(
 			new Request(`http://localhost/organizations/${TEST_ORG}`, { method: 'DELETE' }),
-			buildEnv(cms) as any
+			buildEnv(cms, { role: 'editor' }) as any
 		);
 		expect(res.status).toBe(403);
 	});
@@ -422,6 +422,8 @@ describe('DELETE /organizations/:id', () => {
 			deleteAsset: async () => true
 		};
 		const db = cms.databaseAdapter;
+		db.withTransaction = async (fn: (tx: unknown) => Promise<unknown>) => fn(db);
+		cms.auth.getUserById = async () => null;
 		db.deleteOrganization = async () => {
 			steps.push('delete organization');
 			return true;

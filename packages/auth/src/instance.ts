@@ -3,13 +3,12 @@ import { apiKey } from '@better-auth/api-key';
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { cmsLogger, emitUserDeleted } from '@aphexcms/cms-core';
+import { cmsLogger } from '@aphexcms/cms-core';
 import {
-	assertAccountDeletable,
 	assertSignUpAllowed,
-	AccountDeletionBlockedError,
 	createUserProfileWithBootstrap,
-	detachUserFromOrganizations,
+	eraseAccountRows,
+	isDeletionBlocked,
 	SignUpBlockedError,
 	type CacheAdapter
 } from '@aphexcms/cms-core/server';
@@ -202,38 +201,6 @@ export function createAuthInstance(config: AphexAuthConfig) {
 				cmsLogger.error('[Auth]', 'Error creating user profile:', error);
 			}
 		}
-
-		// better-auth mounts this as `/delete-user`, not `/user/delete-user`.
-		if (ctx.path === '/delete-user' && ctx.context.user) {
-			const deleted = ctx.context.user;
-			try {
-				// Memberships are read first: deleting the profile is what removes them, and
-				// after that there's nothing left to say which organizations this account
-				// left data in.
-				const memberships = await db.findUserOrganizations(deleted.id);
-				const organizationIds = memberships.map((m) => m.organization.id);
-
-				// One transaction, so the erasure events can't go missing for an account
-				// that is already gone. That's the whole point of the outbox here: after
-				// this commits, the only remaining pointer to the user's avatar is the
-				// event, and a consumer will act on it even if this process dies now.
-				await db.withTransaction(async (tx) => {
-					await emitUserDeleted(tx, organizationIds, {
-						id: deleted.id,
-						email: deleted.email,
-						image: deleted.image
-					});
-					// Memberships don't cascade — `cms_organization_members.user_id` points
-					// at the auth layer's user, which cms-core doesn't own — so without this
-					// a deleted account keeps showing up in member lists holding its old role.
-					await detachUserFromOrganizations(tx, deleted.id, organizationIds);
-					await tx.deleteUserProfile(deleted.id);
-				});
-				cmsLogger.info('[Auth]', `Deleted user profile and queued erasure for ${deleted.id}`);
-			} catch (error) {
-				cmsLogger.error('[Auth]', 'Error deleting user profile:', error);
-			}
-		}
 	});
 
 	/**
@@ -335,14 +302,14 @@ export function createAuthInstance(config: AphexAuthConfig) {
 					user: {
 						deleteUser: {
 							enabled: true,
-							// Runs before better-auth touches the user row, so refusing here
-							// leaves the account fully intact. The rule itself lives in
-							// cms-core so it holds for any provider.
-							beforeDelete: async (user: { id: string }) => {
+							// Runs before better-auth touches the user row (and after it checked the
+							// password), so a refusal or a failure leaves the account able to retry.
+							beforeDelete: async (user: { id: string; email: string; image?: string | null }) => {
 								try {
-									await assertAccountDeletable(db, user.id);
+									if (config.eraseAccount) await config.eraseAccount(user);
+									else await eraseAccountRows(db, user);
 								} catch (error) {
-									if (error instanceof AccountDeletionBlockedError) {
+									if (isDeletionBlocked(error)) {
 										throw new APIError('BAD_REQUEST', { message: error.message });
 									}
 									throw error;

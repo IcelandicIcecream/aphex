@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, count, desc, eq, like, or, sql } from 'drizzle-orm';
 import type { AphexAuthInstance } from './instance.js';
 import type {
 	SessionAuth,
@@ -11,6 +11,7 @@ import {
 	AuthError,
 	createUserProfileWithBootstrap,
 	type BootstrapPolicy,
+	type UserSummary,
 	type CacheAdapter
 } from '@aphexcms/cms-core/server';
 import { resolveBootstrapPolicy } from './bootstrap-policy.js';
@@ -134,6 +135,13 @@ export interface AuthService {
 	getUserByEmail(
 		email: string
 	): Promise<{ id: string; name?: string; email: string; image?: string } | null>;
+	/** Revoke every key of one user, or every key bound to one organization. */
+	forgetApiKeys(of: { userId: string } | { organizationId: string }): Promise<void>;
+	listUsers(options: {
+		search?: string;
+		limit: number;
+		offset: number;
+	}): Promise<{ users: UserSummary[]; total: number }>;
 	changeUserName(userId: string, name: string): Promise<void>;
 	changeUserImage(userId: string, image: string | null): Promise<void>;
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
@@ -269,6 +277,9 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 
 				// 3. If no profile exists, create one (lazy sync)
 				if (!userProfile) {
+					// A deleted account's cookie still verifies for a minute (it's cached);
+					// signing in from it would write its profile back.
+					if (!(await this.getUserById(session.user.id))) return null;
 					cmsLogger.info(
 						'[AuthService]',
 						`User profile not found for ${session.user.id}. Creating one now (lazy sync).`
@@ -665,6 +676,41 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 
 			cmsLogger.info('[AuthService]', `Deleted API key ${keyId}`);
 			return true;
+		},
+
+		async forgetApiKeys(of): Promise<void> {
+			// A key's organization is in its metadata, as JSON text: the id is a UUID, so
+			// finding it there finds only its keys.
+			const where =
+				'userId' in of
+					? eq(apikey.referenceId, of.userId)
+					: like(apikey.metadata, `%${of.organizationId}%`);
+			const deleted: { id: string; key: string; referenceId: string | null }[] = await drizzleDb
+				.delete(apikey)
+				.where(where)
+				.returning({ id: apikey.id, key: apikey.key, referenceId: apikey.referenceId });
+			for (const row of deleted) await evictApiKeyFromCache(row);
+		},
+
+		async listUsers({ search, limit, offset }) {
+			const term = search
+				?.trim()
+				.toLowerCase()
+				.replace(/[\\%_]/g, '\\$&');
+			const matches = (column: unknown) => sql`lower(${column}) like ${`%${term}%`} escape '\\'`;
+			const where = term ? or(matches(user.email), matches(user.name)) : undefined;
+			const users: UserSummary[] = await drizzleDb
+				.select({ id: user.id, name: user.name, email: user.email, createdAt: user.createdAt })
+				.from(user)
+				.where(where)
+				.orderBy(desc(user.createdAt), desc(user.id))
+				.limit(limit)
+				.offset(offset);
+			const [row]: { total: number }[] = await drizzleDb
+				.select({ total: count() })
+				.from(user)
+				.where(where);
+			return { users, total: Number(row?.total ?? 0) };
 		},
 
 		async getUserById(

@@ -248,7 +248,30 @@ export type AdminGodModeData =
 			 * store them (`organizationCapabilities.set`); otherwise `null`.
 			 */
 			features: AdminGodModeFeatures | null;
+	  }
+	| {
+			view: 'god-mode';
+			tab: 'users';
+			users: AdminGodModeUser[];
+			/** How many match the search; all of them without one. */
+			total: number;
+			search: string;
+			/** From 1. */
+			page: number;
+			pages: number;
 	  };
+
+/** An account in God Mode's list. */
+export interface AdminGodModeUser {
+	id: string;
+	name: string;
+	email: string;
+	createdAt: string;
+	/** The workspaces they're in, and whether deleting the account deletes each. */
+	organizations: Array<{ name: string; role: string; isOnlyMember: boolean }>;
+	/** Themselves and other super admins can't be deleted here. */
+	canDelete: boolean;
+}
 
 /** The switches God Mode shows per organization. */
 export interface AdminGodModeFeatures {

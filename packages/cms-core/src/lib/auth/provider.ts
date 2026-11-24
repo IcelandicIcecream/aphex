@@ -2,7 +2,16 @@
 import type { SessionAuth, PartialSessionAuth, ApiKeyAuth, ApiKeySummary } from '../types/index';
 import type { DatabaseAdapter } from '../db/interfaces/index';
 import type { Handle } from '@sveltejs/kit';
+import type { AccountToErase } from './erase';
 import type { CreateApiKeyRequest } from '../api/schemas/api-keys';
+
+/** An account in God Mode's list. */
+export interface UserSummary {
+	id: string;
+	name: string;
+	email: string;
+	createdAt: Date;
+}
 
 export interface AuthProvider {
 	/**
@@ -52,6 +61,28 @@ export interface AuthProvider {
 	): Promise<{ id: string; name?: string; email: string; image?: string } | null>;
 	changeUserName(userId: string, name: string): Promise<void>;
 	changeUserImage?(userId: string, image: string | null): Promise<void>;
+
+	/**
+	 * A page of accounts, newest first, for God Mode. With `search`, those whose name
+	 * or address contains it. Without this, God Mode shows no Users tab.
+	 */
+	listUsers?(options: { search?: string; limit: number; offset: number }): Promise<{
+		users: UserSummary[];
+		total: number;
+	}>;
+	/**
+	 * Remove an account's sign-in for good: its sessions, credentials, keys and connected
+	 * apps. Core erases what the CMS holds first (`eraseAccount`).
+	 */
+	deleteUser?(userId: string): Promise<void>;
+	/**
+	 * Told how to erase what the CMS holds about an account, for a provider whose own
+	 * endpoint lets people delete theirs. It calls `erase` before removing the sign-in,
+	 * and stops if that throws.
+	 */
+	onAccountDelete?(erase: (user: AccountToErase) => Promise<void>): void;
+	/** Remove every key and connected app bound to an organization that is being deleted. */
+	forgetOrganization?(organizationId: string): Promise<void>;
 
 	// Password reset
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;

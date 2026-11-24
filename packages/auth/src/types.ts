@@ -188,6 +188,12 @@ export interface AphexAuthConfig {
 	 */
 	drizzleDb: unknown;
 
+	/**
+	 * Erases everything the CMS holds about an account, before its sign-in goes. Core
+	 * supplies it; `createAphexAuth` falls back to the rows in `database` without it.
+	 */
+	eraseAccount?: (user: { id: string; email: string; image?: string | null }) => Promise<void>;
+
 	/** Which Drizzle dialect `drizzleDb` is. postgres/pglite → 'pg', libsql → 'sqlite'. */
 	dialect: 'pg' | 'sqlite';
 

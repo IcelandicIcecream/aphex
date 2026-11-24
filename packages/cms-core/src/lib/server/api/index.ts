@@ -24,6 +24,7 @@ import { organizationsInvitationsRouter } from './routes/organizations-invitatio
 import { invitationsRouter } from './routes/invitations';
 import { apiKeysRouter } from './routes/api-keys';
 import { connectedAppsRouter, oauthRouter } from './routes/oauth';
+import { instanceUsersRouter } from './routes/instance-users';
 import { instanceSettingsRouter } from './routes/instance-settings';
 import { organizationsMembersRouter } from './routes/organizations-members';
 import { organizationsSwitchRouter } from './routes/organizations-switch';
@@ -187,6 +188,7 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	app.route('/settings/connected-apps', connectedAppsRouter);
 	app.route('/oauth', oauthRouter);
 	app.route('/instance-settings', instanceSettingsRouter);
+	app.route('/instance-users', instanceUsersRouter);
 
 	// Roles — combined router covers /, /:name, no precedence concern.
 	app.route('/roles', rolesRouter);

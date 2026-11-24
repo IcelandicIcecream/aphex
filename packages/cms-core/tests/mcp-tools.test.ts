@@ -549,7 +549,7 @@ describe('MCP content tools — smoke test every tool', () => {
 describe('agent tool guidance', () => {
 	it('describes Aphex slugs as bare strings in document queries', () => {
 		const query = contentAgentTools.find((tool) => tool.definition.name === 'query_documents');
-		expect(query?.definition.description).toContain('called get_schema for this exact collection');
+		expect(query?.definition.description).toContain('get_schema returns for that collection');
 		expect(query?.definition.description).toContain('where: { "slug": "home" }');
 		expect(query?.definition.description).toContain('never `slug.current`');
 	});
@@ -595,7 +595,7 @@ describe('resolveAgentTools — documentContext gating for the workspace bridge'
 		expect(patchTool?.definition.description).toContain('cannot create a document');
 		expect(
 			withContext.find((t) => t.definition.name === 'create_document')?.definition.description
-		).toContain('Use this whenever the user asks for a new post');
+		).toContain('Create a NEW document in a collection');
 	});
 
 	it("lists only the core tools the caller's capabilities allow", () => {

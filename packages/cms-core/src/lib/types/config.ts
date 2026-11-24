@@ -227,6 +227,9 @@ export interface RoleNoticeEmailTemplate {
 	}) => Promise<{ subject: string; html: string; text: string }>;
 }
 
+/** What to run once the organization is gone, if anything. */
+export type OrganizationDeleteCleanup = void | (() => Promise<void> | void);
+
 export interface CMSConfig {
 	schemaTypes: SchemaType[];
 	database: DatabaseAdapter;
@@ -627,6 +630,8 @@ export interface CMSConfig {
 	 * before anything is erased. Throw to stop the delete: nothing is changed, and
 	 * the owner sees the error's message. For what the app keeps outside the CMS,
 	 * such as a billing subscription that would otherwise outlive its organization.
+	 * Also runs when a super admin deletes it, and when its only member deletes their
+	 * account. Return a function to run once it's gone (clearing a page cache).
 	 *
 	 * @example
 	 * ```ts
@@ -635,9 +640,15 @@ export interface CMSConfig {
 	 */
 	beforeOrganizationDelete?: (args: {
 		organizationId: string;
-		/** The owner deleting it. */
+		/** Who is deleting it. */
 		userId: string;
-	}) => Promise<void> | void;
+	}) => OrganizationDeleteCleanup | Promise<OrganizationDeleteCleanup>;
+	/**
+	 * Runs when an account is deleted, after the workspaces only it belonged to are gone
+	 * and before its own rows are. For what the app's own tables hold about a person.
+	 * Throw to stop the delete.
+	 */
+	beforeAccountDelete?: (args: { userId: string }) => Promise<void> | void;
 	/**
 	 * Where an organization's public site lives, for an app that gives each one a
 	 * site. Opt-in: without it, nothing links out. With it, each row in the

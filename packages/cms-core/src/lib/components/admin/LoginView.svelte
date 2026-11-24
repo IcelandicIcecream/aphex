@@ -51,7 +51,15 @@
 	let resendCooldown = $state(0);
 	const RESEND_COOLDOWN_SECONDS = 60;
 
-	let callbackUrl = $derived(page.url.searchParams.get('callbackUrl'));
+	// Where to go next: a path on this site only, never another address.
+	let callbackUrl = $derived.by(() => {
+		const next = page.url.searchParams.get('callbackUrl');
+		// Browsers read `/\` as `//`, which is another site.
+		return next && /^\/(?![/\\])/.test(next) ? next : null;
+	});
+	// A new account goes where it was sent from (an invitation's own page, which
+	// accepts it), else to the usual place after sign-up.
+	const afterSignUp = $derived(callbackUrl ?? data.signUpDestination);
 
 	// The host must wire sign-in/sign-up onto the auth client for this view to work.
 	// When it hasn't, say so plainly rather than failing on submit.
@@ -150,7 +158,7 @@
 					email,
 					password,
 					name: email.split('@')[0] || email,
-					callbackURL: data.signUpDestination
+					callbackURL: afterSignUp
 				});
 
 				clearBootstrapCookie();
@@ -160,7 +168,7 @@
 				} else if (data.requireEmailVerification) {
 					signupSuccess = true;
 				} else {
-					await goto(data.signUpDestination);
+					await goto(afterSignUp);
 				}
 			}
 		} catch (err) {
@@ -197,7 +205,7 @@
 		try {
 			const result = await authClient.sendVerificationEmail({
 				email: targetEmail,
-				callbackURL: data.signUpDestination
+				callbackURL: afterSignUp
 			});
 			if (result.error) {
 				resendMessage = result.error.message || 'Failed to resend verification email';

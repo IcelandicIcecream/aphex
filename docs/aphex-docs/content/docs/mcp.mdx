@@ -62,7 +62,7 @@ auth: aphexAuth({
 
 It adds four auth tables (`oauth_client`, `oauth_access_token`, `oauth_refresh_token`, `oauth_consent`), so generate a migration after upgrading (`pnpm db:generate`); SQLite creates them on start.
 
-Then, in Claude, add a custom connector with the address `https://your-app.com/admin/mcp`. In ChatGPT, add it as a connector in developer mode. The app does the rest:
+Then, in Claude, open **Plugins**, choose **Custom connector** from the **Add** menu, name it and give it the address `https://your-app.com/admin/mcp`, leaving the rest as it is. In ChatGPT, add it as a connector in developer mode. The app does the rest:
 
 1. `/admin/mcp` answers 401 with `WWW-Authenticate: Bearer resource_metadata="…"`, pointing at `/.well-known/oauth-protected-resource/admin/mcp`.
 2. That names the authorization server, whose metadata is at `/.well-known/oauth-authorization-server/api/auth`.

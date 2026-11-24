@@ -256,19 +256,18 @@
 							rel="noreferrer"
 							class="underline underline-offset-2">claude.ai</a
 						>
-						(or the Claude desktop app) and sign in. Click your name in the bottom left, then
-						<strong>Settings</strong>, then <strong>Connectors</strong>.
+						(or the Claude desktop app), sign in and open <strong>Plugins</strong>.
 					{/snippet}
 					{@render step(1, c1)}
 					{#snippet c2()}
-						Click <strong>Add custom connector</strong>. Give it a name you'll recognise (your
-						site's name is good), paste the address above into <strong>URL</strong>, and click
-						<strong>Add</strong>.
+						Open the <strong>Add</strong> menu and choose <strong>Custom connector</strong>. Give it
+						a name you'll recognise (your site's name is good), paste the address above into
+						<strong>URL</strong>, leave the rest as it is, and click <strong>Add</strong>.
 					{/snippet}
 					{@render step(2, c2)}
 					{#snippet c3()}
-						Click <strong>Connect</strong> next to it. A window opens here: sign in if asked, pick
-						this site, and click <strong>Allow</strong>. You're sent back to Claude.
+						You're brought back here: sign in if asked, pick this site, and click
+						<strong>Allow</strong>. Then you're returned to Claude.
 					{/snippet}
 					{@render step(3, c3)}
 					{#snippet c4()}

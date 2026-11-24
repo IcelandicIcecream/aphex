@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, untrack } from 'svelte';
 	import { Editor, getSchema } from '@tiptap/core';
 	import { StarterKit } from '@tiptap/starter-kit';
 	import Link from '@tiptap/extension-link';
@@ -746,6 +746,12 @@
 		isSyncingFromParent = true;
 		editor.view.dispatch(tr);
 		isSyncingFromParent = false;
+		// An object open in its editor shows what came in too, or the next keystroke
+		// there would write its old copy back.
+		untrack(() => {
+			const open = editingSchema && editingNodeKey ? findNodeByKey(editingNodeKey) : null;
+			if (open) editingValue = { ...open.node.attrs.data };
+		});
 	});
 
 	$effect(() => {

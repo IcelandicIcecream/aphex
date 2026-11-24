@@ -167,6 +167,21 @@ function mergeKeyed(
 	return order.filter((key) => result.has(key)).map((key) => result.get(key)!);
 }
 
+/**
+ * `current` with `next`'s data, as a new object: what watches the document (the
+ * preview's live data) is told by the replacement, not by a field set in place.
+ * A field that didn't change keeps its very same value, so one being typed in (a
+ * cursor in rich text) isn't disturbed.
+ */
+export function replaceChanged(current: Plain, next: Plain): Plain {
+	return Object.fromEntries(
+		Object.entries(next).map(([key, value]) => [
+			key,
+			sameValue(current[key], value) ? current[key] : structuredClone(value)
+		])
+	);
+}
+
 /** What an open editor should do about a version saved elsewhere. */
 export type RemoteAction =
 	/** Nothing unsaved here: show theirs. */

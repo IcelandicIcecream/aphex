@@ -28,7 +28,7 @@
 	import { setDocumentWriter } from '../../admin/document-writer.svelte';
 	import { autosaveIn, classifySaveError, saveRetryDelay, type SaveFailure } from './save-policy';
 	import { documentSync, SYNC_EVERY_MS } from './document-sync';
-	import { sameValue, type RemoteAction } from './document-merge';
+	import { replaceChanged, type RemoteAction } from './document-merge';
 	import { usePermissions } from '../../permissions-context.svelte';
 	import AdminSlot from './AdminSlot.svelte';
 	import ScheduleDialog from './ScheduleDialog.svelte';
@@ -2048,14 +2048,7 @@
 			return;
 		}
 		fullDocument = saved;
-		// Only the fields that changed: the rest stay the very same values, so a field
-		// being typed in elsewhere on the page (a cursor in rich text) isn't disturbed.
-		for (const key of Object.keys(documentData)) {
-			if (!(key in action.data)) delete documentData[key];
-		}
-		for (const [key, value] of Object.entries(action.data)) {
-			if (!sameValue(documentData[key], value)) documentData[key] = structuredClone(value);
-		}
+		documentData = replaceChanged(documentData, action.data);
 		saveConflict = false;
 		saveError = null;
 		conflictFields = [];

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { mergeDocuments, sameValue } from '../src/lib/components/admin/document-merge';
+import {
+	mergeDocuments,
+	replaceChanged,
+	sameValue
+} from '../src/lib/components/admin/document-merge';
 
 // A page as the editor holds it: fields, an object, and blocks with keys.
 const page = () => ({
@@ -248,5 +252,21 @@ describe('sameValue', () => {
 		expect(sameValue({ a: 1, b: { c: 2, d: 3 } }, { b: { d: 3, c: 2 }, a: 1 })).toBe(true);
 		expect(sameValue({ a: 1, b: undefined }, { a: 1 })).toBe(true);
 		expect(sameValue([1, 2], [2, 1])).toBe(false);
+	});
+});
+
+describe('replaceChanged', () => {
+	it('is a new object, so what watches the document is told', () => {
+		const current = page();
+		expect(replaceChanged(current, page())).not.toBe(current);
+	});
+
+	it('keeps the very same value where nothing changed, and drops a field that went', () => {
+		const current = page();
+		const { tags: _tags, ...rest } = page();
+		const next = replaceChanged(current, { ...rest, title: 'Welcome' });
+		expect(next.title).toBe('Welcome');
+		expect(next.blocks).toBe(current.blocks);
+		expect(next).not.toHaveProperty('tags');
 	});
 });

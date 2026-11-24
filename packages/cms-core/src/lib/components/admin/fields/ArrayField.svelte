@@ -38,6 +38,8 @@
 	import AssetBrowserModal from '../AssetBrowserModal.svelte';
 	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../../../utils/preview';
 	import { documents } from '../../../api/documents';
+	import { untrack } from 'svelte';
+	import { sameValue } from '../document-merge';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { getDocumentVersion } from '../../../document-refresh.svelte';
 	import AssetImage from '../AssetImage.svelte';
@@ -486,6 +488,7 @@
 		editingType = selectedType;
 		editingSchema = schema;
 		editingValue = newItem;
+		openItemSeen = false;
 		modalOpen = true;
 	}
 
@@ -504,6 +507,7 @@
 		editingType = item._type;
 		editingSchema = schema;
 		editingValue = item;
+		openItemSeen = false;
 		modalOpen = true;
 	}
 
@@ -565,9 +569,32 @@
 		editingValue = itemData;
 
 		const newArray = [...keyedItems];
-		newArray[editingIndex] = itemData;
+		const at = newArray.findIndex((item) => item?._key === itemData._key);
+		newArray[at === -1 ? editingIndex : at] = itemData;
 		onUpdate(newArray);
 	}
+
+	// The list can change under an open item: a save made elsewhere, merged in. The
+	// item shows what was saved, its edits go to its own row wherever that moved to,
+	// and it closes when the row is gone. Without it, the next keystroke wrote the
+	// old copy back, or over another row.
+	let openItemSeen = false;
+	$effect(() => {
+		const items = keyedItems;
+		if (!modalOpen) return;
+		untrack(() => {
+			const key = editingValue._key;
+			if (!key) return;
+			const index = items.findIndex((item: any) => item?._key === key);
+			if (index === -1) {
+				if (openItemSeen && !readonly) handleModalClose();
+				return;
+			}
+			openItemSeen = true;
+			editingIndex = index;
+			if (!sameValue(items[index], editingValue)) editingValue = items[index];
+		});
+	});
 
 	function handleModalClose() {
 		modalOpen = false;

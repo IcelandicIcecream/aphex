@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate } from '../../utils/dates';
 	// Read-only operational history for the durable spine — the queryability Sanity's old
 	// out-of-dataset scheduling lacked. Jobs tab = scheduled/queued work and its outcome;
 	// Events tab = the append-only domain-event log; Agent Changes tab = the AI assistant's
@@ -118,8 +119,7 @@
 
 	function fmt(d: string | Date | null | undefined): string {
 		if (!d) return '—';
-		const date = typeof d === 'string' ? new Date(d) : d;
-		return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+		return formatDate(d, { dateStyle: 'medium', timeStyle: 'short' }) || '—';
 	}
 
 	/** "3m", "2h", "4d" — coarse on purpose; this is a staleness signal, not a stopwatch. */

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate as formatDay } from '../../utils/dates';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
@@ -1396,8 +1397,7 @@
 	// Format date
 	function formatDate(date: Date | string | null): string {
 		if (!date) return '';
-		const d = new Date(date);
-		return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+		return formatDay(date, { day: '2-digit', month: '2-digit', year: 'numeric' });
 	}
 
 	/**

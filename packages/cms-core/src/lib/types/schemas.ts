@@ -542,7 +542,7 @@ export interface PublishLabels {
 	published: string;
 	/** The button for a document never published, or taken down. Default "Publish". */
 	publish: string;
-	/** The button when the draft differs from the live version. Default "Publish Changes". */
+	/** The button when the draft differs from the live version. Default "Publish changes". */
 	publishChanges: string;
 	/** The (disabled) button when the live version is current. Default "Published". */
 	upToDate: string;

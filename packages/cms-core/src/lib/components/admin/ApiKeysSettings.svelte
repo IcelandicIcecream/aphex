@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate as formatDay } from '../../utils/dates';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Card from '@aphexcms/ui/shadcn/card';
@@ -119,7 +120,7 @@
 
 	function formatDate(date: Date | null | undefined) {
 		if (!date) return 'Never';
-		return new Date(date).toLocaleDateString('en-US', {
+		return formatDay(date, {
 			month: 'short',
 			day: 'numeric',
 			year: 'numeric'

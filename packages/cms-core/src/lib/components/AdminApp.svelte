@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate } from '../utils/dates';
 	/**
 	 * AdminApp - Complete CMS Admin Interface
 	 * A packaged, reusable Sanity-style admin UI
@@ -610,7 +611,7 @@
 	/** "21 Nov", or "21 Nov 2025" from another year, in the reader's own language. */
 	function shortDate(date: Date): string {
 		const sameYear = date.getFullYear() === new Date().getFullYear();
-		return date.toLocaleDateString(undefined, {
+		return formatDate(date, {
 			day: 'numeric',
 			month: 'short',
 			...(sameYear ? {} : { year: 'numeric' })
@@ -2384,7 +2385,11 @@
 			{#each adminTools as tool (tool.id)}
 				{@const Tool = tool.component}
 				<Tabs.Content value={`plugin:${tool.id}`} class="m-0 h-full overflow-auto p-0">
-					<Tool tool={adminToolContext} />
+					<!-- Remade per site: a tool that loads its data once when it mounts would
+					     otherwise keep showing the site it was first opened on. -->
+					{#key currentOrgId}
+						<Tool tool={adminToolContext} />
+					{/key}
 				</Tabs.Content>
 			{/each}
 		</Tabs.Root>

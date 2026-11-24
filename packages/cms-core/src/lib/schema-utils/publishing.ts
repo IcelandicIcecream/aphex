@@ -5,7 +5,7 @@ export const DEFAULT_PUBLISH_LABELS: PublishLabels = {
 	draft: 'Draft',
 	published: 'Published',
 	publish: 'Publish',
-	publishChanges: 'Publish Changes',
+	publishChanges: 'Publish changes',
 	upToDate: 'Published',
 	publishing: 'Publishing...',
 	justPublished: 'Published!',

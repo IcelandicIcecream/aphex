@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate } from '../../utils/dates';
 	import type { RelatedPreviewData } from './related-preview';
 	import { onDestroy, tick, untrack } from 'svelte';
 	import type { FieldFocusTarget } from './field-focus';
@@ -1315,7 +1316,7 @@
 		if (minutes < 60) return `${minutes}m ago`;
 		const hours = Math.floor(minutes / 60);
 		if (hours < 24) return `${hours}h ago`;
-		return date.toLocaleDateString();
+		return formatDate(date, { day: 'numeric', month: 'short', year: 'numeric' });
 	}
 
 	const savedAgoText = $derived(lastSaved ? `Saved ${timeAgo(lastSaved)}` : null);
@@ -1336,14 +1337,14 @@
 	// Human phrasing for the schedule banner: "today/tomorrow at 8:00 AM", "on Monday at …",
 	// or "on Nov 10 at …" further out. Reads `now` so it stays current.
 	function humanizeSchedule(date: Date): string {
-		const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+		const time = formatDate(date, { hour: 'numeric', minute: '2-digit' });
 		const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
 		const days = Math.round((startOfDay(date) - startOfDay(new Date(now))) / 86_400_000);
 		let day: string;
 		if (days <= 0) day = 'today';
 		else if (days === 1) day = 'tomorrow';
-		else if (days < 7) day = `on ${date.toLocaleDateString(undefined, { weekday: 'long' })}`;
-		else day = `on ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+		else if (days < 7) day = `on ${formatDate(date, { weekday: 'long' })}`;
+		else day = `on ${formatDate(date, { month: 'short', day: 'numeric' })}`;
 		return `${day} at ${time}`;
 	}
 
@@ -3425,10 +3426,12 @@
 				<!-- Version preview footer -->
 				<div class="flex items-center justify-between">
 					<p class="text-muted-foreground text-sm">
-						Revision from {new Date(activePreview.createdAt || Date.now()).toLocaleString(
-							undefined,
-							{ month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }
-						)}
+						Revision from {formatDate(activePreview.createdAt || Date.now(), {
+							month: 'short',
+							day: 'numeric',
+							hour: 'numeric',
+							minute: '2-digit'
+						})}
 					</p>
 					<Button
 						size="sm"
@@ -3483,13 +3486,12 @@
 							{labels.unpublished}
 						{:else}
 							{labels.published} on {fullDocument?._meta?.publishedAt
-								? new Date(fullDocument._meta.publishedAt).toLocaleString(undefined, {
+								? formatDate(fullDocument._meta.publishedAt, {
 										month: 'short',
 										day: 'numeric',
 										year: 'numeric',
 										hour: 'numeric',
-										minute: '2-digit',
-										hour12: true
+										minute: '2-digit'
 									})
 								: 'Unknown'}
 						{/if}
@@ -3565,7 +3567,7 @@
 								{hasUnsavedChanges ? 'Save' : 'Saved'}
 							</Button>
 						{:else if isViewingReadOnly}
-							<Badge variant="secondary" class="text-xs">Read Only</Badge>
+							<Badge variant="secondary" class="text-xs">Read only</Badge>
 						{/if}
 						{#if canDelete && !schema?.singleton}
 							<Button
@@ -3658,7 +3660,7 @@
 								{/if}
 							</Button>
 						{:else if isViewingReadOnly}
-							<Badge variant="secondary" class="text-xs">Read Only</Badge>
+							<Badge variant="secondary" class="text-xs">Read only</Badge>
 						{/if}
 
 						{#if canDelete && !schema?.singleton}
@@ -3758,7 +3760,7 @@
 										</Badge>
 									</div>
 									<p class="text-muted-foreground text-[11px]">
-										{version.createdAt ? new Date(version.createdAt).toLocaleString() : ''}
+										{formatDate(version.createdAt, { dateStyle: 'medium', timeStyle: 'short' })}
 									</p>
 								</button>
 							{/each}

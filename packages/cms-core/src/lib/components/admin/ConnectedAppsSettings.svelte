@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate } from '../../utils/dates';
 	/**
 	 * The apps (Claude, ChatGPT…) this user has connected to the current organization
 	 * over OAuth, with a way to cut one off. Disconnecting removes the grant and every
@@ -104,7 +105,7 @@
 				: 'Reads and edits drafts';
 
 	const connectedOn = (date: Date | string) =>
-		new Date(date).toLocaleDateString(undefined, {
+		formatDate(date, {
 			day: 'numeric',
 			month: 'short',
 			year: 'numeric'

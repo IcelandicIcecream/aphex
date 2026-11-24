@@ -1,7 +1,7 @@
 <script lang="ts">
 	// The SEO dashboard: every document with SEO fields, checked the way a search
 	// engine and a share card will read it (./audit.ts), with what to fix first.
-	import { assets, documents } from '@aphexcms/cms-core';
+	import { assets, documents, formatDate } from '@aphexcms/cms-core';
 	import type { AdminToolProps, SchemaType } from '@aphexcms/cms-core';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Card from '@aphexcms/ui/shadcn/card';
@@ -129,9 +129,7 @@
 			targetTypes.map((t) => t.title.toLowerCase())
 		)
 	);
-	const checkedLabel = $derived(
-		checkedAt ? checkedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : ''
-	);
+	const checkedLabel = $derived(formatDate(checkedAt, { hour: 'numeric', minute: '2-digit' }));
 	const groupLabel = $derived(groups.find((g) => g.code === issue)?.label ?? '');
 
 	const dot: Record<DocumentAudit['status'], string> = {

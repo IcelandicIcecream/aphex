@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate, viewerLocales } from '../../utils/dates';
 	// Schedule a future publish/unpublish. Layout mirrors Sanity's scheduled-drafts dialog
 	// (title · description · "Schedule on" field → calendar+time popover · Cancel/Schedule),
 	// in Aphex's shadcn skin. Posts to /documents/:id/schedule; the worker runs it at `runAt`
@@ -36,7 +37,7 @@
 	const minDate = today(getLocalTimeZone());
 	// Short local timezone label, e.g. "MST" — shown so the user knows what zone they're setting.
 	const tzLabel =
-		new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
+		new Intl.DateTimeFormat(viewerLocales()?.slice(), { timeZoneName: 'short' })
 			.formatToParts(new Date())
 			.find((p) => p.type === 'timeZoneName')?.value ?? '';
 
@@ -62,7 +63,7 @@
 	const runAtPreview = $derived(buildRunAt());
 	const fieldLabel = $derived(
 		runAtPreview
-			? runAtPreview.toLocaleString(undefined, {
+			? formatDate(runAtPreview, {
 					month: 'short',
 					day: 'numeric',
 					year: 'numeric',
@@ -98,7 +99,7 @@
 			const res = await documents.schedule(documentId, { action, runAt: runAt.toISOString() });
 			if (res.success) {
 				toast.success(
-					`${action === 'publish' ? 'Publish' : 'Unpublish'} scheduled for ${runAt.toLocaleString()}`
+					`${action === 'publish' ? 'Publish' : 'Unpublish'} scheduled for ${formatDate(runAt, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}`
 				);
 				open = false;
 				if (res.data) onScheduled?.(res.data);

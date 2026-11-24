@@ -6,11 +6,7 @@
 	import { toast } from 'svelte-sonner';
 	import { organizations } from '../../api/organizations';
 
-	const made = new Intl.DateTimeFormat(undefined, {
-		day: 'numeric',
-		month: 'short',
-		year: 'numeric'
-	});
+	import { formatDate } from '../../utils/dates';
 	import type { AdminGodModeFeatures, AdminOrganizationListItem } from '../../admin/view-data';
 
 	let {
@@ -128,7 +124,11 @@
 					</div>
 					<div class="text-muted-foreground text-sm">
 						Total members: {org.memberCount}{#if org.createdAt}
-							· Made {made.format(new Date(org.createdAt))}{/if}
+							· Made {formatDate(org.createdAt, {
+								day: 'numeric',
+								month: 'short',
+								year: 'numeric'
+							})}{/if}
 					</div>
 					{#if features && features.available.length > 0}
 						<div class="mt-2 flex flex-wrap gap-x-5 gap-y-2" role="group" aria-label="Features">

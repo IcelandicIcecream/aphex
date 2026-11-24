@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate } from '../../utils/dates';
 	/**
 	 * Organization identity panel (name, slug, logo, id, created, member count).
 	 * Core-owned; the embedded General settings view SSR's the org record and
@@ -54,7 +55,7 @@
 	);
 
 	const formattedDate = $derived(
-		new Date(activeOrganization.createdAt).toLocaleDateString('en-US', {
+		formatDate(activeOrganization.createdAt, {
 			year: 'numeric',
 			month: 'long',
 			day: 'numeric'

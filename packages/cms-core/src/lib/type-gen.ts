@@ -46,6 +46,28 @@ function literal(value: string): string {
 }
 
 /**
+ * The values a string field's `list` allows, for a union of literals: every
+ * option, and with a `DependentList` every option of every branch. Null when
+ * the field has no list (or an empty one), which stays `string`.
+ */
+function listValues(field: Field): string[] | null {
+	const list = (field as { list?: unknown }).list;
+	const flat = Array.isArray(list)
+		? list
+		: list && typeof list === 'object' && 'options' in list
+			? Object.values((list as { options: Record<string, unknown[]> }).options).flat()
+			: [];
+	const values = [
+		...new Set(
+			flat
+				.map((item) => (typeof item === 'string' ? item : (item as { value?: unknown })?.value))
+				.filter((value): value is string => typeof value === 'string')
+		)
+	];
+	return values.length > 0 ? values : null;
+}
+
+/**
  * Map Aphex field types to TypeScript types
  */
 function mapFieldTypeToTS(
@@ -61,7 +83,11 @@ function mapFieldTypeToTS(
 		arrayItemTag
 	} = opts;
 	switch (field.type) {
-		case 'string':
+		case 'string': {
+			const values = listValues(field);
+			if (values) return values.map(literal).join(' | ');
+			return 'string';
+		}
 		case 'text':
 		case 'slug':
 		case 'url':

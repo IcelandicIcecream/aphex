@@ -292,7 +292,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 			name: 'describe_cms',
 			title: 'Describe the content',
 			description:
-				'Orientation for building against this CMS: all content types and their relationships, the valid field-type vocabulary, and what this API key is allowed to do. Call this first. All data is derived live from the running config — never stale. For exact field/schema TypeScript signatures, read the SchemaType and Field types from the `@aphexcms/cms-core` package (and the real schemas in src/lib/schemaTypes/*.ts).',
+				'Orientation for building against this CMS: all content types and their relationships, the valid field-type vocabulary, and what this API key is allowed to do: the starting point for any job here. All data is derived live from the running config — never stale. For exact field/schema TypeScript signatures, read the SchemaType and Field types from the `@aphexcms/cms-core` package (and the real schemas in src/lib/schemaTypes/*.ts).',
 			mutates: false,
 			requiredCapabilities: [],
 			execution: 'server',
@@ -502,7 +502,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 			name: 'query_documents',
 			title: 'Find documents',
 			description:
-				'Do not call this with `where` or `sort` until you have called get_schema for this exact collection in the current conversation. Query documents using only field names and stored shapes that schema returned. Supports filters, sorting, pagination, and draft/published perspective. Aphex slug fields are bare strings: use `where: { "slug": "home" }`, never `slug.current` or `{ current: "home" }`. Afterward, answer from the returned documents instead of explaining these parameters.',
+				'Query a collection’s documents. `where` and `sort` take the field names and stored shapes get_schema returns for that collection. Supports filters, sorting, pagination, and draft/published perspective. Aphex slug fields are bare strings: use `where: { "slug": "home" }`, never `slug.current` or `{ current: "home" }`. Returns the documents themselves.',
 			mutates: false,
 			requiredCapabilities: ['document.read'],
 			execution: 'server',
@@ -606,7 +606,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 			name: 'create_document',
 			title: 'Create a document',
 			description:
-				'Create a NEW document in a collection. Use this whenever the user asks for a new post, page, or other document, even if workspace tools for an already-open document are available. Pass field values in `data` (matching the collection schema). Set publish:true to publish immediately, otherwise it is saved as a draft.',
+				'Create a NEW document in a collection: a new post, page or other document. (Workspace tools only edit the document already open.) Pass field values in `data` (matching the collection schema). Set publish:true to publish immediately, otherwise it is saved as a draft.',
 			mutates: true,
 			requiredCapabilities: ['document.create'],
 			execution: 'server',

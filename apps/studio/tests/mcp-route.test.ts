@@ -143,10 +143,13 @@ describe('mcp.requiredCapabilities gates the whole server', () => {
 			expect(tool.title, tool.name).toBeTruthy();
 			expect(tool.annotations?.title, tool.name).toBe(tool.title);
 			expect(tool.annotations?.openWorldHint, tool.name).toBe(false);
+			// ChatGPT's directory wants all three hints set, true or false, on every tool.
+			expect(typeof tool.annotations?.readOnlyHint, tool.name).toBe('boolean');
+			expect(typeof tool.annotations?.destructiveHint, tool.name).toBe('boolean');
 		}
 		const by = (name: string) => tools.find((tool) => tool.name === name)?.annotations;
 		expect(by('get_document')).toMatchObject({ readOnlyHint: true });
-		expect(by('get_document')).not.toHaveProperty('destructiveHint');
+		expect(by('get_document')).toMatchObject({ destructiveHint: false });
 		expect(by('create_document')).toMatchObject({ readOnlyHint: false, destructiveHint: false });
 		expect(by('update_document')).toMatchObject({ readOnlyHint: false, destructiveHint: true });
 		expect(by('publish_document')).toMatchObject({ readOnlyHint: false, destructiveHint: true });

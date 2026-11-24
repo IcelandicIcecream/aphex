@@ -143,7 +143,12 @@ app.all('*', async (c) => {
 				title: 'Read a guide',
 				description: `Read one of this site's guides before doing that job: ${guides.map((g) => g.name).join(', ')}. The instructions say what each covers.`,
 				inputSchema: getGuideInput,
-				annotations: { title: 'Read a guide', readOnlyHint: true, openWorldHint: false }
+				annotations: {
+					title: 'Read a guide',
+					readOnlyHint: true,
+					destructiveHint: false,
+					openWorldHint: false
+				}
 			},
 			async ({ name }): Promise<CallToolResult> => {
 				const { text, isError } = readGuide(guides, name);
@@ -164,7 +169,8 @@ app.all('*', async (c) => {
 				annotations: {
 					title: tool.title,
 					readOnlyHint: !tool.mutates,
-					...(tool.mutates ? { destructiveHint: tool.destructive } : {}),
+					// Explicit on every tool, false for a read: ChatGPT's directory requires all three hints.
+					destructiveHint: tool.mutates ? tool.destructive : false,
 					openWorldHint: tool.openWorld
 				}
 			},

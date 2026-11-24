@@ -61,6 +61,8 @@ export interface AdminLoginData {
 export interface AdminInvitationsData {
 	view: 'invitations';
 	pendingInvitations: PendingInvitation[];
+	/** The address isn't confirmed, so an invitation is answered from its emailed link. */
+	needsInvitationLink: boolean;
 	hasOrganization: boolean;
 	canCreateOrganization: boolean;
 	userEmail: string;
@@ -84,6 +86,13 @@ export interface AdminInviteData {
 /** Someone following a password reset link. */
 export interface AdminResetPasswordData {
 	view: 'reset-password';
+	token: string;
+	branding: LoginBranding | null;
+}
+
+/** Someone following "This wasn't me" in a security email. */
+export interface AdminSecureAccountData {
+	view: 'secure-account';
 	token: string;
 	branding: LoginBranding | null;
 }
@@ -129,6 +138,8 @@ export type AdminSettingsData =
 			connectedApps: OAuthConnection[] | null;
 			/** What this user may switch on for a connected app (they hold it themselves). */
 			connectedAppOptIns: string[];
+			/** Marks this device in the list of signed-in ones. */
+			currentSessionId: string;
 	  }
 	| {
 			view: 'settings';
@@ -186,6 +197,7 @@ export type AdminViewData =
 	| AdminInvitationsData
 	| AdminInviteData
 	| AdminResetPasswordData
+	| AdminSecureAccountData
 	| AdminTwoFactorData
 	| AdminOrganizationsData
 	| AdminGodModeData;

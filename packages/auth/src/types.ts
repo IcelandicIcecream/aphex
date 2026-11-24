@@ -29,6 +29,33 @@ export interface AuthCodeEmailTemplate {
 	render: (userName: string, code: string) => Promise<{ html: string; text: string }>;
 }
 
+/** What a security email is about. */
+export type SecurityEmailKind =
+	| 'new-device'
+	| 'password-changed'
+	| 'two-factor-disabled'
+	| 'api-key-created'
+	| 'app-connected'
+	| 'failed-sign-ins';
+
+export interface SecurityEmailNotice {
+	kind: SecurityEmailKind;
+	userName: string;
+	at: Date;
+	/** "Chrome on macOS", when the request said. */
+	device: string | null;
+	/** Only behind Cloudflare (`ipAddressHeaders` naming `cf-connecting-ip`). */
+	country: string | null;
+	/** The API key's or connected app's own name. An app can call itself anything. */
+	name: string | null;
+	/** The "This wasn't me" page. Works once. */
+	url: string;
+}
+
+export interface SecurityEmailTemplate {
+	render: (notice: SecurityEmailNotice) => Promise<{ subject: string; html: string; text: string }>;
+}
+
 /**
  * Sender identity plus the templates the auth flows use. Mirrors the shape apps
  * already export from `src/lib/server/email` — pass that object straight in.
@@ -46,6 +73,8 @@ export interface AuthEmailConfig {
 	 * Whether the feature is on at all is `options.twoFactorEmailOtp`, not this.
 	 */
 	twoFactorOtp?: AuthCodeEmailTemplate;
+	/** Branding for `options.securityEmails`. Defaults to a plain built-in template. */
+	security?: SecurityEmailTemplate;
 }
 
 /** Behavioural toggles an app owns, independent of the auth provider. */
@@ -103,6 +132,20 @@ export interface AuthOptions {
 	 * @default false
 	 */
 	allowAccountDeletion?: boolean;
+
+	/**
+	 * Email people about their own account: a sign-in from a new device, a changed or
+	 * reset password, two-factor turned off, an API key created, an app connected, and
+	 * repeated failed sign-ins (once a day at most). Owners are also told when someone
+	 * becomes an owner or admin of their organization. Each account email carries a "This
+	 * wasn't me" link that signs out every device and has the password reset. Needs an
+	 * email adapter. People can't switch these off.
+	 *
+	 * Everyone gets one new-device email at their first sign-in after this is turned on.
+	 *
+	 * @default false
+	 */
+	securityEmails?: boolean;
 
 	/**
 	 * Restrict account creation to addresses holding a pending, unexpired
@@ -292,7 +335,8 @@ export interface AphexAuthConfig {
 	betterAuth?: (base: Record<string, unknown>) => Record<string, unknown>;
 
 	/**
-	 * Where the password reset page is served, as a prefix of `/reset-password/<token>`.
+	 * Where the password reset and security pages are served, as a prefix of
+	 * `/reset-password/<token>` and `/secure-account/<token>`.
 	 * `aphexAuth()` sets this to `/admin`, where core serves the page.
 	 *
 	 * @default ''

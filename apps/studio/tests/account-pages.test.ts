@@ -103,6 +103,13 @@ describe('invite link', () => {
 		expect(database.updateUserSession).toHaveBeenCalledWith('user-2', 'org-1');
 	});
 
+	it('accepts an unconfirmed address through its link', async () => {
+		const database = fakeDatabase();
+		const auth = { ...partialSession, user: { ...partialSession.user, emailVerified: false } };
+		expect(await redirectFrom(load('invite/tok-1', { auth, database }))).toBe('/admin');
+		expect(database.acceptInvitation).toHaveBeenCalledWith('tok-1', 'user-2');
+	});
+
 	it("won't accept for a different address", async () => {
 		const database = fakeDatabase();
 		const data = await load('invite/tok-1', {
@@ -387,6 +394,18 @@ describe('/invitations API', () => {
 		const accepted = await call('/invitations/inv-1/accept', 'POST', partialSession, database);
 		expect(accepted.status).toBe(200);
 		expect(database.acceptInvitation).toHaveBeenCalledWith('tok-1', 'user-2');
+	});
+
+	it.each(['accept', 'reject'])('won’t %s for an unconfirmed address', async (action) => {
+		const database = fakeDatabase();
+		const unverified = {
+			...partialSession,
+			user: { ...partialSession.user, emailVerified: false }
+		};
+		const response = await call(`/invitations/inv-1/${action}`, 'POST', unverified, database);
+		expect(response.status).toBe(403);
+		expect(database.acceptInvitation).not.toHaveBeenCalled();
+		expect(database.deleteInvitation).not.toHaveBeenCalled();
 	});
 
 	it('refuses an expired invitation', async () => {

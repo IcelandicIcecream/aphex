@@ -17,7 +17,10 @@ import { resolveBootstrapPolicy } from './bootstrap-policy.js';
 import type { AphexAuthConfig } from './types.js';
 import { defaultTwoFactorOtpEmail } from './email/two-factor-otp.js';
 import { defaultEmailVerification, defaultPasswordReset } from './email/link-emails.js';
+import { createSecurityEmails, type SecurityContext, type SecurityEmails } from './security.js';
 import { checkOAuthRequest, createOAuthPlugin } from './oauth.js';
+
+const securityByInstance = new WeakMap<object, SecurityEmails>();
 
 /** Per-address cooldown between verification emails, in seconds. */
 const VERIFICATION_EMAIL_COOLDOWN = 60;
@@ -90,7 +93,8 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		requireEmailVerification = false,
 		inviteOnly = true,
 		allowAccountDeletion = false,
-		twoFactorMethods = ['totp', 'email']
+		twoFactorMethods = ['totp', 'email'],
+		securityEmails = false
 	} = config.options ?? {};
 
 	// betterAuth() throws without these, and SvelteKit's analyse pass imports every
@@ -141,6 +145,27 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		} catch (error) {
 			cmsLogger.error('[Auth]', `Error sending ${template} email:`, error);
 		}
+	}
+
+	// Set once the instance exists, for the pieces that need it at request time.
+	const built: { instance?: { $context: Promise<SecurityContext & { internalAdapter: any }> } } =
+		{};
+
+	const security = createSecurityEmails({
+		enabled: securityEmails,
+		baseURL,
+		authPagesPath: config.authPagesPath ?? '',
+		emailAdapter,
+		email: emailConfig,
+		cache,
+		ipAddressHeaders,
+		context: async () => {
+			if (!built.instance) throw new Error('The auth instance is not built yet.');
+			return built.instance.$context;
+		}
+	});
+	if (securityEmails && !emailAdapter && !building) {
+		cmsLogger.warn('[Auth]', 'securityEmails is on but no email adapter is configured.');
 	}
 
 	const bootstrapPolicy = resolveBootstrapPolicy(config.bootstrap);
@@ -368,6 +393,12 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			enabled: true,
 			requireEmailVerification,
 			revokeSessionsOnPasswordReset: true,
+			onPasswordReset: async (
+				{ user }: { user: { id: string; email: string; name?: string } },
+				request?: Request
+			) => {
+				security.notify(user, 'password-changed', { headers: request?.headers });
+			},
 			sendResetPassword: async ({
 				user,
 				token
@@ -452,7 +483,6 @@ export function createAuthInstance(config: AphexAuthConfig) {
 	// whether its endpoints answer (`checkOAuthRequest`). Its pieces that need the
 	// built instance (the verification store) reach it through `built`, which is set
 	// before any request can arrive.
-	const built: { instance?: { $context: Promise<{ internalAdapter: any }> } } = {};
 	const oauthPlugin = createOAuthPlugin({
 		database: db,
 		verification: async () => {
@@ -467,12 +497,18 @@ export function createAuthInstance(config: AphexAuthConfig) {
 
 	const options = {
 		...base,
-		plugins: [apiKeyPlugin, twoFactorPlugin(twoFactorOptions ?? {}), oauthPlugin]
+		plugins: [apiKeyPlugin, twoFactorPlugin(twoFactorOptions ?? {}), oauthPlugin, security.plugin]
 	};
 
 	const instance = betterAuth(extend ? (extend(options) as typeof options) : options);
 	built.instance = instance;
+	securityByInstance.set(instance, security);
 	return instance;
+}
+
+/** The security emails built with an instance, for the service that shares it. */
+export function securityEmailsOf(instance: AphexAuthInstance): SecurityEmails | undefined {
+	return securityByInstance.get(instance);
 }
 
 export type AphexAuthInstance = ReturnType<typeof createAuthInstance>;

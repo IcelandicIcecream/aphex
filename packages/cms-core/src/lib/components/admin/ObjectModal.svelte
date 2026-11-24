@@ -205,7 +205,10 @@
 						<!-- Crumbs are cut short to fit, so each names itself in full on hover
 						     or focus, and the current one also on a tap (touch has no hover). -->
 						<Tooltip.Provider delayDuration={150}>
-							<nav aria-label="Where you are" class="flex min-w-0 items-center gap-1">
+							<nav
+								aria-label="Where you are"
+								class="flex min-w-0 items-center gap-1 overflow-hidden"
+							>
 								{#each ancestors as crumb, index (index)}
 									<!-- An ancestor goes by its type (Section, Column): its preview is
 									     usually a sentence of its content, and three of those truncated
@@ -235,7 +238,7 @@
 								     way there, so this keeps room for a few words. -->
 								<Tooltip.Root bind:open={labelTipOpen} disableCloseOnTriggerClick>
 									<Tooltip.Trigger
-										class="min-w-[6rem] shrink cursor-default truncate text-left font-medium"
+										class="min-w-[3rem] shrink cursor-default truncate text-left font-medium"
 										aria-current="location"
 										onclick={() => (labelTipOpen = !labelTipOpen)}
 									>
@@ -250,7 +253,8 @@
 					{:else}
 						<span class="truncate font-medium">{label}</span>
 					{/if}
-					{#if !label.toLowerCase().startsWith(typeTitle.toLowerCase())}
+					<!-- With a trail, the crumbs and the label's tooltip already say what this is. -->
+					{#if ancestors.length === 0 && !label.toLowerCase().startsWith(typeTitle.toLowerCase())}
 						<span class="text-muted-foreground hidden shrink-0 text-xs sm:inline"
 							>· {typeTitle}</span
 						>

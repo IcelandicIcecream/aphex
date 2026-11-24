@@ -294,6 +294,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 					email: session.user.email,
 					name: session.user.name ?? undefined,
 					image: session.user.image ?? undefined,
+					emailVerified: session.user.emailVerified === true,
 					role: userProfile.role,
 					preferences: userProfile.preferences
 				};

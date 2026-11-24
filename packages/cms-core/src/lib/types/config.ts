@@ -214,6 +214,19 @@ export interface InvitationEmailTemplate {
 	) => Promise<{ html: string; text: string }>;
 }
 
+/** Branding for the email that tells owners about a new owner or admin. */
+export interface RoleNoticeEmailTemplate {
+	from?: string;
+	render: (notice: {
+		organizationName: string;
+		/** Who became it. */
+		email: string;
+		role: string;
+		/** The organization's team page. */
+		url: string;
+	}) => Promise<{ subject: string; html: string; text: string }>;
+}
+
 export interface CMSConfig {
 	schemaTypes: SchemaType[];
 	database: DatabaseAdapter;
@@ -371,6 +384,8 @@ export interface CMSConfig {
 	 * `email` is set; without this they use a plain template and the adapter's sender.
 	 */
 	invitationEmail?: InvitationEmailTemplate;
+	/** Customizes the email telling owners about a new owner or admin (`securityEmails`). */
+	roleNoticeEmail?: RoleNoticeEmailTemplate;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
 	aiProvider?: AIProviderAdapter | null;
 	/**

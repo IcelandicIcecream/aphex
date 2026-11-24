@@ -91,7 +91,7 @@
 </script>
 
 <Card.Root>
-	<Card.Header class="flex flex-row items-start justify-between gap-4">
+	<Card.Header class="flex flex-col items-start justify-between gap-4 sm:flex-row">
 		<div class="space-y-1.5">
 			<Card.Title>Password</Card.Title>
 			<Card.Description>

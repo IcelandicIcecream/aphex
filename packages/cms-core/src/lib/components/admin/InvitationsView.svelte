@@ -229,7 +229,12 @@
 				<div class="mb-6 text-center">
 					<h2 class="text-lg font-semibold">Pending Invitations</h2>
 					<p class="text-muted-foreground mt-1 text-sm">
-						You've been invited to join the following organizations
+						{#if data.needsInvitationLink}
+							To join, open the link in the invitation emailed to {data.userEmail}. It shows this
+							address is yours.
+						{:else}
+							You've been invited to join the following organizations
+						{/if}
 					</p>
 				</div>
 
@@ -249,19 +254,21 @@
 								<span>{timeUntilExpiry(invitation.expiresAt)}</span>
 							</div>
 						</div>
-						<div class="flex shrink-0 gap-2">
-							<Button
-								variant="outline"
-								size="sm"
-								onclick={() => handleReject(invitation)}
-								disabled={isBusy}
-							>
-								{isRejecting ? 'Declining...' : 'Decline'}
-							</Button>
-							<Button size="sm" onclick={() => handleAccept(invitation)} disabled={isBusy}>
-								{isAccepting ? 'Joining...' : 'Accept'}
-							</Button>
-						</div>
+						{#if !data.needsInvitationLink}
+							<div class="flex shrink-0 gap-2">
+								<Button
+									variant="outline"
+									size="sm"
+									onclick={() => handleReject(invitation)}
+									disabled={isBusy}
+								>
+									{isRejecting ? 'Declining...' : 'Decline'}
+								</Button>
+								<Button size="sm" onclick={() => handleAccept(invitation)} disabled={isBusy}>
+									{isAccepting ? 'Joining...' : 'Accept'}
+								</Button>
+							</div>
+						{/if}
 					</div>
 				{/each}
 

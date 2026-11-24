@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { removeMemberRequest, updateMemberRoleRequest } from '../../../api/schemas/organizations';
 import { hasCapability } from '../../../types/capabilities';
+import { canGrantCapabilities, CANNOT_GRANT } from '../../../auth/grants';
+import { notifyOwnersOfRole } from '../../../auth/team-notice';
 import type { AphexEnv } from '../index';
 
 export const organizationsMembersRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -107,12 +109,13 @@ export const organizationsMembersRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					);
 				}
 
-				if (auth.organizationRole === 'admin' && targetMember.role === 'owner') {
+				// Not just `admin`: a custom role can hold this capability too.
+				if (targetMember.role === 'owner' && auth.organizationRole !== 'owner') {
 					return c.json(
 						{
 							success: false,
 							error: 'Forbidden',
-							message: 'Admins cannot remove owners'
+							message: 'Only owners can remove owners'
 						},
 						403
 					);
@@ -228,6 +231,8 @@ export const organizationsMembersRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					);
 				}
 
+				if (!canGrantCapabilities(auth, roleRow.capabilities)) return c.json(CANNOT_GRANT, 403);
+
 				if (body.userId === auth.user.id) {
 					return c.json(
 						{
@@ -255,12 +260,13 @@ export const organizationsMembersRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					);
 				}
 
-				if (auth.organizationRole === 'admin' && targetMember.role === 'owner') {
+				// Not just `admin`: a custom role can hold this capability too.
+				if (targetMember.role === 'owner' && auth.organizationRole !== 'owner') {
 					return c.json(
 						{
 							success: false,
 							error: 'Forbidden',
-							message: 'Admins cannot modify owner roles'
+							message: "Only owners can change an owner's role"
 						},
 						403
 					);
@@ -274,6 +280,16 @@ export const organizationsMembersRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				if (!updatedMember) {
 					return c.json({ success: false, error: 'Failed to update role' }, 500);
+				}
+
+				if (targetMember.role !== body.role) {
+					void notifyOwnersOfRole(c.var.aphexCMS, {
+						organizationId: auth.organizationId,
+						userId: body.userId,
+						role: body.role,
+						actorId: auth.user.id,
+						origin: new URL(c.req.url).origin
+					});
 				}
 
 				return c.json({ success: true, data: updatedMember });

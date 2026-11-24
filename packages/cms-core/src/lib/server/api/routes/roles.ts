@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { hasCapability, BUILTIN_ROLE_NAMES } from '../../../types/capabilities';
 import { createRoleRequest, updateRoleRequest } from '../../../api/schemas/roles';
+import { canGrantCapabilities, CANNOT_GRANT } from '../../../auth/grants';
 import type { AphexEnv } from '../index';
 import type { Context } from 'hono';
 
@@ -112,6 +113,7 @@ export const rolesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				const badCaps = rejectUnknownCapabilities(c, body.capabilities);
 				if (badCaps) return badCaps;
+				if (!canGrantCapabilities(auth, body.capabilities)) return c.json(CANNOT_GRANT, 403);
 
 				if ((BUILTIN_ROLE_NAMES as readonly string[]).includes(body.name)) {
 					return c.json(
@@ -234,6 +236,11 @@ export const rolesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				if (body.capabilities) {
 					const badCaps = rejectUnknownCapabilities(c, body.capabilities);
 					if (badCaps) return badCaps;
+					// What the role already had may stay: only additions need holding.
+					const existing = await databaseAdapter.findRoleByName(auth.organizationId, name);
+					const had = new Set(existing?.capabilities);
+					const added = body.capabilities.filter((capability) => !had.has(capability));
+					if (!canGrantCapabilities(auth, added)) return c.json(CANNOT_GRANT, 403);
 				}
 
 				const updated = await databaseAdapter.updateRole(auth.organizationId, name, body);

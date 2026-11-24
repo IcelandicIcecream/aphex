@@ -167,6 +167,19 @@ headers supplied by the visitor are ignored. Requests are also capped at 64 KiB 
 	process at all.
 </Callout>
 
+If anyone can sign up to your app, limit what their forms may send. A form emails whatever addresses its author typed, from your address. `prepareEmail` is called before each email: return it with fewer people in `to`, or `null` to send nothing. The submission is stored either way.
+
+```ts
+formsPlugin({
+	prepareEmail: async (email) => ({
+		...email,
+		to: await allowedRecipients(email.organizationId, email.to)
+	})
+});
+```
+
+Count by `email.key`, which is the same when a failed send is tried again. Set `html` to give an email a design, and escape `email.answers` in it: they come from the public.
+
 ## Notifications
 
 Submitting does not send email. The endpoint stores the submission and emits

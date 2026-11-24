@@ -161,28 +161,28 @@ The full list of URLs the CMS owns. (`/api/docs` renders this same list from the
 
 Session only: an API key can't make or list keys, and a connected app can't manage connections. Making or revoking a key also needs `apiKey.manage`. See [API Keys](/api-keys) and [MCP](/mcp).
 
-| Method   | Path                                       | Notes                                                                                     |
-| -------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `GET`    | `/api/settings/api-keys`                   | The active organization's keys (never the secret).                                        |
-| `POST`   | `/api/settings/api-keys`                   | Make a key. The secret is in this response only.                                          |
-| `DELETE` | `/api/settings/api-keys/:id`               | Revoke a key.                                                                             |
-| `GET`    | `/api/settings/connected-apps`             | The apps (Claude, ChatGPT…) the signed-in person has connected over OAuth.                |
-| `PATCH`  | `/api/settings/connected-apps/:clientId`   | What one app may do beyond drafts (publishing, deleting). Never more than you can.        |
-| `DELETE` | `/api/settings/connected-apps/:clientId`   | Disconnect an app: its tokens stop working straight away.                                 |
-| `POST`   | `/api/oauth/site`                          | Step of the connect flow the admin drives: the site the app gets. `404` without OAuth.    |
-| `POST`   | `/api/oauth/consent`                       | Step of the connect flow: allow or deny. Answers with the URL the browser goes to next.   |
+| Method   | Path                                     | Notes                                                                                   |
+| -------- | ---------------------------------------- | --------------------------------------------------------------------------------------- |
+| `GET`    | `/api/settings/api-keys`                 | The active organization's keys (never the secret).                                      |
+| `POST`   | `/api/settings/api-keys`                 | Make a key. The secret is in this response only.                                        |
+| `DELETE` | `/api/settings/api-keys/:id`             | Revoke a key.                                                                           |
+| `GET`    | `/api/settings/connected-apps`           | The apps (Claude, ChatGPT…) the signed-in person has connected over OAuth.              |
+| `PATCH`  | `/api/settings/connected-apps/:clientId` | What one app may do beyond drafts (publishing, deleting). Never more than you can.      |
+| `DELETE` | `/api/settings/connected-apps/:clientId` | Disconnect an app: its tokens stop working straight away.                               |
+| `POST`   | `/api/oauth/site`                        | Step of the connect flow the admin drives: the site the app gets. `404` without OAuth.  |
+| `POST`   | `/api/oauth/consent`                     | Step of the connect flow: allow or deny. Answers with the URL the browser goes to next. |
 
 ### In-admin agent
 
 Session only. These are the admin's own assistant, not [MCP](/mcp): writes made over MCP aren't recorded as change sets. `/api/agent/chat` and `/api/agent/operations` answer `404` unless `aiProvider` is configured.
 
-| Method | Path                               | Notes                                                                 |
-| ------ | ---------------------------------- | --------------------------------------------------------------------- |
-| `POST` | `/api/agent/chat`                  | One streamed turn of the admin's assistant.                           |
-| `POST` | `/api/agent/operations`            | Records a write the assistant made in the browser, for its change set. |
-| `GET`  | `/api/agent/change-sets`           | What agents changed, newest first. Needs `document.read`.             |
-| `GET`  | `/api/agent/change-sets/:id`       | One change set and its writes.                                        |
-| `POST` | `/api/agent/change-sets/:id/undo`  | Undo a change set's writes. Needs `document.update`.                  |
+| Method | Path                              | Notes                                                                  |
+| ------ | --------------------------------- | ---------------------------------------------------------------------- |
+| `POST` | `/api/agent/chat`                 | One streamed turn of the admin's assistant.                            |
+| `POST` | `/api/agent/operations`           | Records a write the assistant made in the browser, for its change set. |
+| `GET`  | `/api/agent/change-sets`          | What agents changed, newest first. Needs `document.read`.              |
+| `GET`  | `/api/agent/change-sets/:id`      | One change set and its writes.                                         |
+| `POST` | `/api/agent/change-sets/:id/undo` | Undo a change set's writes. Needs `document.update`.                   |
 
 ### Jobs and events
 
@@ -268,15 +268,19 @@ The one exception is `POST /api/documents/query`, which is treated as a read ope
 
 Each caller gets a share a minute, counted per API key, per connected app and per signed-in person:
 
-| Caller                                      | Reads | Changes | Uploads |
-| ------------------------------------------- | ----- | ------- | ------- |
-| API key or connected app (`agent`)          | 120   | 60      | 10      |
-| Signed-in person in the admin (`session`)   | 600   | 240     | 60      |
+| Caller                                    | Reads | Changes | Uploads |
+| ----------------------------------------- | ----- | ------- | ------- |
+| API key or connected app (`agent`)        | 120   | 60      | 10      |
+| Signed-in person in the admin (`session`) | 600   | 240     | 60      |
 
 Reads are `GET` and `POST /api/documents/query`; uploads are `POST /api/assets` and `POST /api/assets/upload-url`; every other `POST`, `PUT`, `PATCH` and `DELETE` is a change. Over the limit, the API answers `429` with a `Retry-After` header in seconds:
 
 ```json
-{ "success": false, "error": "Too many requests", "message": "Too many changes at once. Wait 12 seconds, then try again." }
+{
+	"success": false,
+	"error": "Too many requests",
+	"message": "Too many changes at once. Wait 12 seconds, then try again."
+}
 ```
 
 [MCP](/mcp) tool calls count against the same share. Sign-in, password reset and other anonymous endpoints keep limits of their own.

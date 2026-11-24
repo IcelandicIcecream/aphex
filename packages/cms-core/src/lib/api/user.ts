@@ -5,7 +5,8 @@ import type { ApiResponse } from './types';
 import type {
 	UpdateUserRequest,
 	UpdateUserPreferencesRequest,
-	ResetPasswordRequest
+	ResetPasswordRequest,
+	SecureAccountRequest
 } from './schemas/user';
 
 // Legacy shim — kept so existing call sites don't break.
@@ -18,6 +19,15 @@ export class UserApi {
 	 */
 	static async resetPassword(data: ResetPasswordRequest): Promise<ApiResponse<unknown>> {
 		return apiClient.post<unknown>('/user/reset-password', data);
+	}
+
+	/**
+	 * Answer the "This wasn't me" link in a security email. Needs no session.
+	 */
+	static async secureAccount(
+		data: SecureAccountRequest
+	): Promise<ApiResponse<{ passwordReset: boolean }>> {
+		return apiClient.post<{ passwordReset: boolean }>('/user/secure-account', data);
 	}
 
 	/**
@@ -39,6 +49,7 @@ export class UserApi {
 
 export const user = {
 	resetPassword: UserApi.resetPassword.bind(UserApi),
+	secureAccount: UserApi.secureAccount.bind(UserApi),
 	updateProfile: UserApi.updateProfile.bind(UserApi),
 	updatePreferences: UserApi.updatePreferences.bind(UserApi)
 };

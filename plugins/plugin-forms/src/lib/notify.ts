@@ -4,6 +4,11 @@ import { formSubmissionCreated } from './events';
 import type { NotificationEmailValue } from './compile';
 import { renderTemplate, type Answer } from './template';
 import { fromHeader } from './sender';
+import type { PrepareFormEmail } from './prepare';
+
+function labelled(answers: Answer[], labels: Map<string, string>) {
+	return answers.map(({ field, value }) => ({ field, label: labels.get(field) ?? field, value }));
+}
 
 /**
  * Sends a form's notification emails, out of band.
@@ -19,7 +24,10 @@ import { fromHeader } from './sender';
  * state to make it exactly-once, would have to be written somewhere that itself
  * can fail between the send and the write.
  */
-export function notifyOnSubmission(from?: string): EventConsumerHandler {
+export function notifyOnSubmission(
+	from?: string,
+	prepare?: PrepareFormEmail
+): EventConsumerHandler {
 	return async ({ event, databaseAdapter, emailAdapter, logger }) => {
 		/*
 		 * The sending identity belongs to the app, not to this plugin — it's the same
@@ -67,14 +75,14 @@ export function notifyOnSubmission(from?: string): EventConsumerHandler {
 			])
 		);
 
-		for (const email of emails) {
+		for (const [index, email] of emails.entries()) {
 			const to = (email.to ?? '')
 				.split(',')
 				.map((address) => address.trim())
 				.filter(Boolean);
 			if (to.length === 0) continue;
 
-			const result = await emailAdapter.send({
+			const message = {
 				from: fromHeader(sender, submission.senderName),
 				to,
 				replyTo: email.replyTo,
@@ -82,11 +90,24 @@ export function notifyOnSubmission(from?: string): EventConsumerHandler {
 					.replace(/[\r\n]+/g, ' ')
 					.slice(0, 998),
 				text: renderTemplate(email.message ?? '{{allFields}}', answers, labels)
-			});
+			};
+			const prepared = prepare
+				? await prepare({
+						...message,
+						kind: 'notification',
+						organizationId: event.organizationId,
+						submissionId,
+						key: `${submissionId}:notification:${index}`,
+						answers: labelled(answers, labels),
+						databaseAdapter
+					})
+				: message;
+			if (!prepared || prepared.to.length === 0) continue;
+			const result = await emailAdapter.send(prepared);
 			if (result.error) throw new Error(`[forms] notification email failed: ${result.error}`);
 		}
 
-		logger.info(`[forms] sent ${emails.length} notification(s) for submission ${submissionId}`);
+		logger.info(`[forms] handled ${emails.length} notification(s) for submission ${submissionId}`);
 	};
 }
 
@@ -100,6 +121,8 @@ export function notifyOnSubmission(from?: string): EventConsumerHandler {
 /** What a stored submission holds for the visitor's confirmation (see submit.ts). */
 const storedConfirmation = z.object({
 	senderName: z.string().optional(),
+	submissionData: z.array(z.object({ field: z.string(), value: z.string() })).optional(),
+	notificationFieldLabels: z.array(z.object({ field: z.string(), label: z.string() })).optional(),
 	confirmationEmail: z
 		.object({
 			to: z.string().min(1),
@@ -110,7 +133,7 @@ const storedConfirmation = z.object({
 		.optional()
 });
 
-export function confirmSubmission(from?: string): EventConsumerHandler {
+export function confirmSubmission(from?: string, prepare?: PrepareFormEmail): EventConsumerHandler {
 	return async ({ event, databaseAdapter, emailAdapter, logger }) => {
 		const { submissionId } = formSubmissionCreated.parse(event.payload);
 		const row = await databaseAdapter.findByDocIdAdvanced(event.organizationId, submissionId);
@@ -123,13 +146,32 @@ export function confirmSubmission(from?: string): EventConsumerHandler {
 		const sender = from ?? process.env.APHEX_EMAIL_FROM;
 		if (!sender) throw new Error('[forms] confirmation from-address is not configured');
 
-		const result = await emailAdapter.send({
+		const message = {
 			from: fromHeader(sender, submission.senderName),
 			to: email.to,
 			replyTo: email.replyTo,
 			subject: email.subject.replace(/[\r\n]+/g, ' ').slice(0, 998),
 			text: email.message
-		});
+		};
+		const prepared = prepare
+			? await prepare({
+					...message,
+					to: [email.to],
+					kind: 'confirmation',
+					organizationId: event.organizationId,
+					submissionId,
+					key: `${submissionId}:confirmation`,
+					answers: labelled(
+						submission.submissionData ?? [],
+						new Map(
+							(submission.notificationFieldLabels ?? []).map(({ field, label }) => [field, label])
+						)
+					),
+					databaseAdapter
+				})
+			: message;
+		if (!prepared || prepared.to.length === 0) return;
+		const result = await emailAdapter.send(prepared);
 		if (result.error) throw new Error(`[forms] confirmation email failed: ${result.error}`);
 		logger.info(`[forms] sent the visitor's confirmation for submission ${submissionId}`);
 	};

@@ -42,6 +42,9 @@ export const adminAuthClient: AdminAuthClient = {
 	isTwoFactorRedirect,
 
 	changePassword: (input) => authClient.changePassword(input),
+	listSessions: () => authClient.listSessions(),
+	revokeSession: (input) => authClient.revokeSession(input),
+	revokeOtherSessions: () => authClient.revokeOtherSessions(),
 	deleteUser: (input) => authClient.deleteUser(input),
 	twoFactor: {
 		enable: (input) => authClient.twoFactor.enable(input),

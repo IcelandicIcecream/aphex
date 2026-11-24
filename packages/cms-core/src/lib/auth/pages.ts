@@ -31,6 +31,7 @@ export function isPublicAdminPath(path: string): boolean {
 		path === '/admin/two-factor' ||
 		path === '/admin/oauth/login' ||
 		path.startsWith('/admin/invite/') ||
-		path.startsWith('/admin/reset-password/')
+		path.startsWith('/admin/reset-password/') ||
+		path.startsWith('/admin/secure-account/')
 	);
 }

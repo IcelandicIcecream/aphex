@@ -8,6 +8,7 @@ import type {
 	AdminInviteData,
 	AdminLoginData,
 	AdminResetPasswordData,
+	AdminSecureAccountData,
 	AdminTwoFactorData
 } from './view-data';
 import type { SidebarData } from '../types/sidebar';
@@ -39,6 +40,7 @@ export interface AccountViews {
 	invite: AdminInviteData;
 	/** `/admin/reset-password/<token>`: choosing a new password from an emailed link. */
 	resetPassword: AdminResetPasswordData;
+	secureAccount: AdminSecureAccountData;
 	/** `/admin/two-factor`: the second step of sign-in. */
 	twoFactor: AdminTwoFactorData;
 }
@@ -46,6 +48,7 @@ export interface AccountViews {
 export type LoginViewProps = AccountViewProps<AccountViews['login']>;
 export type InvitationsViewProps = AccountViewProps<AccountViews['invitations']>;
 export type InviteViewProps = AccountViewProps<AccountViews['invite']>;
+export type SecureAccountViewProps = AccountViewProps<AccountViews['secureAccount']>;
 export type ResetPasswordViewProps = AccountViewProps<AccountViews['resetPassword']>;
 export type TwoFactorViewProps = AccountViewProps<AccountViews['twoFactor']>;
 

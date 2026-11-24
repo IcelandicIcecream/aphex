@@ -287,13 +287,16 @@ describe('GET /media/:id/:filename — SVG containment', () => {
 		mimeType: 'image/svg+xml'
 	};
 
-	it('refuses to serve an SVG as a renderable document', async () => {
-		const { event, headers } = buildEvent({ asset: SVG_ASSET });
-		await serveAssetCDN(event);
+	it.each(['image/svg+xml', 'image/svg+xml; charset=utf-8', 'image/SVG+XML'])(
+		'refuses to serve %s as a renderable document',
+		async (mimeType) => {
+			const { event, headers } = buildEvent({ asset: { ...SVG_ASSET, mimeType } });
+			await serveAssetCDN(event);
 
-		expect(headers['Content-Disposition']).toMatch(/^attachment;/);
-		expect(headers['Content-Security-Policy']).toBe("default-src 'none'; sandbox");
-	});
+			expect(headers['Content-Disposition']).toMatch(/^attachment;/);
+			expect(headers['Content-Security-Policy']).toBe("default-src 'none'; sandbox");
+		}
+	);
 
 	it('leaves a raster image inline and unsandboxed', async () => {
 		const { event, headers } = buildEvent();

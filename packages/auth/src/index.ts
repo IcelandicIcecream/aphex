@@ -1,5 +1,5 @@
 import { authPagesBase, type AuthProvider, type CMSConfigInput } from '@aphexcms/cms-core/server';
-import { createAuthInstance, type AphexAuthInstance } from './instance.js';
+import { createAuthInstance, securityEmailsOf, type AphexAuthInstance } from './instance.js';
 import { createAuthService, type AuthService } from './service.js';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import * as pgSchema from './schema/pg.js';
@@ -7,7 +7,15 @@ import * as sqliteSchema from './schema/sqlite.js';
 import type { AphexAuthConfig } from './types.js';
 import { createOAuthServer } from './oauth.js';
 
-export type { AphexAuthConfig, AuthOptions, AuthEmailConfig, AuthEmailTemplate } from './types.js';
+export type {
+	AphexAuthConfig,
+	AuthOptions,
+	AuthEmailConfig,
+	AuthEmailTemplate,
+	SecurityEmailKind,
+	SecurityEmailNotice,
+	SecurityEmailTemplate
+} from './types.js';
 export type { AphexAuthOptions };
 // Bootstrap recipes are NOT re-exported here on purpose. They're CMS policy, not
 // Better Auth wiring — an app using Keycloak or Supabase needs them just as much
@@ -78,6 +86,8 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 		bootstrap: config.bootstrap
 	});
 
+	const security = securityEmailsOf(auth);
+
 	// cms-core talks to auth exclusively through this port, so an app that swaps
 	// this package for its own implementation needs nothing else to change.
 	const provider: AuthProvider = {
@@ -90,8 +100,12 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 		// `listApiKeys` queries the apikey table directly, so the adapter it takes is
 		// unused today; pass the config's adapter so the port stays honest if that changes.
 		listApiKeys: (userId) => service.listApiKeys(config.database, userId),
-		createApiKey: (userId, organizationId, data) =>
-			service.createApiKey(userId, organizationId, data),
+		createApiKey: async (userId, organizationId, data) => {
+			const key = await service.createApiKey(userId, organizationId, data);
+			const user = await service.getUserById(userId);
+			if (user) security?.notify(user, 'api-key-created', { name: key.name });
+			return key;
+		},
 		deleteApiKey: (userId, keyId) => service.deleteApiKey(userId, keyId),
 		getUserById: (userId) => service.getUserById(userId),
 		getUserByEmail: (email) => service.getUserByEmail(email),
@@ -100,6 +114,17 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 		requestPasswordReset: (email, redirectTo) => service.requestPasswordReset(email, redirectTo),
 		resetPassword: (token, newPassword) => service.resetPassword(token, newPassword),
 		hasPendingTwoFactor,
+		// Only when switched on: core takes its absence to mean there's no such page.
+		...(config.options?.securityEmails && security
+			? {
+					secureAccount: async (token: string) => {
+						const secured = await security.secureAccount(token);
+						if (!secured) return null;
+						if (secured.hasPassword) await service.requestPasswordReset(secured.user.email);
+						return { passwordReset: secured.hasPassword };
+					}
+				}
+			: {}),
 		// Only when switched on: core takes its absence to mean "API keys only".
 		...(config.oauth?.enabled ? { oauth: createOAuthServer(auth, config.database) } : {})
 	};
@@ -153,7 +178,8 @@ export function aphexAuth(options: AphexAuthOptions = {}): AuthConfigInput {
 		features: {
 			twoFactorMethods: config.options?.twoFactorMethods ?? ['totp', 'email'],
 			allowAccountDeletion: config.options?.allowAccountDeletion ?? false,
-			requireEmailVerification: config.options?.requireEmailVerification ?? false
+			requireEmailVerification: config.options?.requireEmailVerification ?? false,
+			securityEmails: config.options?.securityEmails ?? false
 		}
 	};
 }

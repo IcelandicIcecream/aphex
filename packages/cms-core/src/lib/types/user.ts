@@ -11,6 +11,8 @@ export interface AuthUser {
 	email: string;
 	name?: string;
 	image?: string;
+	/** False when the provider knows the address is unconfirmed; unset when it doesn't track it. */
+	emailVerified?: boolean;
 }
 
 // The final, combined object, composed from the two types above.

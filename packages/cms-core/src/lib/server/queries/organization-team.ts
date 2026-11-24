@@ -1,5 +1,6 @@
 import { hasCapability } from '../../types/capabilities';
 import { isPendingInvitation } from '../../auth/invitation-status';
+import { canGrantCapabilities } from '../../auth/grants';
 import { invitationUrl } from '../../auth/pages';
 import { cmsLogger } from '../../utils/logger';
 import type { CMSInstances } from '../../hooks';
@@ -61,6 +62,9 @@ export async function getOrganizationTeam(
 		(a, b) => new Date(a.member.createdAt).getTime() - new Date(b.member.createdAt).getTime()
 	);
 
+	const grantable = new Set(
+		roles.filter((r) => canGrantCapabilities(auth, r.capabilities)).map((r) => r.name)
+	);
 	const pending = invitationRows.filter((inv) => isPendingInvitation(inv));
 	const seats = memberRows.length + pending.length;
 
@@ -80,10 +84,13 @@ export async function getOrganizationTeam(
 			id: inv.id,
 			email: inv.email,
 			role: inv.role,
-			...(canInvite ? { inviteUrl: invitationUrl(config, origin, inv.token) } : {})
+			// The link is the invitation, so it's only for someone who could have sent it.
+			...(canInvite && grantable.has(inv.role)
+				? { inviteUrl: invitationUrl(config, origin, inv.token) }
+				: {})
 		})),
 		inviteRoles: roles
-			.filter((r) => r.name !== 'owner')
+			.filter((r) => r.name !== 'owner' && grantable.has(r.name))
 			.map((r) => ({ name: r.name, description: r.description })),
 		emailConfigured: emailAdapter != null
 	};

@@ -11,6 +11,7 @@ import {
 } from '../../../auth/invitation-status';
 import { sendInvitationEmail } from '../../../auth/invitation-email';
 import { invitationUrl } from '../../../auth/pages';
+import { canGrantCapabilities, CANNOT_GRANT } from '../../../auth/grants';
 import type { AphexEnv } from '../index';
 
 export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -85,6 +86,8 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 						400
 					);
 				}
+
+				if (!canGrantCapabilities(auth, roleRow.capabilities)) return c.json(CANNOT_GRANT, 403);
 
 				if (body.email.toLowerCase() === auth.user.email.toLowerCase()) {
 					return c.json(

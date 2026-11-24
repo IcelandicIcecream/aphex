@@ -44,6 +44,7 @@
 	import InviteView from './admin/InviteView.svelte';
 	import ResetPasswordView from './admin/ResetPasswordView.svelte';
 	import TwoFactorChallengeView from './admin/TwoFactorChallengeView.svelte';
+	import SecureAccountView from './admin/SecureAccountView.svelte';
 	import OAuthSiteView from './admin/OAuthSiteView.svelte';
 	import OAuthConsentView from './admin/OAuthConsentView.svelte';
 
@@ -80,6 +81,7 @@
 	const Invitations = components.invitations ?? InvitationsView;
 	const Invite = components.invite ?? InviteView;
 	const ResetPassword = components.resetPassword ?? ResetPasswordView;
+	const SecureAccount = components.secureAccount ?? SecureAccountView;
 	const TwoFactor = components.twoFactor ?? TwoFactorChallengeView;
 
 	// Publish the auth client once so the account panels (rendered deep in the
@@ -220,6 +222,8 @@
 		<Invite {data} {title} authClient={adminAuthClient} />
 	{:else if data.view === 'reset-password'}
 		<ResetPassword {data} {title} authClient={adminAuthClient} />
+	{:else if data.view === 'secure-account'}
+		<SecureAccount {data} {title} authClient={adminAuthClient} />
 	{:else if data.view === 'two-factor'}
 		<TwoFactor {data} {title} authClient={adminAuthClient} />
 	{:else if data.view === 'oauth-site'}
@@ -270,6 +274,7 @@
 					totpAvailable={data.totpAvailable}
 					connectedApps={data.connectedApps}
 					connectedAppOptIns={data.connectedAppOptIns}
+					currentSessionId={data.currentSessionId}
 				/>
 			{:else if data.tab === 'members'}
 				<MembersSettings team={data.team} />

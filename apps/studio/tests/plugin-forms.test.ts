@@ -260,6 +260,23 @@ describe('authored form invariants', () => {
 	});
 });
 
+describe('form editor help', () => {
+	it('says what the app does with a form’s emails, and nothing by default', () => {
+		const described = (options: Parameters<typeof formsPlugin>[0], name: string) => {
+			for (const part of formsPlugin(options).parts) {
+				if (part.implements !== 'aphex/schema') continue;
+				const form = part.schemas.find((schema) => schema.name === 'form');
+				return form?.fields.find((field) => field.name === name)?.description;
+			}
+		};
+		expect(described({ help: { recipients: 'Asked first.' } }, 'emails')).toMatch(
+			/^Asked first\. Who hears/
+		);
+		const plain = formSchema.fields.find((field) => field.name === 'emails')?.description;
+		expect(described({}, 'emails')).toBe(plain);
+	});
+});
+
 describe('submission access', () => {
 	const apiKey = { type: 'api_key', keyId: 'key', permissions: ['read', 'write'] } as never;
 	const owner = {

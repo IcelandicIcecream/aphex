@@ -890,11 +890,21 @@
 
 		const target = field ? at(field) : null;
 		if (target) {
+			unfoldAround(target);
 			target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 			target.querySelector<HTMLElement>(FOCUSABLE)?.focus();
 			return true;
 		}
 		return moved;
+	}
+
+	/** Open every folded section `element` is in: a folded field can't be scrolled to or focused. */
+	function unfoldAround(element: HTMLElement) {
+		let fold = element.closest<HTMLDetailsElement>('details:not([open])');
+		while (fold) {
+			fold.open = true;
+			fold = fold.parentElement?.closest<HTMLDetailsElement>('details:not([open])') ?? null;
+		}
 	}
 
 	async function focusFieldByName(
@@ -918,6 +928,7 @@
 		await tick();
 		const container = document.querySelector<HTMLElement>(`[data-field-name="${fieldName}"]`);
 		if (!container) return;
+		unfoldAround(container);
 		// For rich-text caret navigation, scroll the wrapper instantly to 'nearest' so it
 		// doesn't smooth-animate the (possibly tall) field back to centre and shove the
 		// caret off-screen — the editor's own scrollIntoView positions the caret precisely.

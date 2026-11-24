@@ -191,9 +191,10 @@ Every page gets the same three props: `data`, the server's payload for that page
 | `invitations`   | `AdminInvitationsData`   | `invitations.accept`, `invitations.reject`, `organizations.switch`, `authClient.signOut`                    |
 | `invite`        | `AdminInviteData`        | None: it links to `/admin/login` (with `?mode=signup&email=…` for a new account)                            |
 | `resetPassword` | `AdminResetPasswordData` | `user.resetPassword`                                                                                        |
+| `secureAccount` | `AdminSecureAccountData` | `user.secureAccount`                                                                                        |
 | `twoFactor`     | `AdminTwoFactorData`     | `authClient.twoFactor.verifyTotp`, and `sendOtp`/`verifyOtp`/`verifyBackupCode` when `data` says they're on |
 
-To change one part of a page rather than all of it, wrap the built-in one: `LoginView`, `InvitationsView`, `InviteView`, `ResetPasswordView` and `TwoFactorView` are exported from `@aphexcms/cms-core/client`.
+To change one part of a page rather than all of it, wrap the built-in one: `LoginView`, `InvitationsView`, `InviteView`, `ResetPasswordView`, `SecureAccountView` and `TwoFactorView` are exported from `@aphexcms/cms-core/client`.
 
 The studio itself (documents, settings, members) isn't replaced this way. Add to it with [plugins](/plugins): tools, settings panels and document actions.
 
@@ -212,6 +213,7 @@ options: {
 | -------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `requireEmailVerification` | `false` | Send a verification email at sign-up and block sign-in until the address is confirmed. Off by default so a fresh install works without an SMTP server.  |
 | `inviteOnly`               | `true`  | Restrict account creation to addresses holding a pending, unexpired invitation — except while the instance is empty, so the first sign-up can claim it. |
+| `securityEmails`           | `false` | Email people about what happens to their account. See [Security emails](#security-emails).                                                              |
 
 The two defaults are designed as a pair: **the first person to sign up owns the instance, and the
 door shuts behind them.** No configuration, no code to copy out of a log — the same install flow as
@@ -507,6 +509,36 @@ Only the exact string `true` enables it — any other value (or omitting the var
 	since the first user to sign up becomes super admin, that's an account-takeover risk. Pair it with
 	[`inviteOnly`](#options) if the site shouldn't accept public sign-ups at all.
 </Callout>
+
+## Security emails
+
+Off by default. Needs an email adapter:
+
+```ts title="aphex.config.ts"
+auth: aphexAuth({
+	options: { securityEmails: true }
+});
+```
+
+| Email                 | When                                                                           | To               |
+| --------------------- | ------------------------------------------------------------------------------ | ---------------- |
+| New sign-in           | A browser this account hasn't signed in on before                              | The account      |
+| Password changed      | It was changed or reset                                                        | The account      |
+| Two-factor turned off | Two-factor sign-in was disabled                                                | The account      |
+| API key created       | A key was created from the admin                                               | The account      |
+| App connected         | An app such as Claude was connected over OAuth                                 | The account      |
+| Failed sign-ins       | Five wrong passwords, each within an hour of the last; at most one email a day | The account      |
+| New owner or admin    | Someone became an owner or admin, by invitation or a change of role            | The other owners |
+
+A browser is known by a signed cookie, not its address, so moving networks sends nothing. The browser someone signs up on is known from the start. When you turn this on, everyone gets one new sign-in email the next time they sign in. The country is given only behind Cloudflare, when `ipAddressHeaders` names `cf-connecting-ip`.
+
+Each account email has a **This wasn't me** link. It opens `/admin/secure-account/<token>`, where a button signs out every device, stops the password working and emails a reset link. The link works once, for 7 days. API keys, connected apps and team members stay in place, so the page asks the person to check them. If your login page is outside `/admin`, serve `/secure-account/<token>` yourself and call `user.secureAccount({ token })`.
+
+Emails are sent in the background with two retries, so a slow mail server never delays a sign-in. They don't use the job queue, so they need no worker. Wrong-password counts are kept in `cache`, or per process without one.
+
+Put your own branding on the account emails with `email.security`. Its `render` gets the event (`kind`, `userName`, `at`, `device`, `country`, `name`, `url`) and returns `{ subject, html, text }`. Brand the owners' email with `roleNoticeEmail` in the CMS config. An app can register under any name, so don't present `name` as verified.
+
+The account settings page also lists the signed-in devices, whether or not these emails are on.
 
 ## Roles and permissions
 
@@ -1038,6 +1070,9 @@ interface AuthProvider {
 	// Password reset
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
 	resetPassword(token: string, newPassword: string): Promise<void>;
+
+	// Optional: answers the "This wasn't me" link in a security email
+	secureAccount?(token: string): Promise<{ passwordReset: boolean } | null>;
 }
 ```
 

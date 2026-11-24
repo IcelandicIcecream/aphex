@@ -12,6 +12,7 @@
 	import PreferencesSettings from './PreferencesSettings.svelte';
 	import PasswordSettings from './PasswordSettings.svelte';
 	import TwoFactorSettings from './TwoFactorSettings.svelte';
+	import DevicesSettings from './DevicesSettings.svelte';
 	import DeleteAccountSettings from './DeleteAccountSettings.svelte';
 	import ConnectedAppsSettings from './ConnectedAppsSettings.svelte';
 	import type { OAuthConnection } from '../../auth/provider';
@@ -25,6 +26,8 @@
 		connectedApps?: OAuthConnection[] | null;
 		/** What this user may switch on for a connected app. */
 		connectedAppOptIns?: string[];
+		/** Marks this device in the list of signed-in ones. */
+		currentSessionId?: string | null;
 	}
 
 	let {
@@ -33,7 +36,8 @@
 		hasChildOrganizations,
 		totpAvailable,
 		connectedApps = null,
-		connectedAppOptIns = []
+		connectedAppOptIns = [],
+		currentSessionId = null
 	}: Props = $props();
 </script>
 
@@ -57,6 +61,7 @@
 
 		<PasswordSettings />
 		<TwoFactorSettings {totpAvailable} />
+		<DevicesSettings {currentSessionId} />
 		{#if connectedApps}
 			<ConnectedAppsSettings apps={connectedApps} optIns={connectedAppOptIns} />
 		{/if}

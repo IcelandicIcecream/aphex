@@ -37,9 +37,14 @@ export const resetPasswordRequest = z.object({
 	newPassword: z.string().min(8)
 });
 
+// ---------- POST /user/secure-account ----------
+
+export const secureAccountRequest = z.object({ token: z.string().min(1).max(200) });
+
 // ---------- Inferred TS types ----------
 
 export type UpdateUserRequest = z.infer<typeof updateUserRequest>;
 export type UpdateUserPreferencesRequest = z.infer<typeof updateUserPreferencesRequest>;
 export type RequestPasswordResetRequest = z.infer<typeof requestPasswordResetRequest>;
+export type SecureAccountRequest = z.infer<typeof secureAccountRequest>;
 export type ResetPasswordRequest = z.infer<typeof resetPasswordRequest>;

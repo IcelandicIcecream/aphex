@@ -610,9 +610,9 @@ describe('DELETE /organizations/members', () => {
 		expect(res.status).toBe(400);
 	});
 
-	it('403 when admin tries to remove owner', async () => {
+	it.each(['admin', 'people-manager'])('403 when %s tries to remove owner', async (role) => {
 		const cms = buildFakeCMS({
-			memberships: [{ orgId: TEST_ORG, role: 'admin' }],
+			memberships: [{ orgId: TEST_ORG, role }],
 			members: [{ userId: 'other-user', role: 'owner' }]
 		});
 		const res = await makeApp().fetch(
@@ -623,7 +623,7 @@ describe('DELETE /organizations/members', () => {
 			}),
 			buildEnv(cms, {
 				capabilities: ['member.remove'],
-				organizationRole: 'admin'
+				organizationRole: role
 			}) as any
 		);
 		expect(res.status).toBe(403);
@@ -631,6 +631,25 @@ describe('DELETE /organizations/members', () => {
 });
 
 describe('PATCH /organizations/members', () => {
+	it("403 when a custom role changes an owner's role", async () => {
+		const cms = buildFakeCMS({
+			memberships: [{ orgId: TEST_ORG, role: 'people-manager' }],
+			members: [{ userId: 'other-user', role: 'owner' }]
+		});
+		const res = await makeApp().fetch(
+			new Request('http://localhost/organizations/members', {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ userId: 'other-user', role: 'admin' })
+			}),
+			buildEnv(cms, {
+				capabilities: ['member.changeRole'],
+				organizationRole: 'people-manager'
+			}) as any
+		);
+		expect(res.status).toBe(403);
+	});
+
 	it('400 when changing own role', async () => {
 		const cms = buildFakeCMS();
 		const res = await makeApp().fetch(
@@ -743,5 +762,44 @@ describe('user preferences', () => {
 			buildEnv(cms, { missing: true }) as any
 		);
 		expect(res.status).toBe(401);
+	});
+});
+
+describe('nobody hands out more than they hold', () => {
+	const roles = [
+		{ name: 'people-manager', capabilities: ['member.invite', 'member.changeRole', 'role.manage'] },
+		{ name: 'admin', capabilities: ['member.invite', 'org.settings'] },
+		{ name: 'recruiter', capabilities: ['member.invite'] }
+	];
+	const request = (path: string, method: string, body: unknown) => {
+		const cms = buildFakeCMS({
+			roles,
+			memberships: [{ orgId: TEST_ORG, role: 'people-manager' }],
+			members: [{ userId: 'other-user', role: 'recruiter' }]
+		});
+		return makeApp().fetch(
+			new Request(`http://localhost${path}`, {
+				method,
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			}),
+			buildEnv(cms, {
+				role: 'editor',
+				organizationRole: 'people-manager',
+				capabilities: roles[0]?.capabilities
+			}) as any
+		);
+	};
+	const members = (role: string) => ({ userId: 'other-user', role });
+
+	it.each([
+		['changing a role', '/organizations/members', 'PATCH', members('admin'), 403],
+		['changing a role within theirs', '/organizations/members', 'PATCH', members('recruiter'), 200],
+		['inviting', '/organizations/invitations', 'POST', { email: 'a@b.co', role: 'admin' }, 403],
+		['creating a role', '/roles', 'POST', { name: 'boss', capabilities: ['org.settings'] }, 403],
+		['widening a role', '/roles/recruiter', 'PATCH', { capabilities: ['org.settings'] }, 403],
+		['keeping what a role had', '/roles/admin', 'PATCH', { capabilities: ['org.settings'] }, 200]
+	])('%s', async (_name, path, method, body, status) => {
+		expect((await request(path, method, body)).status).toBe(status);
 	});
 });

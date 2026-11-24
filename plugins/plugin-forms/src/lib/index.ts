@@ -33,6 +33,7 @@ import { formSchema, formSubmissionSchema } from './schema';
 import { handleSubmit } from './submit';
 import { confirmSubmission, notifyOnSubmission } from './notify';
 import type { FormSiteResolver } from './sender';
+import type { PrepareFormEmail } from './prepare';
 import { formSubmissionCreated } from './events';
 
 const PLUGIN_ID = '@aphexcms/plugin-forms';
@@ -54,6 +55,19 @@ export interface FormsPluginOptions {
 	 * is submitted and kept with the submission.
 	 */
 	site?: FormSiteResolver;
+
+	/**
+	 * Called with each email before it's sent: limit who may be written to and how
+	 * much, or give it a design. An app where anyone can sign up should set this: a
+	 * form emails whatever addresses its author typed. Server only.
+	 */
+	prepareEmail?: PrepareFormEmail;
+
+	/**
+	 * Put in front of the help in the form editor, to say what `prepareEmail` does:
+	 * on who hears about messages, and on the visitor's own email.
+	 */
+	help?: { recipients?: string; confirmation?: string };
 
 	/**
 	 * Override submission collection access. Defaults to owner/admin read and
@@ -89,13 +103,24 @@ export function formsPlugin(options: FormsPluginOptions = {}) {
 		) as SchemaAccess
 	};
 
+	const help: Record<string, string | undefined> = {
+		emails: options.help?.recipients,
+		confirmationEmail: options.help?.confirmation
+	};
+	const form: SchemaType = {
+		...formSchema,
+		...(options.previewUrl ? { previewUrl: options.previewUrl } : {}),
+		fields: formSchema.fields.map((field) =>
+			help[field.name]
+				? { ...field, description: `${help[field.name]} ${field.description ?? ''}`.trim() }
+				: field
+		)
+	};
+
 	const parts: PluginPart[] = [
 		{
 			implements: 'aphex/schema',
-			schemas: [
-				options.previewUrl ? { ...formSchema, previewUrl: options.previewUrl } : formSchema,
-				submissionSchema
-			]
+			schemas: [form, submissionSchema]
 		},
 		{
 			implements: 'aphex/server/route',
@@ -116,13 +141,13 @@ export function formsPlugin(options: FormsPluginOptions = {}) {
 			implements: 'aphex/event/consumer',
 			id: 'forms.notify',
 			events: [formSubmissionCreated.type],
-			handler: notifyOnSubmission(options.from)
+			handler: notifyOnSubmission(options.from, options.prepareEmail)
 		},
 		{
 			implements: 'aphex/event/consumer',
 			id: 'forms.confirm',
 			events: [formSubmissionCreated.type],
-			handler: confirmSubmission(options.from)
+			handler: confirmSubmission(options.from, options.prepareEmail)
 		}
 	];
 
@@ -146,4 +171,5 @@ export { formSubmissionCreated } from './events';
 export { fromHeader, isEmailAddress } from './sender';
 export type { FormSite, FormSiteResolver } from './sender';
 export { renderTemplate, fieldLabels, toStoredValue } from './template';
+export type { OutgoingFormEmail, PreparedFormEmail, PrepareFormEmail } from './prepare';
 export type { Answer } from './template';

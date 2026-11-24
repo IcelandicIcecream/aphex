@@ -68,6 +68,14 @@ export interface AuthOptions {
 	 * @default true
 	 */
 	allowAccountDeletion: boolean;
+
+	/**
+	 * Email people about sign-ins from new devices, password and two-factor changes, and
+	 * more. Opt in with AUTH_SECURITY_EMAILS=true; needs an email adapter.
+	 *
+	 * @default false
+	 */
+	securityEmails: boolean;
 }
 
 export type TwoFactorMethod = 'totp' | 'email';
@@ -96,7 +104,8 @@ export const authOptions: AuthOptions = {
 	requireEmailVerification: env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'true',
 	inviteOnly: env.AUTH_INVITE_ONLY !== 'false',
 	twoFactorMethods: parseTwoFactorMethods(env.AUTH_TWO_FACTOR_METHODS),
-	allowAccountDeletion: true
+	allowAccountDeletion: true,
+	securityEmails: env.AUTH_SECURITY_EMAILS === 'true'
 };
 
 /**

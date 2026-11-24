@@ -81,6 +81,7 @@ export type {
 	AdminInvitationsData,
 	AdminInviteData,
 	AdminResetPasswordData,
+	AdminSecureAccountData,
 	AdminTwoFactorData
 } from '../admin/view-data';
 // Core-mounted account views (served by the catch-all). A host override wraps or
@@ -88,6 +89,7 @@ export type {
 export { default as LoginView } from '../components/admin/LoginView.svelte';
 export { default as InvitationsView } from '../components/admin/InvitationsView.svelte';
 export { default as InviteView } from '../components/admin/InviteView.svelte';
+export { default as SecureAccountView } from '../components/admin/SecureAccountView.svelte';
 export { default as ResetPasswordView } from '../components/admin/ResetPasswordView.svelte';
 export { default as TwoFactorView } from '../components/admin/TwoFactorChallengeView.svelte';
 // The client-side customization seam (host's `aphex.client.ts`), passed as <AphexStudio config={...} />.
@@ -100,6 +102,7 @@ export type {
 	InvitationsViewProps,
 	InviteViewProps,
 	ResetPasswordViewProps,
+	SecureAccountViewProps,
 	TwoFactorViewProps
 } from '../admin/client-config';
 // Client-side auth seam — host builds an AdminAuthClient and passes it to AphexStudio.

@@ -70,7 +70,8 @@ import {
 	updateUserRequest,
 	updateUserPreferencesRequest,
 	requestPasswordResetRequest,
-	resetPasswordRequest
+	resetPasswordRequest,
+	secureAccountRequest
 } from '../../../api/schemas/user';
 import { jobActionRequestSchema } from '../../../api/schemas/jobs';
 import { savePluginSettingsRequest } from '../../../api/schemas/plugin-settings';
@@ -744,6 +745,14 @@ export const ROUTE_REGISTRY: RouteMeta[] = [
 		tag: 'User',
 		auth: 'public',
 		request: resetPasswordRequest
+	},
+	{
+		path: '/api/user/secure-account',
+		method: 'POST',
+		summary: 'Sign out everywhere and reset the password, from a security email',
+		tag: 'User',
+		auth: 'public',
+		request: secureAccountRequest
 	},
 
 	// ---------------- Jobs & events ----------------

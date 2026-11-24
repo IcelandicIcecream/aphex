@@ -29,6 +29,15 @@ export interface AdminSessionState {
 	refetch?: (opts?: { query?: { disableCookieCache?: boolean } }) => Promise<unknown>;
 }
 
+/** One signed-in device, as the account page lists it. */
+export interface AdminDeviceSession {
+	id: string;
+	token: string;
+	userAgent?: string | null;
+	createdAt: Date | string;
+	updatedAt: Date | string;
+}
+
 export interface AdminAuthClient {
 	/**
 	 * Sign-in / sign-up / verification live on the same seam because the embedded
@@ -66,6 +75,14 @@ export interface AdminAuthClient {
 		newPassword: string;
 		revokeOtherSessions?: boolean;
 	}): Promise<AdminAuthResult>;
+
+	/**
+	 * The devices signed in to this account. The account page hides the list when a host
+	 * doesn't provide all three.
+	 */
+	listSessions?(): Promise<AdminAuthResult<AdminDeviceSession[]>>;
+	revokeSession?(input: { token: string }): Promise<AdminAuthResult>;
+	revokeOtherSessions?(): Promise<AdminAuthResult>;
 
 	deleteUser(input: { password: string }): Promise<AdminAuthResult>;
 

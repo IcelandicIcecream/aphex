@@ -58,6 +58,13 @@ export interface AuthProvider {
 	resetPassword(token: string, newPassword: string): Promise<void>;
 
 	/**
+	 * Answer the "This wasn't me" link in a security email: sign out every device, make
+	 * the password useless, and email a reset link when there is a password. Null when the
+	 * link was used or has expired. Without it, core serves no such page.
+	 */
+	secureAccount?(token: string): Promise<{ passwordReset: boolean } | null>;
+
+	/**
 	 * Is this request midway through a two-factor sign-in? Lets the challenge page send
 	 * someone back to sign in, rather than show a form that can only fail. Without it,
 	 * the page shows the form and reports the failure when they submit.

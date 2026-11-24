@@ -83,6 +83,14 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
 }
 
 /**
+ * A stored type can carry parameters or capitals ("image/svg+xml; charset=utf-8"),
+ * which a browser renders as SVG all the same.
+ */
+function isSvg(mimeType: string | null | undefined): boolean {
+	return mimeType?.split(';', 1)[0]?.trim().toLowerCase() === 'image/svg+xml';
+}
+
+/**
  * Extra headers for a response whose body is the asset's own bytes at its own
  * declared type.
  *
@@ -98,7 +106,7 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
  * not reach it and this is what covers it.
  */
 function assetSecurityHeaders(mimeType: string | null | undefined): Record<string, string> {
-	if (mimeType !== 'image/svg+xml') return {};
+	if (!isSvg(mimeType)) return {};
 	return { 'Content-Security-Policy': "default-src 'none'; sandbox" };
 }
 
@@ -491,7 +499,7 @@ export const GET = async ({
 		const safeInlineTypes = ['image/', 'application/pdf', 'video/', 'audio/'];
 		const canInline =
 			asset.mimeType &&
-			asset.mimeType !== 'image/svg+xml' &&
+			!isSvg(asset.mimeType) &&
 			safeInlineTypes.some((t) => asset.mimeType!.startsWith(t));
 		const disposition = canInline ? 'inline' : 'attachment';
 

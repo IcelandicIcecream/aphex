@@ -21,6 +21,8 @@ export interface AuthFeatures {
 	allowAccountDeletion: boolean;
 	/** Whether a verified email is required before sign-in. */
 	requireEmailVerification: boolean;
+	/** Whether people are emailed about their account's security, and owners about new owners and admins. */
+	securityEmails?: boolean;
 }
 
 /**
@@ -92,6 +94,12 @@ export interface ApiKeyAuth {
 	type: 'api_key';
 	keyId: string;
 	name: string;
+	/**
+	 * The person a connected app (OAuth, `keyId` `oauth:<client>`) acts for. Absent for a
+	 * plain API key, which belongs to the organization rather than to one person. Credits
+	 * what the app does to them, as in the Activity view's agent changes.
+	 */
+	userId?: string;
 	/**
 	 * Legacy coarse-grained scopes: `read` (read capabilities) and `write`
 	 * (mutating capabilities). Preserved for backwards compatibility with

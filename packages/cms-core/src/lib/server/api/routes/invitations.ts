@@ -3,12 +3,21 @@ import { isAccepted, isExpired } from '../../../auth/invitation-status';
 import { cmsLogger } from '../../../utils/logger';
 import { assertMemberLimit, isLimitError } from '../../../local-api/limits';
 import { getPendingInvitations } from '../../queries/pending-invitations';
+import { ownsEmail, OPEN_INVITATION_LINK } from '../../../auth/verified-email';
+import { notifyOwnersOfRole } from '../../../auth/team-notice';
 import type { AphexEnv } from '../index';
 
 const UNAUTHORIZED = {
 	success: false,
 	error: 'Unauthorized',
 	message: 'Session authentication required'
+};
+
+const UNVERIFIED = {
+	success: false,
+	error: OPEN_INVITATION_LINK,
+	message: OPEN_INVITATION_LINK,
+	code: 'email_unverified'
 };
 
 /**
@@ -31,6 +40,7 @@ export const invitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	.post('/:id/accept', async (c) => {
 		const auth = c.var.auth;
 		if (!auth || auth.type === 'api_key') return c.json(UNAUTHORIZED, 401);
+		if (!ownsEmail(auth.user)) return c.json(UNVERIFIED, 403);
 		try {
 			const { databaseAdapter } = c.var.aphexCMS;
 			// Looked up through the caller's address, so an id alone can't claim someone
@@ -62,6 +72,13 @@ export const invitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				throw error;
 			}
 			await databaseAdapter.acceptInvitation(invitation.token, auth.user.id);
+			void notifyOwnersOfRole(c.var.aphexCMS, {
+				organizationId: invitation.organizationId,
+				userId: auth.user.id,
+				role: invitation.role,
+				actorId: invitation.invitedBy,
+				origin: new URL(c.req.url).origin
+			});
 			return c.json({
 				success: true,
 				data: { organizationId: invitation.organizationId },
@@ -75,6 +92,7 @@ export const invitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	.post('/:id/reject', async (c) => {
 		const auth = c.var.auth;
 		if (!auth || auth.type === 'api_key') return c.json(UNAUTHORIZED, 401);
+		if (!ownsEmail(auth.user)) return c.json(UNVERIFIED, 403);
 		try {
 			const { databaseAdapter } = c.var.aphexCMS;
 			const invitations = await databaseAdapter.findInvitationsByEmail(auth.user.email);

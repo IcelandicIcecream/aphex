@@ -1,4 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
+import { ownsEmail } from '../../auth/verified-email';
+import { notifyOwnersOfRole } from '../../auth/team-notice';
 import { isAccepted, isExpired } from '../../auth/invitation-status';
 import { isViewer } from '../../types/auth';
 import {
@@ -82,6 +84,7 @@ const STANDALONE_VIEWS = new Set<AdminViewData['view']>([
 	'invitations',
 	'invite',
 	'reset-password',
+	'secure-account',
 	'two-factor',
 	'oauth-site',
 	'oauth-consent'
@@ -111,6 +114,15 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 		return {
 			view: 'reset-password',
 			token: resetToken,
+			branding: await resolveLoginBranding(event.locals, event.url)
+		};
+	}
+	// Signed in or not: the one following it may be on the device they signed in with.
+	const secureToken = tokenAfter(path, 'secure-account');
+	if (secureToken && event.locals.aphexCMS.auth?.secureAccount) {
+		return {
+			view: 'secure-account',
+			token: secureToken,
 			branding: await resolveLoginBranding(event.locals, event.url)
 		};
 	}
@@ -208,6 +220,7 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 				hasChildOrganizations,
 				totpAvailable,
 				connectedApps,
+				currentSessionId: auth.session.id,
 				connectedAppOptIns: [...resolveCapabilities(auth)].filter(isOAuthOptInCapability)
 			};
 		}
@@ -588,6 +601,7 @@ async function loadInvitations(locals: App.Locals, url: URL): Promise<AdminInvit
 		pendingInvitations: tenant
 			? pending.filter((invitation) => invitation.organizationId === tenant.id)
 			: pending,
+		needsInvitationLink: !ownsEmail(auth.user),
 		hasOrganization: auth.type === 'session',
 		canCreateOrganization: !tenant && (await canCreateOrganization(locals, auth)),
 		userEmail: auth.user.email,
@@ -635,6 +649,13 @@ async function loadInvite(locals: App.Locals, url: URL, token: string): Promise<
 			throw error;
 		}
 		await databaseAdapter.acceptInvitation(token, auth.user.id);
+		void notifyOwnersOfRole(locals.aphexCMS, {
+			organizationId: invitation.organizationId,
+			userId: auth.user.id,
+			role: invitation.role,
+			actorId: invitation.invitedBy,
+			origin: url.origin
+		});
 		await databaseAdapter.updateUserSession(auth.user.id, invitation.organizationId);
 		throw redirect(302, '/admin');
 	}

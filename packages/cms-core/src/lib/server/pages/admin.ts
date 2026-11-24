@@ -28,6 +28,8 @@ import { grantedOrganizationCapabilities } from '../../auth/organization-capabil
 import { getOrganizationTeam } from '../queries/organization-team';
 import { getPendingInvitations } from '../queries/pending-invitations';
 import { loadOAuthConsent, loadOAuthLogin, loadOAuthSite } from './oauth';
+import { cmsLogger } from '../../utils/logger';
+import type { CMSConfig } from '../../types/config';
 import { isApiDocsEnabled, API_DOCS_PATH } from '../../api/docs-ui';
 import { isInstanceUnclaimed } from '../../auth/bootstrap';
 import { assertMemberLimit, isLimitError } from '../../local-api/limits';
@@ -302,16 +304,27 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 		case 'god-mode/organizations': {
 			requireSuperAdmin(auth);
 			const { databaseAdapter } = event.locals.aphexCMS;
-			const [organizations, instanceSettings] = await Promise.all([
+			const session = auth as SessionAuth;
+			const [organizations, instanceSettings, memberships] = await Promise.all([
 				databaseAdapter.findAllOrganizations(),
-				databaseAdapter.getInstanceSettings()
+				databaseAdapter.getInstanceSettings(),
+				databaseAdapter.findUserOrganizations(session.user.id)
 			]);
+			// The super admin's own role in each, so the list only offers a switch
+			// the server will allow; the rest can still be looked at on their site.
+			const roles = new Map(
+				memberships.map(({ organization, member }) => [organization.id, member.role])
+			);
 			return {
 				view: 'god-mode',
 				tab: 'organizations',
 				organizations: await Promise.all(
 					organizations.map((organization) =>
-						describeOrganization(event.locals, organization, { role: 'owner', isActive: false })
+						describeOrganization(event.locals, organization, {
+							role: roles.get(organization.id) ?? '',
+							isActive: organization.id === session.organizationId,
+							isMember: roles.has(organization.id)
+						})
 					)
 				),
 				allowUserOrgCreation: instanceSettings.allowUserOrgCreation ?? false,
@@ -428,10 +441,13 @@ function requireSuperAdmin(auth: Auth): void {
 async function describeOrganization(
 	locals: App.Locals,
 	organization: Organization,
-	membership: { role: string; isActive: boolean }
+	membership: { role: string; isActive: boolean; isMember: boolean }
 ): Promise<AdminOrganizationListItem> {
-	const { databaseAdapter, auth: provider } = locals.aphexCMS;
-	const members = await databaseAdapter.findOrganizationMembers(organization.id);
+	const { databaseAdapter, auth: provider, config } = locals.aphexCMS;
+	const [members, siteUrl] = await Promise.all([
+		databaseAdapter.findOrganizationMembers(organization.id),
+		siteUrlOf(config.organizationSiteUrl, organization)
+	]);
 	const owner = members.find((member) => member.role === 'owner');
 	const ownerUser = owner ? await provider?.getUserById(owner.userId) : null;
 	// One row with a missing or unreadable date leaves its date off rather than failing the list.
@@ -443,8 +459,24 @@ async function describeOrganization(
 		...membership,
 		memberCount: members.length,
 		ownerEmail: ownerUser?.email,
-		...(Number.isNaN(created.getTime()) ? {} : { createdAt: created.toISOString() })
+		...(Number.isNaN(created.getTime()) ? {} : { createdAt: created.toISOString() }),
+		...(siteUrl ? { siteUrl } : {})
 	};
+}
+
+/** The app's address for an organization's public site, if it gave one; a failure means no link. */
+async function siteUrlOf(
+	resolve: CMSConfig['organizationSiteUrl'],
+	organization: Organization
+): Promise<string | undefined> {
+	if (!resolve) return undefined;
+	try {
+		const url = await resolve({ id: organization.id, slug: organization.slug });
+		return url || undefined;
+	} catch (error) {
+		cmsLogger.warn(`organizationSiteUrl failed for ${organization.slug}:`, error);
+		return undefined;
+	}
 }
 
 async function loadUserOrganizations(
@@ -456,7 +488,8 @@ async function loadUserOrganizations(
 		memberships.map(({ organization, member }) =>
 			describeOrganization(locals, organization, {
 				role: member.role,
-				isActive: organization.id === auth.organizationId
+				isActive: organization.id === auth.organizationId,
+				isMember: true
 			})
 		)
 	);

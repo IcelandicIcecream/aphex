@@ -624,6 +624,23 @@ export interface CMSConfig {
 		userId: string;
 	}) => Promise<void> | void;
 	/**
+	 * Where an organization's public site lives, for an app that gives each one a
+	 * site. Opt-in: without it, nothing links out. With it, each row in the
+	 * organization lists (yours, and God Mode's) gets a "View site" link that opens
+	 * in a new tab, so a super admin can look at any site without being a member.
+	 * Return nothing for an organization with no site; a resolver that throws
+	 * leaves that row without a link rather than failing the list.
+	 *
+	 * @example
+	 * ```ts
+	 * organizationSiteUrl: ({ slug }) => `https://${slug}.example.site`
+	 * ```
+	 */
+	organizationSiteUrl?: (organization: {
+		id: string;
+		slug: string;
+	}) => string | null | undefined | Promise<string | null | undefined>;
+	/**
 	 * Cache adapter for published data queries.
 	 * - `undefined` or `null`: no caching (default)
 	 * - `CacheAdapter` instance: caches published-perspective reads, invalidated on publish/unpublish

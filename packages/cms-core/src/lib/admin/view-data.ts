@@ -201,6 +201,13 @@ export interface AdminOrganizationListItem {
 	ownerEmail?: string;
 	/** When it was made, as an ISO date-time; absent when the stored date can't be read. */
 	createdAt?: string;
+	/**
+	 * Whether the signed-in user belongs to it, so it can be switched to. God Mode
+	 * lists organizations the super admin isn't in; everywhere else this is true.
+	 */
+	isMember: boolean;
+	/** Its public site, from `organizationSiteUrl` in the config; absent without one. */
+	siteUrl?: string;
 }
 
 /** The organizations the signed-in user belongs to. */

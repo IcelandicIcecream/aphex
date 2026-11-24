@@ -2,7 +2,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Switch } from '@aphexcms/ui/shadcn/switch';
-	import { ExternalLink } from '@lucide/svelte';
+	import { ArrowRight, ExternalLink } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import { organizations } from '../../api/organizations';
 
@@ -65,7 +65,7 @@
 			await invalidateAll();
 			goto('/admin');
 		} catch (err) {
-			console.error('Failed to switch organization:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to switch organization');
 		} finally {
 			switchingOrgId = null;
 		}
@@ -148,15 +148,32 @@
 					{/if}
 				</div>
 
-				<!-- Actions -->
-				<button
-					class="text-muted-foreground hover:text-foreground hover:bg-muted rounded-md p-2 transition-colors"
-					onclick={() => handleOrgClick(org)}
-					disabled={switchingOrgId !== null}
-					title={org.isActive ? 'Go to dashboard' : 'Switch to this organization'}
-				>
-					<ExternalLink class="size-4" />
-				</button>
+				<!-- Actions: look at its public site (when the app says where), or switch to it (members only) -->
+				<div class="flex shrink-0 items-center gap-1">
+					{#if org.siteUrl}
+						<a
+							href={org.siteUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition-colors"
+							title="Open its public site in a new tab"
+						>
+							<ExternalLink class="size-4" />
+							View site
+						</a>
+					{/if}
+					{#if org.isMember}
+						<button
+							class="text-muted-foreground hover:text-foreground hover:bg-muted rounded-md p-2 transition-colors"
+							onclick={() => handleOrgClick(org)}
+							disabled={switchingOrgId !== null}
+							title={org.isActive ? 'Go to dashboard' : 'Switch to this organization'}
+							aria-label={org.isActive ? 'Go to dashboard' : `Switch to ${org.name}`}
+						>
+							<ArrowRight class="size-4" />
+						</button>
+					{/if}
+				</div>
 			</div>
 		{/each}
 	</div>

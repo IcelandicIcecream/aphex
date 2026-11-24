@@ -125,7 +125,12 @@ describe('serveCoreRoute', () => {
 });
 
 describe('createAdminLoad', () => {
-	function loadEvent(path: string, auth: unknown, favicon?: unknown) {
+	function loadEvent(
+		path: string,
+		auth: unknown,
+		favicon?: unknown,
+		organizationSiteUrl?: unknown
+	) {
 		const databaseAdapter = {
 			findUserOrganizations: async () => [
 				{
@@ -149,7 +154,7 @@ describe('createAdminLoad', () => {
 					cmsEngine: { listDocumentTypes: async () => [] },
 					auth: { getUserById: async () => ({ email: 'owner@example.com' }) },
 					aiProvider: null,
-					config: { customization: { branding: { title: 'Acme', favicon } } }
+					config: { customization: { branding: { title: 'Acme', favicon } }, organizationSiteUrl }
 				}
 			},
 			params: { path },
@@ -216,6 +221,35 @@ describe('createAdminLoad', () => {
 			allowUserOrgCreation: true,
 			organizations: [{ slug: 'other', memberCount: 1, createdAt: '2026-01-02T03:04:05.000Z' }]
 		});
+	});
+
+	it('only offers a switch to an organization the super admin is in', async () => {
+		const data = await load(loadEvent('god-mode/organizations', session('super_admin')));
+		// Other is listed but the super admin isn't a member: the server would refuse the switch.
+		expect(data).toMatchObject({
+			organizations: [{ slug: 'other', isMember: false, isActive: false }]
+		});
+	});
+
+	it('links each organization to its public site only when the app says where', async () => {
+		const rows = async (organizationSiteUrl?: unknown) => {
+			const data = await load(
+				loadEvent('god-mode/organizations', session('super_admin'), undefined, organizationSiteUrl)
+			);
+			return data.view === 'god-mode' && data.tab === 'organizations' ? data.organizations : [];
+		};
+		expect((await rows())[0]).not.toHaveProperty('siteUrl');
+		expect(
+			(await rows(({ slug }: { slug: string }) => `https://${slug}.example.site`))[0]
+		).toMatchObject({
+			siteUrl: 'https://other.example.site'
+		});
+		expect((await rows(async () => null))[0]).not.toHaveProperty('siteUrl');
+		const broken = await rows(() => {
+			throw new Error('no domains table');
+		});
+		expect(broken[0]).not.toHaveProperty('siteUrl');
+		expect(broken[0]).toMatchObject({ slug: 'other' });
 	});
 });
 

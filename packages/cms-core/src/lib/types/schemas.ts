@@ -138,6 +138,13 @@ export interface BaseField {
 	 */
 	hidden?: FieldCondition;
 	/**
+	 * Retire this field without losing what it holds. The admin, the API and the
+	 * site treat it as before; an AI agent (MCP) isn't shown it, and a new value it
+	 * writes here is refused with `reason`, so say what to use instead: `'Use
+	 * "symbol".'` Pair it with `hidden` to stop offering it to people too.
+	 */
+	deprecated?: { reason: string };
+	/**
 	 * Capabilities the organization needs for the admin to show this field, such as
 	 * a site-wide "Project pages" setting that means nothing without `site.projects`.
 	 * The same rule as a type's (`hasRequiredCapabilities`).

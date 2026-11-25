@@ -45,7 +45,7 @@ import siteNavigation from './siteNavigation.js';
 import player from './player.js';
 import team from './team.js';
 import league from './league.js';
-import strictDoc from './strictDoc.js';
+import strictDoc, { strictBlock } from './strictDoc.js';
 import chainNode from './chainNode.js';
 import hookedDoc from './hookedDoc.js';
 
@@ -82,6 +82,7 @@ export const schemaTypes = [
 
 	// Purpose-built validation / reference / hook fixtures
 	strictDoc,
+	strictBlock,
 	chainNode,
 	hookedDoc,
 	referenceToRestricted

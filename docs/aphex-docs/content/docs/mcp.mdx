@@ -154,7 +154,7 @@ Once connected, the tools appear under the server name you chose (e.g. `mcp__aph
 | `publish_document`  | Publish an existing draft.                                                                                                                                                    |
 | `get_singleton`     | Read a singleton (e.g. site settings) without needing an id.                                                                                                                  |
 | `update_singleton`  | Update a singleton's fields.                                                                                                                                                  |
-| `validate_document` | Dry-run validation against the collection schema — same validator as create/update.                                                                                           |
+| `validate_document` | Dry-run validation against the collection schema — same validator as create/update. Pass `id` when checking changes to an existing document. |
 | `validate_schema`   | Validate a proposed schema definition before writing a schema file.                                                                                                           |
 | `list_assets`       | List media assets, filterable by type and filename.                                                                                                                           |
 | `upload_asset`      | Upload an image or file from base64 data or a URL, ready to drop into a field.                                                                                                |

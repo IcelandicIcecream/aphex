@@ -29,6 +29,7 @@ import {
 	RESERVED_FIELDS,
 	validateSchemaReferences
 } from '../schema-utils/validator';
+import { newUnusableFields } from '../field-validation/new-fields';
 import { validateDocumentData } from '../field-validation/utils';
 import { validateFile } from '../utils/mime-detect';
 import { fetchRemoteFile } from '../utils/fetch-remote-file';
@@ -439,16 +440,23 @@ export const contentAgentTools: ContentAgentTool[] = [
 			name: 'validate_document',
 			title: 'Check a document',
 			description:
-				'Dry-run: validate document `data` against its collection schema WITHOUT saving, using the same validator as create/update. Returns field-level errors so you can fix them before create_document/update_document.',
+				'Dry-run: validate document `data` against its collection schema WITHOUT saving, using the same validator as create/update. Returns field-level errors so you can fix them before create_document/update_document. For changes to an existing document, pass its `id` too.',
 			mutates: false,
 			requiredCapabilities: [],
 			execution: 'server',
 			inputSchema: z.object({
 				collection: z.string().describe('Collection name'),
-				data: z.record(z.string(), z.unknown()).describe('Document field values to validate')
+				data: z.record(z.string(), z.unknown()).describe('Document field values to validate'),
+				id: z
+					.string()
+					.optional()
+					.describe("The document they're for, so what it already holds isn't reported")
 			})
 		},
-		execute: async (args: Record<string, unknown>, { aphexCMS }: AgentToolExecutionContext) => {
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
 			const api = aphexCMS.localAPI;
 			const collection = asString(args, 'collection');
 			const data = asRecord(args, 'data');
@@ -457,10 +465,22 @@ export const contentAgentTools: ContentAgentTool[] = [
 			const schema = api.getCollectionSchema(collection);
 			if (!schema) return fail(`Unknown collection: ${collection}`);
 			try {
-				const result = await validateDocumentData(schema, data, {
-					schemas: aphexCMS.config.schemaTypes
-				});
-				return ok({ isValid: result.isValid, errors: result.errors });
+				const schemas = aphexCMS.config.schemaTypes;
+				const result = await validateDocumentData(schema, data, { schemas });
+				// The other half of a save's check: fields this write would newly misuse.
+				const id = asString(args, 'id');
+				const col = id ? api.getCollection(collection) : undefined;
+				const previous: unknown[] = [];
+				if (id && col) {
+					for (const perspective of ['draft', 'published'] as const) {
+						const doc = await col.findByID(context, id, { perspective });
+						if (doc) previous.push(documentFields(doc).data);
+					}
+				}
+				const unusable = newUnusableFields(schema, data, previous, schemas);
+				const reported = new Set(unusable.map((e) => e.field));
+				const errors = [...unusable, ...result.errors.filter((e) => !reported.has(e.field))];
+				return ok({ isValid: errors.length === 0, errors });
 			} catch (err) {
 				return fail(`Validation failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -630,7 +650,10 @@ export const contentAgentTools: ContentAgentTool[] = [
 			const col = api.getCollection(collection);
 			if (!col) return fail(`Unknown collection: ${collection}`);
 			try {
-				const result = await col.create(context, data, { publish: args.publish === true });
+				const result = await col.create(context, data, {
+					publish: args.publish === true,
+					rejectNewUnknownFields: true
+				});
 				return ok(result);
 			} catch (err) {
 				return fail(`Create failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -672,6 +695,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 			try {
 				const result = await col.update(context, id, data, {
 					publish: args.publish === true,
+					rejectNewUnknownFields: true,
 					expectedRevision:
 						typeof args.expectedRevision === 'number' ? args.expectedRevision : undefined
 				});
@@ -737,6 +761,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 					);
 					const result = await col.update(context, id, changes, {
 						publish: args.publish === true,
+						rejectNewUnknownFields: true,
 						expectedRevision: revision
 					});
 					if (!result) return fail(`Document not found: ${collection}/${id}`);
@@ -864,7 +889,10 @@ export const contentAgentTools: ContentAgentTool[] = [
 			try {
 				// Ensure the canonical row exists (get lazily creates it), then update.
 				await col.get(context);
-				const result = await col.update(context, id, data, { publish: args.publish === true });
+				const result = await col.update(context, id, data, {
+					publish: args.publish === true,
+					rejectNewUnknownFields: true
+				});
 				if (!result) return fail(`Failed to update singleton '${collection}'.`);
 				return ok(result);
 			} catch (err) {

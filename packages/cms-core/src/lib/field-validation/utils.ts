@@ -147,7 +147,10 @@ export function validateValueShape(field: Field, value: unknown): string | null 
  * even when only one type is declared. The single-entry fallback only applies
  * when the item has no `_type` tag at all (untagged items in a single-type array).
  */
-function resolveArrayItemTypeRef(of: TypeReference[], item: unknown): TypeReference | undefined {
+export function resolveArrayItemTypeRef(
+	of: TypeReference[],
+	item: unknown
+): TypeReference | undefined {
 	if (isPlainObject(item)) {
 		// An object item must say what it is. Falling back to the single declared
 		// type used to let a `_type`-less row through — it validated, was stored,

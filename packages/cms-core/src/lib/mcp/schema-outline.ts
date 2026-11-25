@@ -125,6 +125,8 @@ class Outline {
 		const lines: string[] = [];
 		if (tag) lines.push(`${inner}_type: ${literal(tag)}`, `${inner}_key?: string`);
 		for (const field of fields) {
+			// Kept for what's stored; nothing new may be written to it.
+			if (field.deprecated) continue;
 			const notes: string[] = [];
 			const type = this.field(field, inner, notes);
 			if (field.description) notes.unshift(oneLine(field.description));

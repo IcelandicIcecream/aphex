@@ -213,6 +213,24 @@ The hero from the website template, where three fields depend on one choice:
 Choosing **None** leaves one dropdown. Choosing **Low impact** shows content and alignment.
 Choosing **High impact** shows content and media. Nothing on screen is inert.
 
+## Retiring a field
+
+`hidden` is for people. To stop an AI agent using a field as well, mark it `deprecated`:
+
+```ts
+{
+	name: 'emoji',
+	type: 'string',
+	title: 'Emoji',
+	deprecated: { reason: 'Use "symbol".' },
+	// Shown only where one is still set, so it can be cleared.
+	hidden: ({ siblingData }) => !siblingData.emoji
+}
+```
+
+Stored values stay and still render. Agents aren't shown the field, and a new value is refused
+with the reason.
+
 ## Related
 
 - [Validation](/schemas/validation) — rejecting values, as opposed to hiding fields.

@@ -181,3 +181,75 @@ describe('MCP writes go through the same validation as the admin UI', () => {
 		expect(Object.keys(after ?? {})).not.toContain('totallyMadeUp');
 	});
 });
+
+describe('MCP writes to a registered block', () => {
+	const owner = { organizationId: TEST_ORG_ID, overrideAccess: true };
+	const block = (extra: object, key = 'a') => ({ _type: 'strictBlock', _key: key, ...extra });
+
+	/** A page saved by something other than an agent, holding a leftover and a retired field. */
+	async function pageWithLeftovers() {
+		const { document } = await localAPI.collections.strictDoc.create(owner, {
+			title: 'Blocks',
+			blocks: [block({ legacy: 'red', emoji: 'pin' })]
+		} as never);
+		created.push(document.id);
+		return document.id;
+	}
+
+	it('refuses a field the block does not have, naming the ones it does', async () => {
+		const result = await call('create_document', {
+			collection: 'strictDoc',
+			data: { title: 'Agent write', blocks: [block({ icon: 'calendar' })] }
+		});
+		expectRejected(result, /blocks\[0\]\.icon isn't a field of Strict Block\. Its fields: symbol/);
+	});
+
+	it('refuses it through patch_document too, and saves nothing', async () => {
+		const id = await pageWithLeftovers();
+		const result = await call('patch_document', {
+			collection: 'strictDoc',
+			id,
+			operations: [{ op: 'set', path: 'blocks[_key=="a"].icon', value: 'calendar' }]
+		});
+		expectRejected(result, /icon isn't a field/);
+		const after = await localAPI.collections.strictDoc.findByID(owner, id);
+		expect(JSON.stringify(after)).not.toContain('calendar');
+	});
+
+	it('still edits a page that holds leftovers', async () => {
+		const id = await pageWithLeftovers();
+		const result = await call('patch_document', {
+			collection: 'strictDoc',
+			id,
+			operations: [{ op: 'set', path: 'blocks[_key=="a"].symbol', value: 'calendar' }]
+		});
+		expect(result.isError).toBeFalsy();
+	});
+
+	it('refuses a new value in a retired field and lets the old one be cleared', async () => {
+		const id = await pageWithLeftovers();
+		const patch = (operation: object) =>
+			call('patch_document', { collection: 'strictDoc', id, operations: [operation] });
+		const path = 'blocks[_key=="a"].emoji';
+		expectRejected(
+			await patch({ op: 'set', path, value: 'star' }),
+			/no longer used\. Use "symbol"/
+		);
+		expect((await patch({ op: 'unset', path })).isError).toBeFalsy();
+	});
+
+	it('validate_document says what a save would', async () => {
+		const id = await pageWithLeftovers();
+		const check = async (data: object, extra: object = {}) =>
+			resultText(await call('validate_document', { collection: 'strictDoc', data, ...extra }));
+		const leftovers = { title: 'x', blocks: [block({ legacy: 'red' })] };
+		expect(await check(leftovers)).toMatch(/legacy/);
+		expect(await check(leftovers, { id })).not.toMatch(/legacy/);
+	});
+
+	it('get_schema leaves the retired field out', async () => {
+		const text = resultText(await call('get_schema', { collection: 'strictDoc' }));
+		expect(text).toContain('symbol');
+		expect(text).not.toContain('emoji');
+	});
+});

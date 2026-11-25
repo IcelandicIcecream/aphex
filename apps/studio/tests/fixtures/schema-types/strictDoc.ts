@@ -8,6 +8,17 @@ import type { SchemaType } from '@aphexcms/cms-core';
  * Kept deliberately small and stable. Unlike the app's schemas this one exists
  * only to be asserted against, so nothing here should change to suit a feature.
  */
+/** A block registered on its own, so its fields live outside `strictDoc`. */
+export const strictBlock: SchemaType = {
+	name: 'strictBlock',
+	title: 'Strict Block',
+	type: 'object',
+	fields: [
+		{ name: 'symbol', type: 'string', title: 'Symbol' },
+		{ name: 'emoji', type: 'string', title: 'Emoji', deprecated: { reason: 'Use "symbol".' } }
+	]
+};
+
 const strictDoc: SchemaType = {
 	name: 'strictDoc',
 	title: 'Strict Doc',
@@ -39,6 +50,7 @@ const strictDoc: SchemaType = {
 				{ name: 'note', type: 'string', title: 'Note' }
 			]
 		},
+		{ name: 'blocks', type: 'array', title: 'Blocks', of: [{ type: 'strictBlock' }] },
 		{
 			name: 'tags',
 			type: 'array',

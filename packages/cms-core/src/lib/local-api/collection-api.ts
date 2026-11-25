@@ -23,6 +23,7 @@ import {
 	type FieldErrors,
 	type FieldIssue
 } from '../field-validation/utils';
+import { newUnusableFields } from '../field-validation/new-fields';
 import { runDocumentHooks } from './hooks';
 import type { DocumentHookReader } from './hook-reader';
 import type { DocumentLimitGuard } from './limits';
@@ -626,6 +627,17 @@ export class CollectionAPI<T = Document> {
 		throw new DocumentValidationError(`Invalid document data - ${detail}`, result.structuralErrors);
 	}
 
+	/**
+	 * Refuse values newly written to fields that don't exist or are deprecated
+	 * (`rejectNewUnknownFields`). Checked on what the caller sent, before hooks.
+	 */
+	private assertNoNewUnusableFields(data: unknown, previous: readonly unknown[]): void {
+		const errors = newUnusableFields(this._schema, data, previous, this.schemaRegistry);
+		if (errors.length === 0) return;
+		const detail = errors.map((e) => `${e.field} ${e.errors.join(', ')}`).join('; ');
+		throw new DocumentValidationError(`Invalid document data - ${detail}`, errors);
+	}
+
 	private async findOwnDocById(
 		organizationId: string,
 		id: string,
@@ -801,6 +813,8 @@ export class CollectionAPI<T = Document> {
 			id?: string;
 			/** Domain events that must commit atomically with the new document. */
 			outboxEvents?: Array<Omit<AppendEventInput, 'organizationId'>>;
+			/** See `update`. */
+			rejectNewUnknownFields?: boolean;
 		}
 	): Promise<DocumentResult<T>> {
 		// Singleton schemas: create is idempotent — if the canonical row
@@ -840,6 +854,7 @@ export class CollectionAPI<T = Document> {
 			data as unknown as Record<string, unknown>,
 			locked
 		) as Omit<T, 'id' | '_meta'>;
+		if (options?.rejectNewUnknownFields) this.assertNoNewUnusableFields(filteredData, []);
 
 		// beforeValidate hooks: normalize/derive input before validation runs.
 		const hookedData = await runDocumentHooks(this._schema.hooks?.beforeValidate, {
@@ -1059,7 +1074,17 @@ export class CollectionAPI<T = Document> {
 		context: LocalAPIContext,
 		id: string,
 		data: Partial<Omit<T, 'id' | '_meta'>>,
-		options?: { publish?: boolean; skipVersioning?: boolean; expectedRevision?: number }
+		options?: {
+			publish?: boolean;
+			skipVersioning?: boolean;
+			expectedRevision?: number;
+			/**
+			 * Refuse a value written to a field that doesn't exist, or that the schema
+			 * marks `deprecated`, unless it was already stored. For writers that choose
+			 * field names themselves, such as an AI agent; a form can't get one wrong.
+			 */
+			rejectNewUnknownFields?: boolean;
+		}
 	): Promise<DocumentResult<T> | null> {
 		const result = await this.updateDocument(context, id, data, options);
 		return this.publishIfLive(context, result, options?.publish);
@@ -1079,6 +1104,7 @@ export class CollectionAPI<T = Document> {
 			 * still keep what is stored, since this caller can't write them.
 			 */
 			replace?: boolean;
+			rejectNewUnknownFields?: boolean;
 		}
 	): Promise<DocumentResult<T> | null> {
 		// Fetch the doc first so ownership policies have access to the target.
@@ -1111,6 +1137,13 @@ export class CollectionAPI<T = Document> {
 
 		// Merge cleaned existing data with filtered updates
 		const mergedData = { ...cleanedExisting, ...filteredData };
+		if (options?.rejectNewUnknownFields) {
+			// Both versions count as already there, so undoing a removal still saves.
+			this.assertNoNewUnusableFields(mergedData, [
+				existingDoc.draftData,
+				existingDoc.publishedData
+			]);
+		}
 
 		// beforeValidate hooks: normalize/derive input before validation runs.
 		const hookedData = await runDocumentHooks(this._schema.hooks?.beforeValidate, {

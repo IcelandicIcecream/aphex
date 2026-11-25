@@ -5,6 +5,8 @@
  * is enough to find the block to patch. `_meta` keeps only what a model acts on.
  */
 import { readPath } from '../local-api/patch';
+import { unknownFields } from '../field-validation/new-fields';
+import type { SchemaType } from '../types/schemas';
 import { SKIM_MARK } from '../field-validation/skim-mark';
 
 export interface DocumentViewOptions {
@@ -14,6 +16,8 @@ export interface DocumentViewOptions {
 	path?: string;
 	/** An index of the document: lists as their items' keys, types and labels. */
 	skim?: boolean;
+	/** Skim one list deep rather than two. */
+	flat?: boolean;
 }
 
 /** Text longer than this is cut when skimming. */
@@ -71,12 +75,14 @@ function entry(item: unknown, depth: number): unknown {
  * list as its items' keys, types and labels, two lists deep. Enough to find the
  * block to read with `path` or change with patch_document.
  */
-export function skim(value: unknown): unknown {
-	if (!isRecord(value)) return Array.isArray(value) ? value.map((item) => entry(item, 1)) : value;
+export function skim(value: unknown, flat = false): unknown {
+	const depth = flat ? 2 : 1;
+	if (!isRecord(value))
+		return Array.isArray(value) ? value.map((item) => entry(item, depth)) : value;
 	const out: Record<string, unknown> = {};
 	for (const [key, field] of Object.entries(value)) {
 		if (typeof field === 'string') out[key] = cut(field);
-		else if (Array.isArray(field)) out[key] = field.map((item) => entry(item, 1));
+		else if (Array.isArray(field)) out[key] = field.map((item) => entry(item, depth));
 		else if (!isRecord(field)) out[key] = field;
 		// An object field (seo, style) is left out: read it with fields or path.
 		else out[key] = '{…}';
@@ -101,9 +107,39 @@ function slimMeta(meta: unknown): Record<string, unknown> | undefined {
 	return out;
 }
 
+/** Leftovers listed at most; a page full of them needs no more to make the point. */
+const LEFTOVERS_LISTED = 20;
+
+/**
+ * Where what's being read holds values the schema has no field for. They aren't
+ * shown on the site, and nothing else about them says so. Retired (`deprecated`)
+ * fields aren't among them: those still work.
+ */
+function leftovers(
+	source: Record<string, unknown>,
+	{ fields, path }: DocumentViewOptions,
+	schema: SchemaType,
+	schemas: readonly SchemaType[]
+): { note: string; paths: string[] } | undefined {
+	const within = (at: string) =>
+		!path || at === path || at.startsWith(`${path}.`) || at.startsWith(`${path}[`);
+	const paths = unknownFields(schema, source, schemas)
+		.filter((field) => within(field.path) || within(field.keyPath))
+		.filter((field) => path || !fields?.length || fields.includes(String(field.segments[0])))
+		.map((field) => field.keyPath);
+	if (paths.length === 0) return undefined;
+	const more = paths.length - LEFTOVERS_LISTED;
+	return {
+		note: `Old values from fields that were removed: not shown anywhere. Don't copy them or rely on them.${more > 0 ? ` And ${more} more.` : ''}`,
+		paths: paths.slice(0, LEFTOVERS_LISTED)
+	};
+}
+
 export function viewDocument(
 	doc: object,
-	options: DocumentViewOptions = {}
+	options: DocumentViewOptions = {},
+	schema?: SchemaType,
+	schemas: readonly SchemaType[] = []
 ): Record<string, unknown> {
 	const { fields, path } = options;
 	const source: Record<string, unknown> = { ...doc };
@@ -111,17 +147,19 @@ export function viewDocument(
 	const meta = slimMeta(source._meta);
 	delete source.id;
 	delete source._meta;
-	const head = { ...(id !== undefined ? { id } : {}), ...(meta ? { _meta: meta } : {}) };
+	const notInSchema = schema && leftovers(source, options, schema, schemas);
+	const about = notInSchema ? { ...meta, notInSchema } : meta;
+	const head = { ...(id !== undefined ? { id } : {}), ...(about ? { _meta: about } : {}) };
 	if (path) {
 		const value = readPath(source, path);
-		return { ...head, path, value: options.skim ? skim(value) : value };
+		return { ...head, path, value: options.skim ? skim(value, options.flat) : value };
 	}
 	const picked = fields?.length
 		? Object.fromEntries(
 				fields.filter((field) => field in source).map((field) => [field, source[field]])
 			)
 		: source;
-	const body = options.skim ? skim(picked) : picked;
+	const body = options.skim ? skim(picked, options.flat) : picked;
 	return { ...head, ...(isRecord(body) ? body : {}) };
 }
 

@@ -229,24 +229,20 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	 * Find multiple assets with filtering
 	 */
 	async findAssets(organizationId: string, filters: AssetFilters = {}): Promise<Asset[]> {
-		try {
-			const { sort = 'newest', limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET } = filters;
+		const { sort = 'newest', limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET } = filters;
 
-			const conditions = this.buildAssetConditions(organizationId, filters);
+		const conditions = this.buildAssetConditions(organizationId, filters);
 
-			// Build and execute query
-			const result = await this.db
-				.select()
-				.from(this.tables.assets)
-				.where(and(...conditions))
-				.orderBy(...this.assetOrderBy(sort))
-				.limit(limit)
-				.offset(offset);
+		// Build and execute query
+		const result = await this.db
+			.select()
+			.from(this.tables.assets)
+			.where(and(...conditions))
+			.orderBy(...this.assetOrderBy(sort))
+			.limit(limit)
+			.offset(offset);
 
-			return result;
-		} catch {
-			return [];
-		}
+		return result;
 	}
 
 	/**
@@ -344,18 +340,15 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	 * Count total assets
 	 */
 	async countAssets(organizationId: string, filters?: AssetFilters): Promise<number> {
-		try {
-			const conditions = this.buildAssetConditions(organizationId, filters);
+		const conditions = this.buildAssetConditions(organizationId, filters);
 
-			const result = await this.db
-				.select({ count: sql<number>`count(*)` })
-				.from(this.tables.assets)
-				.where(and(...conditions));
+		const result = await this.db
+			.select({ count: sql<number>`count(*)` })
+			.from(this.tables.assets)
+			.where(and(...conditions));
 
-			return result[0]?.count || 0;
-		} catch {
-			return 0;
-		}
+		// Postgres returns a bigint count as a string.
+		return Number(result[0]?.count ?? 0);
 	}
 
 	/**

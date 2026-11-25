@@ -632,8 +632,7 @@
 				return n === undefined ? null : plural(n, 'collection');
 			}
 			case 'list_assets': {
-				const n = (record.assets as unknown[] | undefined)?.length;
-				return n === undefined ? null : plural(n, 'asset');
+				return typeof record.total === 'number' ? plural(record.total, 'asset') : null;
 			}
 			case 'query_documents': {
 				const total = record.totalDocs;

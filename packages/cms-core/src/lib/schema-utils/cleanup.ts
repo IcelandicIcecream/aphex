@@ -1,10 +1,13 @@
-import type { SchemaType, Field, ArrayField } from '../types/schemas';
+import { unknownFields } from '../field-validation/new-fields';
+import type { SchemaType } from '../types/schemas';
 
 export interface OrphanedField {
 	path: string;
 	key: string;
 	value: any;
 	level: 'document' | 'nested';
+	/** `path` a step at a time: field names, and list items by index. */
+	segments: ReadonlyArray<string | number>;
 }
 
 export interface SchemaCleanupResult {
@@ -14,94 +17,51 @@ export interface SchemaCleanupResult {
 }
 
 /**
- * Find orphaned fields in document data that no longer exist in the schema
+ * Find orphaned fields in document data that no longer exist in the schema, in
+ * objects, list items and blocks too. Registered blocks need `schemas` to be checked.
  */
 export function findOrphanedFields(
 	documentData: Record<string, any>,
-	schema: SchemaType
+	schema: SchemaType,
+	schemas: readonly SchemaType[] = []
 ): SchemaCleanupResult {
-	const orphanedFields: OrphanedField[] = [];
-
-	function checkObject(
-		obj: Record<string, any>,
-		fields: Field[],
-		pathPrefix = ''
-	): Record<string, any> {
-		const cleaned: Record<string, any> = {};
-		const fieldMap = new Map(fields.map((field) => [field.name, field]));
-
-		for (const [key, value] of Object.entries(obj)) {
-			const currentPath = pathPrefix ? `${pathPrefix}.${key}` : key;
-			const field = fieldMap.get(key);
-
-			if (!field) {
-				// Orphaned field found
-				orphanedFields.push({
-					path: currentPath,
-					key,
-					value,
-					level: pathPrefix ? 'nested' : 'document'
-				});
-				continue; // Skip this field in cleaned data
-			}
-
-			// Recursively check nested objects and arrays
-			if (field.type === 'object' && field.fields && value && typeof value === 'object') {
-				cleaned[key] = checkObject(value, field.fields, currentPath);
-			} else if (field.type === 'array' && Array.isArray(value)) {
-				cleaned[key] = checkArray(value, field, currentPath);
-			} else {
-				cleaned[key] = value;
-			}
-		}
-
-		return cleaned;
-	}
-
-	function checkArray(array: any[], arrayField: Field, pathPrefix: string): any[] {
-		if (arrayField.type !== 'array' || !arrayField.of) {
-			return array;
-		}
-
-		return array.map((item, index) => {
-			const itemPath = `${pathPrefix}[${index}]`;
-
-			if (item && typeof item === 'object' && item._type) {
-				// Find the schema for this array item type
-				const itemTypeSchema = getSchemaForArrayItem(item._type, arrayField);
-				if (itemTypeSchema && itemTypeSchema.fields) {
-					return checkObject(item, itemTypeSchema.fields, itemPath);
-				}
-			}
-
-			return item;
-		});
-	}
-
-	const cleanedData = checkObject(documentData, schema.fields);
-
+	const orphanedFields = unknownFields(schema, documentData, schemas).map(
+		({ path, segments, value }): OrphanedField => ({
+			path,
+			segments,
+			value,
+			key: String(segments[segments.length - 1]),
+			level: segments.length > 1 ? 'nested' : 'document'
+		})
+	);
 	return {
 		hasOrphanedFields: orphanedFields.length > 0,
 		orphanedFields,
-		cleanedData
+		get cleanedData() {
+			return orphanedFields.reduce(withoutField, documentData);
+		}
 	};
 }
 
-/**
- * Get the schema for an array item type (helper function)
- * This would need to be integrated with your schema registry
- */
-function getSchemaForArrayItem(typeName: string, arrayField: ArrayField): SchemaType | null {
-	// This is a placeholder - you'd need to integrate with your actual schema registry
-	// For now, we'll assume inline object schemas
-	if (arrayField.of) {
-		const typeRef = arrayField.of.find((ref) => ref.type === typeName);
-		if (typeRef && typeof typeRef !== 'string') {
-			// Handle inline schema definitions if needed
-			return null;
-		}
+/** The data without one orphaned field. Only what holds it is copied. */
+export function withoutField(
+	data: Record<string, any>,
+	field: Pick<OrphanedField, 'segments'>
+): Record<string, any> {
+	return remove(data, field.segments) as Record<string, any>;
+}
+
+function remove(value: unknown, [step, ...rest]: ReadonlyArray<string | number>): unknown {
+	if (Array.isArray(value)) {
+		return value.map((item, index) => (index === step ? remove(item, rest) : item));
 	}
-	return null;
+	if (step === undefined || typeof value !== 'object' || value === null) return value;
+	return Object.fromEntries(
+		Object.entries(value).flatMap(([key, inner]) => {
+			if (key !== step) return [[key, inner]];
+			return rest.length > 0 ? [[key, remove(inner, rest)]] : [];
+		})
+	);
 }
 
 /**
@@ -109,8 +69,8 @@ function getSchemaForArrayItem(typeName: string, arrayField: ArrayField): Schema
  */
 export function applySchemaCleanup(
 	documentData: Record<string, any>,
-	schema: SchemaType
+	schema: SchemaType,
+	schemas: readonly SchemaType[] = []
 ): Record<string, any> {
-	const result = findOrphanedFields(documentData, schema);
-	return result.cleanedData;
+	return findOrphanedFields(documentData, schema, schemas).cleanedData;
 }

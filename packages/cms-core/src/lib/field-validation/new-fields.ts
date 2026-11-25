@@ -29,7 +29,7 @@ export function newUnusableFields(
 ): UnusableFields {
 	const stored = storedPlaces(schema, previous, schemas);
 	const result: UnusableFields = { unknown: [], deprecated: [] };
-	walk(schema.fields, schema.title, data, '', '', registryOf(schemas), (found) => {
+	walk(schema.fields, schema.title, data, ROOT, registryOf(schemas), (found) => {
 		if (stored.has(identity(found))) return;
 		result[found.why].push({ field: found.path, errors: [found.reason], kind: 'structural' });
 	});
@@ -45,10 +45,26 @@ export function leftoverPaths(
 ): Set<string> {
 	const stored = storedPlaces(schema, previous, schemas);
 	const paths = new Set<string>();
-	walk(schema.fields, schema.title, data, '', '', registryOf(schemas), (found) => {
+	walk(schema.fields, schema.title, data, ROOT, registryOf(schemas), (found) => {
 		if (found.why === 'unknown' && stored.has(identity(found))) paths.add(found.path);
 	});
 	return paths;
+}
+
+/** One stored value whose field the schema no longer has. */
+export type UnknownField = Pick<Found, 'path' | 'keyPath' | 'segments' | 'value'>;
+
+/** Every value in a document that the schema has no field for, blocks and list items included. */
+export function unknownFields(
+	schema: SchemaType,
+	data: unknown,
+	schemas: readonly SchemaType[] = []
+): UnknownField[] {
+	const found: UnknownField[] = [];
+	walk(schema.fields, schema.title, data, ROOT, registryOf(schemas), (field) => {
+		if (field.why === 'unknown') found.push(field);
+	});
+	return found;
 }
 
 const registryOf = (schemas: readonly SchemaType[]) => new Map(schemas.map((s) => [s.name, s]));
@@ -60,7 +76,7 @@ function storedPlaces(
 ): Set<string> {
 	const stored = new Set<string>();
 	for (const version of previous) {
-		walk(schema.fields, schema.title, version, '', '', registryOf(schemas), (found) =>
+		walk(schema.fields, schema.title, version, ROOT, registryOf(schemas), (found) =>
 			stored.add(identity(found))
 		);
 	}
@@ -70,6 +86,10 @@ function storedPlaces(
 interface Found {
 	/** Where it is in this version, for the message. */
 	path: string;
+	/** The same, addressing list items by `_key` as patch paths do. */
+	keyPath: string;
+	/** The same, a step at a time. */
+	segments: ReadonlyArray<string | number>;
 	/** Where it is by its nearest keyed item, which survives a move. */
 	place: string;
 	value: unknown;
@@ -94,12 +114,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const isEmpty = (value: unknown) => value === undefined || value === null || value === '';
 
+type Cursor = Pick<Found, 'path' | 'keyPath' | 'place' | 'segments'>;
+const ROOT: Cursor = { path: '', keyPath: '', place: '', segments: [] };
+
 function walk(
 	fields: readonly Field[],
 	title: string,
 	data: unknown,
-	path: string,
-	place: string,
+	cursor: Cursor,
 	registry: ReadonlyMap<string, SchemaType>,
 	report: (found: Found) => void
 ): void {
@@ -109,7 +131,13 @@ function walk(
 	for (const [key, value] of Object.entries(data)) {
 		// `_type`, `_key` and the like are structure, and clearing a field is always allowed.
 		if (key.startsWith('_') || isEmpty(value)) continue;
-		const at = { path: path ? `${path}.${key}` : key, place: `${place}.${key}`, value };
+		const at = {
+			path: cursor.path ? `${cursor.path}.${key}` : key,
+			keyPath: cursor.keyPath ? `${cursor.keyPath}.${key}` : key,
+			segments: [...cursor.segments, key],
+			place: `${cursor.place}.${key}`,
+			value
+		};
 		const field = byName.get(key);
 
 		if (!field) {
@@ -126,7 +154,7 @@ function walk(
 			continue;
 		}
 		if (field.type === 'object') {
-			walk(field.fields, field.title, value, at.path, at.place, registry, report);
+			walk(field.fields, field.title, value, at, registry, report);
 		} else if (field.type === 'array' && Array.isArray(value)) {
 			value.forEach((item, index) => {
 				if (!isRecord(item)) return;
@@ -140,8 +168,12 @@ function walk(
 					itemFields,
 					ref.title ?? registered?.title ?? ref.name ?? ref.type,
 					item,
-					`${at.path}[${index}]`,
-					keyed ? `${String(item._type)}:${keyed}` : `${at.place}[${index}]`,
+					{
+						path: `${at.path}[${index}]`,
+						keyPath: keyed ? `${at.keyPath}[_key=="${keyed}"]` : `${at.keyPath}[${index}]`,
+						segments: [...at.segments, index],
+						place: keyed ? `${String(item._type)}:${keyed}` : `${at.place}[${index}]`
+					},
 					registry,
 					report
 				);

@@ -14,6 +14,8 @@
 import { z } from 'zod';
 import { applyPatch, PatchError } from '../local-api/patch';
 import { isRevisionConflictError } from '../db/interfaces/document';
+import type { Asset } from '../types/asset';
+import type { AssetFilters } from '../db/interfaces/asset';
 import type { CMSInstances } from '../hooks';
 import type { LocalAPIContext } from '../local-api/index';
 import type {
@@ -81,6 +83,34 @@ export interface ContentAgentTool {
 
 const ok = (data: unknown): AgentToolResult => ({ success: true, data });
 
+/** How many documents `query_documents` returns by default, and at most. */
+const DOCUMENTS_DEFAULT = 20;
+const DOCUMENTS_MAX = 50;
+/** Characters of documents in one `query_documents` answer: a page of pages would fill a model's context. */
+const DOCUMENTS_BUDGET = 24_000;
+
+/** How many files `list_assets` returns by default, and at most. */
+const ASSETS_DEFAULT = 25;
+const ASSETS_MAX = 50;
+
+/**
+ * A file as a model needs it: what it is, what it shows, and the id to reference it by.
+ * The stored row is mostly image metadata and storage paths, several times this size.
+ */
+function assetView(asset: Asset) {
+	return {
+		id: asset.id,
+		filename: asset.originalFilename,
+		mimeType: asset.mimeType,
+		size: asset.size,
+		...(asset.width && asset.height ? { width: asset.width, height: asset.height } : {}),
+		...(asset.alt ? { alt: asset.alt } : {}),
+		...(asset.title ? { title: asset.title } : {}),
+		...(asset.description ? { description: asset.description } : {}),
+		url: asset.url
+	};
+}
+
 /**
  * Whether the caller's organization has a type at all (`requiredCapabilities`).
  * The Local API refuses the rest, so an agent shouldn't be told about them.
@@ -132,6 +162,45 @@ function documentFields(doc: object): { data: Record<string, unknown>; revision?
 		else if (key !== 'id') data[key] = value;
 	}
 	return { data, revision };
+}
+
+/** A document that a single read returns whole; a larger one comes skimmed unless it's asked for by part. */
+const DOCUMENT_BUDGET = 40_000;
+
+/** One document for an agent: whole when it fits, else its index and how to read the rest. */
+function readDocument(
+	doc: object,
+	args: Record<string, unknown>,
+	schema: SchemaType | undefined,
+	schemas: readonly SchemaType[]
+): Record<string, unknown> {
+	const view = viewOptions(args);
+	const seen = viewDocument(doc, view, schema, schemas);
+	if (view.skim || view.path || view.fields?.length) return seen;
+	if (JSON.stringify(seen).length <= DOCUMENT_BUDGET) return seen;
+	return {
+		...viewDocument(doc, { skim: true }, schema, schemas),
+		note: 'Too large to return whole, so it is skimmed: read the part you need with `path` or `fields`.'
+	};
+}
+
+/**
+ * What a write answers with. The agent has just sent the content, so it isn't sent
+ * back: only what saving settled (keys given to new items, values hooks filled in),
+ * skimmed, and the revision to write with next.
+ */
+function savedView<T extends { document: unknown }>(result: T, written: Record<string, unknown>) {
+	const { document, ...rest } = result;
+	if (!document || typeof document !== 'object') return result;
+	const skimmed = viewDocument(document, { skim: true });
+	return {
+		document: Object.fromEntries(
+			Object.entries(skimmed).filter(
+				([key, value]) => key in written || (!Array.isArray(value) && value !== '{…}')
+			)
+		),
+		...rest
+	};
 }
 
 /** What a read returns: fields to pick, one path, or the whole document skimmed. */
@@ -311,12 +380,11 @@ export const contentAgentTools: ContentAgentTool[] = [
 				.map((s) => ({
 					name: s.name,
 					title: s.title,
-					singleton: s.type === 'document' ? (s.singleton ?? false) : false,
-					fieldCount: s.fields.length
+					...(s.type === 'document' && s.singleton ? { singleton: true } : {})
 				}));
 			const objectTypes = schemas
 				.filter((s) => s.type === 'object' && available(s))
-				.map((s) => ({ name: s.name, title: s.title, fieldCount: s.fields.length }));
+				.map((s) => s.name);
 
 			const auth = context.auth;
 			const capabilities =
@@ -335,7 +403,8 @@ export const contentAgentTools: ContentAgentTool[] = [
 				organizationId: orgId,
 				documentTypes,
 				objectTypes,
-				referenceGraph: edges,
+				// 'blogPost.author -> author': an object per edge is mostly repeated keys.
+				referenceGraph: edges.map(({ from, path, to }) => `${from}.${path} -> ${to.join('|')}`),
 				validFieldTypes: VALID_FIELD_TYPES,
 				reservedFieldNames: RESERVED_FIELDS,
 				capabilities,
@@ -523,7 +592,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 			name: 'query_documents',
 			title: 'Find documents',
 			description:
-				'Query a collection’s documents. `where` and `sort` take the field names and stored shapes get_schema returns for that collection. Supports filters, sorting, pagination, and draft/published perspective. Aphex slug fields are bare strings: use `where: { "slug": "home" }`, never `slug.current` or `{ current: "home" }`. Returns the documents themselves.',
+				'Query a collection’s documents. `where` and `sort` take the field names and stored shapes get_schema returns for that collection. Supports filters, sorting, pagination, and draft/published perspective. Aphex slug fields are bare strings: use `where: { "slug": "home" }`, never `slug.current` or `{ current: "home" }`. Returns the documents themselves, in full unless you pass `fields` or `skim`: do, unless you need the whole of them. A large answer stops early; when `hasMore`, pass `nextOffset` as `offset` for the rest.',
 			mutates: false,
 			requiredCapabilities: ['document.read'],
 			execution: 'server',
@@ -535,7 +604,10 @@ export const contentAgentTools: ContentAgentTool[] = [
 					.describe(
 						'Filter conditions (LocalAPI Where syntax). Call get_schema for this collection first and use only fields it returned. Slugs are bare strings, e.g. { "slug": "home" }; never use "slug.current".'
 					),
-				limit: z.number().optional().describe('Max results (default 50)'),
+				limit: z
+					.number()
+					.optional()
+					.describe(`Max results (default ${DOCUMENTS_DEFAULT}, max ${DOCUMENTS_MAX})`),
 				offset: z.number().optional().describe('Results to skip (default 0)'),
 				sort: z
 					.string()
@@ -561,8 +633,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 			// dynamic field keys; assert the parsed object into it at this external
 			// boundary rather than validating every possible filter shape.
 			const where = (asRecord(args, 'where') ?? undefined) as WhereTyped<unknown> | undefined;
-			const limit = typeof args.limit === 'number' ? args.limit : undefined;
-			const offset = typeof args.offset === 'number' ? args.offset : undefined;
+			const wanted = typeof args.limit === 'number' ? Math.floor(args.limit) : DOCUMENTS_DEFAULT;
+			const limit = Math.min(Math.max(wanted, 1), DOCUMENTS_MAX);
+			const offset = typeof args.offset === 'number' ? Math.max(Math.floor(args.offset), 0) : 0;
 			const sort = asString(args, 'sort') ?? undefined;
 			try {
 				const result = await col.find(context, {
@@ -572,12 +645,54 @@ export const contentAgentTools: ContentAgentTool[] = [
 					sort,
 					perspective: perspectiveArg(args.perspective)
 				});
-				const view = viewOptions(args);
+				// A list of documents needs each one's outline, not the lists inside its lists.
+				const view = { ...viewOptions(args), flat: true };
+				const schema = api.getCollectionSchema(collection);
+				const docs: unknown[] = [];
+				let used = 0;
+				let cutShort = false;
+				let skimmedFirst = false;
+				for (const doc of result.docs) {
+					const read = (options: typeof view) =>
+						doc && typeof doc === 'object'
+							? viewDocument(doc, options, schema, aphexCMS.config.schemaTypes)
+							: doc;
+					let seen: unknown = read(view);
+					let size = JSON.stringify(seen)?.length ?? 0;
+					if (used + size > DOCUMENTS_BUDGET) {
+						// One document always comes, or the next page could never start.
+						cutShort = docs.length > 0;
+						if (cutShort) break;
+						if (!view.skim) {
+							seen = read({ ...view, skim: true });
+							size = JSON.stringify(seen)?.length ?? 0;
+							skimmedFirst = true;
+						}
+					}
+					docs.push(seen);
+					used += size;
+				}
+				const next = offset + docs.length;
+				const hasMore = docs.length > 0 && next < result.totalDocs;
+				const notes = [
+					...(skimmedFirst
+						? [
+								'The first document is too large to return whole, so it is skimmed: read it with get_document, by `path` or `fields`.'
+							]
+						: []),
+					...(cutShort
+						? [
+								'Stopped early: these documents are large. Pass `skim` or `fields` to see more at once.'
+							]
+						: [])
+				];
 				return ok({
-					...result,
-					docs: result.docs.map((doc) =>
-						doc && typeof doc === 'object' ? viewDocument(doc, view) : doc
-					)
+					docs,
+					totalDocs: result.totalDocs,
+					offset,
+					hasMore,
+					...(hasMore ? { nextOffset: next } : {}),
+					...(notes.length ? { note: notes.join(' ') } : {})
 				});
 			} catch (err) {
 				return fail(`Query failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -616,7 +731,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 					perspective: perspectiveArg(args.perspective)
 				});
 				if (!doc) return fail(`Document not found: ${collection}/${id}`);
-				return ok(viewDocument(doc, viewOptions(args)));
+				return ok(
+					readDocument(doc, args, api.getCollectionSchema(collection), aphexCMS.config.schemaTypes)
+				);
 			} catch (err) {
 				return fail(`Get failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -655,7 +772,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 					publish: args.publish === true,
 					rejectNewUnknownFields: true
 				});
-				return ok(result);
+				return ok(savedView(result, data));
 			} catch (err) {
 				return fail(`Create failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -666,7 +783,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 			name: 'update_document',
 			title: 'Update a document',
 			description:
-				"Update fields on an existing document. Only include the fields you want to change in `data`; a field is replaced whole, so for an edit inside a list or rich text (one block, one sentence) use patch_document instead. Set publish:true to publish the result. Pass `expectedRevision` (from a prior get_document/update_document/publish_document call's `document._meta.revision`) to guard against overwriting a change made since you last read it — a mismatch fails the call instead of silently overwriting. If `content_patch_fields`/`content_save_draft` are also available, they target the document currently open in the admin editor — prefer those for edits to that specific document, since this tool writes straight to the database and the open editor will not reflect the change until the user reloads.",
+				"Update fields on an existing document. Only the fields in `data` change; a field is replaced whole, so for an edit inside a list or rich text use patch_document. Pass `expectedRevision` (the `_meta.revision` you last read) so a newer change isn't overwritten. Answers with the saved document skimmed. If `content_patch_fields`/`content_save_draft` are available, use those for the document open in the admin editor, which won't show this tool's write until it reloads.",
 			mutates: true,
 			requiredCapabilities: ['document.update'],
 			execution: 'server',
@@ -701,7 +818,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 						typeof args.expectedRevision === 'number' ? args.expectedRevision : undefined
 				});
 				if (!result) return fail(`Document not found: ${collection}/${id}`);
-				return ok(result);
+				return ok(savedView(result, data));
 			} catch (err) {
 				return fail(`Update failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -819,7 +936,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 						typeof args.expectedRevision === 'number' ? args.expectedRevision : undefined
 				});
 				if (!doc) return fail(`Document not found: ${collection}/${id}`);
-				return ok(doc);
+				return ok({ id, ...(typeof doc === 'object' ? documentMeta(doc) : {}) });
 			} catch (err) {
 				return fail(`Publish failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -852,7 +969,16 @@ export const contentAgentTools: ContentAgentTool[] = [
 			if (!col) return fail(`Unknown collection: ${collection}`);
 			try {
 				const doc = await col.get(context, { perspective: perspectiveArg(args.perspective) });
-				return ok(doc && typeof doc === 'object' ? viewDocument(doc, viewOptions(args)) : doc);
+				return ok(
+					doc && typeof doc === 'object'
+						? readDocument(
+								doc,
+								args,
+								api.getCollectionSchema(collection),
+								aphexCMS.config.schemaTypes
+							)
+						: doc
+				);
 			} catch (err) {
 				// SingletonOperationError when the type isn't a singleton — surface its message.
 				return fail(err instanceof Error ? err.message : String(err));
@@ -895,7 +1021,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 					rejectNewUnknownFields: true
 				});
 				if (!result) return fail(`Failed to update singleton '${collection}'.`);
-				return ok(result);
+				return ok(savedView(result, data));
 			} catch (err) {
 				return fail(`Update failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -905,16 +1031,18 @@ export const contentAgentTools: ContentAgentTool[] = [
 		definition: {
 			name: 'list_assets',
 			title: 'List files',
-			description:
-				'List media assets (images and files) in this organization, optionally filtered.',
+			description: `List media assets (images and files) in this organization, newest first. Returns ${ASSETS_DEFAULT} at a time (${ASSETS_MAX} at most) with the \`total\`; when \`hasMore\`, pass \`nextOffset\` as \`offset\` for the next page. \`search\` by name or alt text instead of reading every page.`,
 			mutates: false,
 			requiredCapabilities: ['asset.read'],
 			execution: 'server',
 			inputSchema: z.object({
-				search: z.string().optional().describe('Filter by filename/text'),
+				search: z.string().optional().describe('Matches filename, title, alt text, description'),
 				assetType: z.enum(['image', 'file']).optional(),
-				limit: z.number().optional(),
-				offset: z.number().optional()
+				limit: z
+					.number()
+					.optional()
+					.describe(`Files to return (default ${ASSETS_DEFAULT}, max ${ASSETS_MAX})`),
+				offset: z.number().optional().describe('Files to skip (default 0)')
 			})
 		},
 		execute: async (
@@ -924,16 +1052,28 @@ export const contentAgentTools: ContentAgentTool[] = [
 			if (!context.auth || !hasCapability(context.auth, 'asset.read')) {
 				return fail("Forbidden: 'asset.read' capability required.");
 			}
-			const { assetService } = aphexCMS;
+			const { assetService, databaseAdapter } = aphexCMS;
 			const orgId = context.organizationId;
 			const search = asString(args, 'search') ?? undefined;
 			const assetType =
 				args.assetType === 'image' || args.assetType === 'file' ? args.assetType : undefined;
-			const limit = typeof args.limit === 'number' ? args.limit : undefined;
-			const offset = typeof args.offset === 'number' ? args.offset : undefined;
+			const wanted = typeof args.limit === 'number' ? Math.floor(args.limit) : ASSETS_DEFAULT;
+			const limit = Math.min(Math.max(wanted, 1), ASSETS_MAX);
+			const offset = typeof args.offset === 'number' ? Math.max(Math.floor(args.offset), 0) : 0;
+			const filters: AssetFilters = { search, assetType, limit, offset };
 			try {
-				const assets = await assetService.findAssets(orgId, { search, assetType, limit, offset });
-				return ok({ assets, count: assets.length });
+				const [assets, total] = await Promise.all([
+					assetService.findAssets(orgId, filters),
+					databaseAdapter.countAssets(orgId, filters)
+				]);
+				const next = offset + assets.length;
+				const hasMore = assets.length > 0 && next < total;
+				return ok({
+					assets: assets.map(assetView),
+					total,
+					hasMore,
+					...(hasMore ? { nextOffset: next } : {})
+				});
 			} catch (err) {
 				return fail(`List assets failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -1042,7 +1182,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 
 				const ref = { _type: 'reference' as const, _ref: asset.id };
 				return ok({
-					asset,
+					asset: assetView(asset),
 					// Referenceable field values — use the one matching the target field's type.
 					imageValue: { _type: 'image', asset: ref },
 					fileValue: { _type: 'file', asset: ref }

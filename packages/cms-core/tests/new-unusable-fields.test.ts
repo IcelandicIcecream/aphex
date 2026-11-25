@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { newUnusableFields } from '../src/lib/field-validation/new-fields';
+import { findOrphanedFields, withoutField } from '../src/lib/schema-utils/cleanup';
+import { viewDocument } from '../src/lib/mcp/document-view';
 import type { SchemaType } from '../src/lib/types/schemas';
 
 const icon: SchemaType = {
@@ -120,5 +122,82 @@ describe('newUnusableFields', () => {
 		expect(check({ blocks: 'nope' })).toEqual([]);
 		expect(check({ blocks: [{ _type: 'unknown', x: 1 }, 'text', null] })).toEqual([]);
 		expect(check(null)).toEqual([]);
+	});
+});
+
+describe('leftovers, for whoever reads or clears them', () => {
+	const doc = () => ({
+		id: 'p1',
+		_meta: { revision: 3 },
+		title: 'Home',
+		gone: 1,
+		blocks: [
+			{
+				_type: 'features',
+				_key: 'a',
+				legacy: 'red',
+				style: { _type: 'style', tone: 'dark', old: true },
+				items: [{ _type: 'featureItem', _key: 'x', emoji: 'pin', lost: 'y' }]
+			}
+		]
+	});
+	const content = () => {
+		const { id: _id, _meta, ...data } = doc();
+		return data;
+	};
+	const read = (options = {}) => {
+		const meta = viewDocument(doc(), options, page, schemas)._meta;
+		return JSON.parse(JSON.stringify(meta)).notInSchema?.paths;
+	};
+
+	it('tells an agent where they are, as patch paths, and not about retired fields', () => {
+		expect(read()).toEqual([
+			'gone',
+			'blocks[_key=="a"].legacy',
+			'blocks[_key=="a"].style.old',
+			'blocks[_key=="a"].items[_key=="x"].lost'
+		]);
+		expect(read({ skim: true })).toHaveLength(4);
+	});
+
+	it('mentions only those in the part being read', () => {
+		expect(read({ fields: ['title'] })).toBeUndefined();
+		expect(read({ path: 'blocks[_key=="a"].items' })).toEqual([
+			'blocks[_key=="a"].items[_key=="x"].lost'
+		]);
+		expect(read({ path: 'blocks[0].style' })).toEqual(['blocks[_key=="a"].style.old']);
+	});
+
+	it('clears them everywhere and keeps _type, _key and retired fields', () => {
+		const data = content();
+		const before = JSON.stringify(data);
+		const { cleanedData, orphanedFields } = findOrphanedFields(data, page, schemas);
+		expect(orphanedFields.map((f) => f.path)).toEqual([
+			'gone',
+			'blocks[0].legacy',
+			'blocks[0].style.old',
+			'blocks[0].items[0].lost'
+		]);
+		expect(cleanedData).toEqual({
+			title: 'Home',
+			blocks: [
+				{
+					_type: 'features',
+					_key: 'a',
+					style: { _type: 'style', tone: 'dark' },
+					items: [{ _type: 'featureItem', _key: 'x', emoji: 'pin' }]
+				}
+			]
+		});
+		expect(JSON.stringify(data)).toBe(before);
+	});
+
+	it('clears one at a time', () => {
+		const data = content();
+		const { orphanedFields } = findOrphanedFields(data, page, schemas);
+		const last = orphanedFields[3];
+		if (!last) throw new Error('expected four');
+		const after = findOrphanedFields(withoutField(data, last), page, schemas).orphanedFields;
+		expect(after.map((f) => f.path)).toEqual(['gone', 'blocks[0].legacy', 'blocks[0].style.old']);
 	});
 });

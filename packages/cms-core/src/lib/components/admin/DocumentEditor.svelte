@@ -10,7 +10,7 @@
 	import { assets } from '../../api/assets';
 	import { ApiError } from '../../api/client';
 	import SchemaField from './SchemaField.svelte';
-	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup';
+	import { findOrphanedFields, withoutField, type OrphanedField } from '../../schema-utils/cleanup';
 	import { isFieldVisible } from '../../schema-utils/visibility';
 	import { publishLabelsFor, showsSaveStatusOnly } from '../../schema-utils/publishing';
 	import type { Field, SchemaType } from '../../types/schemas.js';
@@ -1425,8 +1425,17 @@
 		hasUnsavedChanges = true;
 	});
 
-	let orphanedFields = $state<OrphanedField[]>([]);
-	let showOrphanedFields = $state(false);
+	const orphanedFields = $derived.by((): OrphanedField[] => {
+		if (!schema || !documentData) return [];
+		return findOrphanedFields(documentData, schema, schemas).orphanedFields;
+	});
+	let orphansOpen = $state(false);
+	/** The document whose notice was dismissed: it stays away while that document is open. */
+	let orphansDismissedFor = $state<string | null>(null);
+	$effect(() => {
+		void documentId;
+		orphansOpen = false;
+	});
 	// Field components by name, so validation results can be pushed into them
 	// after a load/autosave. Keyed by name rather than index: only the active
 	// group's fields are rendered, so positions never line up with schema.fields.
@@ -1572,15 +1581,6 @@
 	$effect(() => {
 		if (isCreating && schema) {
 			initializeDocument();
-		}
-	});
-
-	// Check for orphaned fields when document data or schema changes
-	$effect(() => {
-		if (documentData && schema && Object.keys(documentData).length > 0) {
-			const cleanupResult = findOrphanedFields(documentData, schema);
-			orphanedFields = cleanupResult.orphanedFields;
-			showOrphanedFields = cleanupResult.hasOrphanedFields;
 		}
 	});
 
@@ -2638,61 +2638,15 @@
 	}
 
 	// Schema cleanup functions
-	function removeOrphanedField(fieldToRemove: OrphanedField) {
-		// Deep clone to ensure nested object changes trigger reactivity
-		const newData = JSON.parse(JSON.stringify(documentData));
-
-		if (fieldToRemove.level === 'document') {
-			delete newData[fieldToRemove.key];
-		} else {
-			// Handle nested field removal (more complex path-based deletion)
-			removeFieldByPath(newData, fieldToRemove.path);
-		}
-
-		documentData = newData;
+	function removeOrphanedField(field: OrphanedField) {
+		documentData = withoutField($state.snapshot(documentData), field);
 		hasUnsavedChanges = true;
-
-		// Remove from orphaned fields list
-		orphanedFields = orphanedFields.filter((f) => f !== fieldToRemove);
-
-		// Hide warning if no more orphaned fields
-		if (orphanedFields.length === 0) {
-			showOrphanedFields = false;
-		}
-	}
-
-	function removeFieldByPath(obj: any, path: string) {
-		const parts = path.split('.');
-		let current = obj;
-
-		for (let i = 0; i < parts.length - 1; i++) {
-			const part = parts[i]!;
-			if (part.includes('[') && part.includes(']')) {
-				// Handle array index like "items[0]"
-				const [key, indexStr] = part.split('[');
-				const index = parseInt(indexStr!.replace(']', ''));
-				current = current[key!][index];
-			} else {
-				current = current[part];
-			}
-		}
-
-		const lastPart = parts[parts.length - 1]!;
-		delete current[lastPart];
 	}
 
 	function cleanupAllOrphanedFields() {
 		if (!schema) return;
-
-		const cleanupResult = findOrphanedFields(documentData, schema);
-		documentData = cleanupResult.cleanedData;
+		documentData = findOrphanedFields($state.snapshot(documentData), schema, schemas).cleanedData;
 		hasUnsavedChanges = true;
-		showOrphanedFields = false;
-		orphanedFields = [];
-	}
-
-	function dismissOrphanedFields() {
-		showOrphanedFields = false;
 	}
 </script>
 
@@ -3117,77 +3071,68 @@
 							<div class="text-muted-foreground text-sm">Loading schema...</div>
 						</div>
 					{:else if schema}
-						<!-- Orphaned Fields Warning -->
-						{#if showOrphanedFields && orphanedFields.length > 0}
-							<div class="space-y-3 rounded-md border border-orange-200 bg-orange-50 p-4">
-								<div class="flex items-center gap-2">
-									<svg
-										class="h-5 w-5 text-orange-600"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L5.081 16.5c-.77.833.192 2.5 1.732 2.5z"
-										/>
-									</svg>
-									<h4 class="text-sm font-medium text-orange-800">
-										{orphanedFields.length} orphaned field{orphanedFields.length === 1 ? '' : 's'} detected
-									</h4>
-								</div>
-
-								<p class="text-sm text-orange-700">
-									These fields exist in your document but are no longer defined in the schema:
-								</p>
-
-								<div class="space-y-2">
-									{#each orphanedFields as field, index (index)}
-										<div
-											class="flex items-center justify-between rounded border border-orange-200 bg-white p-3"
+						<!-- Values left from fields the schema no longer has. They block nothing, so this is
+						     a quiet line; the values themselves are for whoever opens it. -->
+						{#if orphanedFields.length > 0 && orphansDismissedFor !== (documentId ?? '')}
+							<div class="bg-muted/40 text-muted-foreground rounded-md border px-3 py-2 text-xs">
+								<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+									<p class="min-w-0 flex-1 basis-48">
+										{orphanedFields.length === 1
+											? "This has an old value from a field that was removed. It isn't used, and nothing needs doing."
+											: `This has ${orphanedFields.length} old values from fields that were removed. They aren't used, and nothing needs doing.`}
+									</p>
+									<div class="flex gap-1">
+										<Button
+											size="sm"
+											variant="ghost"
+											class="h-7 px-2 text-xs"
+											aria-expanded={orphansOpen}
+											onclick={() => (orphansOpen = !orphansOpen)}
 										>
-											<div class="flex-1">
-												<div class="font-mono text-sm font-medium text-orange-800">
-													{field.path || field.key}
-												</div>
-												<div class="mt-1 text-xs text-orange-600">
-													<code class="rounded bg-orange-100 px-1"
-														>{JSON.stringify(field.value)}</code
-													>
-												</div>
-											</div>
-											<Button
-												size="sm"
-												variant="outline"
-												onclick={() => removeOrphanedField(field)}
-												class="ml-3 h-8 border-red-200 px-3 text-red-600 hover:border-red-300 hover:bg-red-50"
-											>
-												Remove
-											</Button>
-										</div>
-									{/each}
+											{orphansOpen ? 'Hide' : 'Review'}
+										</Button>
+										<Button
+											size="sm"
+											variant="ghost"
+											class="h-7 px-2 text-xs"
+											onclick={() => (orphansDismissedFor = documentId ?? '')}
+										>
+											Dismiss
+										</Button>
+									</div>
 								</div>
-
-								<div class="flex gap-2 border-t border-orange-200 pt-2">
-									<Button
-										size="sm"
-										variant="outline"
-										onclick={cleanupAllOrphanedFields}
-										class="border-orange-600 bg-orange-600 text-white hover:bg-orange-700"
-									>
-										Remove All
-									</Button>
-									<Button
-										size="sm"
-										variant="ghost"
-										onclick={dismissOrphanedFields}
-										class="text-orange-700 hover:text-orange-800"
-									>
-										Dismiss
-									</Button>
-								</div>
+								{#if orphansOpen}
+									<ul class="mt-2 max-h-64 divide-y overflow-y-auto border-t">
+										{#each orphanedFields as field (field.path)}
+											<li class="flex items-start justify-between gap-3 py-2">
+												<div class="min-w-0">
+													<div class="text-foreground font-mono break-all">{field.path}</div>
+													<div class="truncate font-mono" title={JSON.stringify(field.value)}>
+														{JSON.stringify(field.value)}
+													</div>
+												</div>
+												<Button
+													size="sm"
+													variant="outline"
+													class="h-7 shrink-0 px-2 text-xs"
+													onclick={() => removeOrphanedField(field)}
+												>
+													Remove
+												</Button>
+											</li>
+										{/each}
+									</ul>
+									{#if orphanedFields.length > 1}
+										<Button
+											size="sm"
+											variant="outline"
+											class="mt-2 h-7 px-2 text-xs"
+											onclick={cleanupAllOrphanedFields}
+										>
+											Remove all {orphanedFields.length}
+										</Button>
+									{/if}
+								{/if}
 							</div>
 						{/if}
 

@@ -91,6 +91,7 @@ function setup(
 	pluginTools: AgentToolPart[] = []
 ) {
 	const findAssets = vi.fn().mockResolvedValue([]);
+	const countAssets = vi.fn().mockResolvedValue(0);
 	const uploadAsset = vi.fn().mockResolvedValue({ id: 'asset-1' });
 	const postCollection = fakeCollection();
 	const settingsCollection = fakeCollection({
@@ -111,6 +112,7 @@ function setup(
 			getCollection: (name: string) => collections[name]
 		},
 		assetService: { findAssets, uploadAsset },
+		databaseAdapter: { countAssets },
 		partResolver: {
 			agentToolsForCapabilities: (caps: string[]) =>
 				pluginTools.filter(
@@ -152,6 +154,7 @@ function setup(
 		postCollection,
 		settingsCollection,
 		findAssets,
+		countAssets,
 		uploadAsset
 	};
 }
@@ -209,6 +212,90 @@ describe('MCP content tools — smoke test every tool', () => {
 		const result = await byName('query_documents').handler({ collection: 'post' });
 		expect(result.isError).toBeFalsy();
 		expect(postCollection.find).toHaveBeenCalledOnce();
+	});
+
+	describe('query_documents keeps one answer small', () => {
+		const query = async (
+			docs: unknown[],
+			totalDocs: number,
+			args: Record<string, unknown> = {}
+		) => {
+			const { byName, postCollection } = setup();
+			postCollection.find.mockResolvedValue({ docs, totalDocs });
+			const result = await byName('query_documents').handler({ collection: 'post', ...args });
+			const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+			return { text, body: JSON.parse(text), find: postCollection.find };
+		};
+		const doc = (n: number, length: number) => ({ id: `doc-${n}`, title: 'x'.repeat(length) });
+
+		it('defaults to 20 and caps at 50', async () => {
+			expect((await query([], 0)).find.mock.calls[0]?.[1]).toMatchObject({ limit: 20, offset: 0 });
+			expect((await query([], 0, { limit: 900 })).find.mock.calls[0]?.[1]).toMatchObject({
+				limit: 50
+			});
+		});
+
+		it('stops early on large documents and says where to go on', async () => {
+			const docs = [1, 2, 3, 4].map((n) => doc(n, 10_000));
+			const { body, text } = await query(docs, 4, { offset: 0 });
+			expect(body.docs).toHaveLength(2);
+			expect(body).toMatchObject({ totalDocs: 4, hasMore: true, nextOffset: 2 });
+			expect(body.note).toContain('skim');
+			expect(text.length).toBeLessThan(25_000);
+		});
+
+		it('skims a first document that is too large on its own', async () => {
+			const { body, text } = await query([doc(1, 90_000), doc(2, 10)], 2);
+			expect(body.docs).toHaveLength(2);
+			expect(body.hasMore).toBe(false);
+			expect(body.note).toContain('get_document');
+			expect(text.length).toBeLessThan(2_000);
+		});
+
+		it('says there is no more on the last page', async () => {
+			const { body } = await query([doc(21, 5)], 21, { offset: 20 });
+			expect(body).toMatchObject({ hasMore: false });
+			expect(body).not.toHaveProperty('nextOffset');
+			expect(body).not.toHaveProperty('note');
+		});
+	});
+
+	it('a write answers with an outline of what was saved, not all of it', async () => {
+		const { byName, postCollection } = setup();
+		postCollection.update.mockResolvedValue({
+			document: {
+				id: 'doc-1',
+				title: 'x'.repeat(5000),
+				blocks: [{ _key: 'k1', _type: 'hero', heading: 'Hi', body: 'y'.repeat(5000) }],
+				other: [{ _key: 'k2', _type: 'cta' }],
+				total: 7,
+				_meta: { revision: 4, status: 'draft' }
+			},
+			validation: { isValid: true, errors: [] }
+		});
+		const result = await byName('update_document').handler({
+			collection: 'post',
+			id: 'doc-1',
+			data: { blocks: [] }
+		});
+		const body = JSON.parse(result.content[0]?.type === 'text' ? result.content[0].text : '');
+		expect(body.document).toMatchObject({ id: 'doc-1', total: 7, _meta: { revision: 4 } });
+		expect(body.document.blocks[0]).toMatchObject({ _key: 'k1', _type: 'hero' });
+		expect(body.document).not.toHaveProperty('other');
+		expect(body.validation.isValid).toBe(true);
+		expect(JSON.stringify(body).length).toBeLessThan(600);
+	});
+
+	it('get_document skims a document too large to return whole, unless part is asked for', async () => {
+		const { byName, postCollection } = setup();
+		postCollection.findByID.mockResolvedValue({ id: 'doc-1', title: 'x'.repeat(60_000) });
+		const read = async (args: Record<string, unknown>) => {
+			const r = await byName('get_document').handler({ collection: 'post', id: 'doc-1', ...args });
+			return r.content[0]?.type === 'text' ? r.content[0].text : '';
+		};
+		expect((await read({})).length).toBeLessThan(500);
+		expect(await read({})).toContain('skimmed');
+		expect((await read({ fields: ['title'] })).length).toBeGreaterThan(60_000);
 	});
 
 	it('get_document calls collection.findByID', async () => {
@@ -432,6 +519,50 @@ describe('MCP content tools — smoke test every tool', () => {
 			const result = await byName('list_assets').handler({});
 			expect(result.isError).toBeFalsy();
 			expect(findAssets).toHaveBeenCalledWith('org-1', expect.any(Object));
+		});
+
+		it('list_assets pages, caps the page and leaves out the stored row’s internals', async () => {
+			const { byName, findAssets, countAssets } = setup(['asset.read']);
+			findAssets.mockResolvedValue([
+				{
+					id: 'asset-1',
+					originalFilename: 'front.jpg',
+					mimeType: 'image/jpeg',
+					size: 10,
+					width: 4,
+					height: 3,
+					alt: 'The front',
+					url: '/media/asset-1/front.jpg',
+					path: 'internal/key',
+					metadata: { exif: 'x'.repeat(2000) }
+				}
+			]);
+			countAssets.mockResolvedValue(109);
+			const result = await byName('list_assets').handler({ limit: 1000, offset: 25, search: 'fr' });
+			expect(findAssets).toHaveBeenCalledWith(
+				'org-1',
+				expect.objectContaining({ limit: 50, offset: 25, search: 'fr' })
+			);
+			const body = JSON.parse(result.content[0]?.type === 'text' ? result.content[0].text : '');
+			expect(body).toMatchObject({ total: 109, hasMore: true, nextOffset: 26 });
+			expect(body.assets[0]).toEqual({
+				id: 'asset-1',
+				filename: 'front.jpg',
+				mimeType: 'image/jpeg',
+				size: 10,
+				width: 4,
+				height: 3,
+				alt: 'The front',
+				url: '/media/asset-1/front.jpg'
+			});
+		});
+
+		it('list_assets says there are no more past the end', async () => {
+			const { byName, countAssets } = setup(['asset.read']);
+			countAssets.mockResolvedValue(3);
+			const result = await byName('list_assets').handler({ offset: 50 });
+			const body = JSON.parse(result.content[0]?.type === 'text' ? result.content[0].text : '');
+			expect(body).toEqual({ assets: [], total: 3, hasMore: false });
 		});
 
 		it('upload_asset rejects a caller without asset.upload, without touching assetService', async () => {

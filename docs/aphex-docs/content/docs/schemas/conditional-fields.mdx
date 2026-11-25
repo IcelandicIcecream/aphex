@@ -228,8 +228,10 @@ Choosing **High impact** shows content and media. Nothing on screen is inert.
 }
 ```
 
-Stored values stay and still render. Agents aren't shown the field, and a new value is refused
-with the reason.
+Retired means it still works: keep rendering it. Agents aren't shown the field, and a new value is
+refused with the reason. An API key's write is saved, with the reason in `validation.warnings`, so
+integrations have time to move. When you stop rendering it, delete the field: API keys are then
+refused too, and values left in stored documents don't stop anyone saving or publishing.
 
 ## Related
 

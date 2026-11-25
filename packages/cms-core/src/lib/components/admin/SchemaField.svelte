@@ -10,6 +10,7 @@
 	} from '../../types/schemas';
 	import {
 		isFieldRequired,
+		isUnknownFieldMessage,
 		validateField,
 		getValidationClasses,
 		humanizeValidationMessage,
@@ -179,7 +180,9 @@
 		cmsLogger.debug('[SchemaField.performValidation]', `Validation result for "${field.name}"`, {
 			errors: result.errors
 		});
-		validationErrors = result.errors;
+		// Stored data from a field since removed: nothing here can change it, and it
+		// stops no save or publish.
+		validationErrors = result.errors.filter((e) => !isUnknownFieldMessage(e.message));
 	}
 
 	/**

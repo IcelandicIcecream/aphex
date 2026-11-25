@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { newUnusableFields } from '../src/lib/field-validation/new-fields';
-import { schemaOutline } from '../src/lib/mcp/schema-outline';
 import type { SchemaType } from '../src/lib/types/schemas';
 
 const icon: SchemaType = {
@@ -58,8 +57,10 @@ const page: SchemaType = {
 	]
 };
 const schemas = [page, features, icon];
-const check = (data: unknown, ...previous: unknown[]) =>
-	newUnusableFields(page, data, previous, schemas);
+const check = (data: unknown, ...previous: unknown[]) => {
+	const { unknown, deprecated } = newUnusableFields(page, data, previous, schemas);
+	return [...unknown, ...deprecated];
+};
 const block = (extra: object, key = 'a') => ({ _type: 'features', _key: key, ...extra });
 
 describe('newUnusableFields', () => {
@@ -85,6 +86,15 @@ describe('newUnusableFields', () => {
 		const old = block({ legacy: 'red' });
 		expect(check({ blocks: [block({}, 'new'), old] }, { blocks: [old] })).toEqual([]);
 		expect(check({ blocks: [old] }, { blocks: [] }, { blocks: [old] })).toEqual([]);
+	});
+
+	it('knows a leftover whose keys the database returned in another order', () => {
+		expect(
+			check(
+				{ blocks: [block({ old: { a: 1, b: 2 } })] },
+				{ blocks: [block({ old: { b: 2, a: 1 } })] }
+			)
+		).toEqual([]);
 	});
 
 	it('refuses a changed leftover, and one on another block', () => {

@@ -466,7 +466,6 @@ export const contentAgentTools: ContentAgentTool[] = [
 			if (!schema) return fail(`Unknown collection: ${collection}`);
 			try {
 				const schemas = aphexCMS.config.schemaTypes;
-				const result = await validateDocumentData(schema, data, { schemas });
 				// The other half of a save's check: fields this write would newly misuse.
 				const id = asString(args, 'id');
 				const col = id ? api.getCollection(collection) : undefined;
@@ -477,7 +476,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 						if (doc) previous.push(documentFields(doc).data);
 					}
 				}
-				const unusable = newUnusableFields(schema, data, previous, schemas);
+				const result = await validateDocumentData(schema, data, { schemas, stored: previous });
+				const { unknown, deprecated } = newUnusableFields(schema, data, previous, schemas);
+				const unusable = [...unknown, ...deprecated];
 				const reported = new Set(unusable.map((e) => e.field));
 				const errors = [...unusable, ...result.errors.filter((e) => !reported.has(e.field))];
 				return ok({ isValid: errors.length === 0, errors });

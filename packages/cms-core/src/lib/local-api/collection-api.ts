@@ -628,14 +628,30 @@ export class CollectionAPI<T = Document> {
 	}
 
 	/**
-	 * Refuse values newly written to fields that don't exist or are deprecated
-	 * (`rejectNewUnknownFields`). Checked on what the caller sent, before hooks.
+	 * Refuse values newly written to fields that don't exist, from a writer that
+	 * chooses field names itself: an API key, or one asking for `rejectNewUnknownFields`.
+	 * The latter is refused `deprecated` fields too; for an API key those still work,
+	 * so they come back as warnings. Checked on what the caller sent, before hooks.
 	 */
-	private assertNoNewUnusableFields(data: unknown, previous: readonly unknown[]): void {
-		const errors = newUnusableFields(this._schema, data, previous, this.schemaRegistry);
-		if (errors.length === 0) return;
-		const detail = errors.map((e) => `${e.field} ${e.errors.join(', ')}`).join('; ');
-		throw new DocumentValidationError(`Invalid document data - ${detail}`, errors);
+	private checkNewFields(
+		context: LocalAPIContext,
+		data: unknown,
+		previous: readonly unknown[],
+		rejectAll: boolean | undefined
+	): FieldErrors[] {
+		if (!rejectAll && context.auth?.type !== 'api_key') return [];
+		const { unknown, deprecated } = newUnusableFields(
+			this._schema,
+			data,
+			previous,
+			this.schemaRegistry
+		);
+		const errors = rejectAll ? [...unknown, ...deprecated] : unknown;
+		if (errors.length > 0) {
+			const detail = errors.map((e) => `${e.field} ${e.errors.join(', ')}`).join('; ');
+			throw new DocumentValidationError(`Invalid document data - ${detail}`, errors);
+		}
+		return deprecated;
 	}
 
 	private async findOwnDocById(
@@ -854,7 +870,12 @@ export class CollectionAPI<T = Document> {
 			data as unknown as Record<string, unknown>,
 			locked
 		) as Omit<T, 'id' | '_meta'>;
-		if (options?.rejectNewUnknownFields) this.assertNoNewUnusableFields(filteredData, []);
+		const warnings = this.checkNewFields(
+			context,
+			filteredData,
+			[],
+			options?.rejectNewUnknownFields
+		);
 
 		// beforeValidate hooks: normalize/derive input before validation runs.
 		const hookedData = await runDocumentHooks(this._schema.hooks?.beforeValidate, {
@@ -872,6 +893,7 @@ export class CollectionAPI<T = Document> {
 			schemas: this.schemaRegistry
 		});
 		this.assertStructurallyValid(validationResult);
+		if (warnings.length > 0) validationResult.warnings = warnings;
 		this.permissions.assertCanInsertItems(
 			context,
 			this.collectionName,
@@ -1137,13 +1159,16 @@ export class CollectionAPI<T = Document> {
 
 		// Merge cleaned existing data with filtered updates
 		const mergedData = { ...cleanedExisting, ...filteredData };
-		if (options?.rejectNewUnknownFields) {
-			// Both versions count as already there, so undoing a removal still saves.
-			this.assertNoNewUnusableFields(mergedData, [
-				existingDoc.draftData,
-				existingDoc.publishedData
-			]);
-		}
+		// Both versions count as already there, so undoing a removal still saves, and
+		// a version being restored was saved once: a field removed since doesn't stop it.
+		const stored = [existingDoc.draftData, existingDoc.publishedData];
+		if (options?.replace) stored.push(data as Document['draftData']);
+		const warnings = this.checkNewFields(
+			context,
+			mergedData,
+			stored,
+			options?.rejectNewUnknownFields
+		);
 
 		// beforeValidate hooks: normalize/derive input before validation runs.
 		const hookedData = await runDocumentHooks(this._schema.hooks?.beforeValidate, {
@@ -1157,9 +1182,11 @@ export class CollectionAPI<T = Document> {
 
 		// Validate and normalize the merged data
 		const validationResult = await validateDocumentData(this._schema, hookedData, {
-			schemas: this.schemaRegistry
+			schemas: this.schemaRegistry,
+			stored
 		});
 		this.assertStructurallyValid(validationResult);
+		if (warnings.length > 0) validationResult.warnings = warnings;
 		// Both versions count as already there, so undoing a removal still saves.
 		this.permissions.assertCanInsertItems(
 			context,
@@ -1374,7 +1401,8 @@ export class CollectionAPI<T = Document> {
 
 		// Validate draft data (dates already in ISO, will be converted for validation)
 		const validationResult = await validateDocumentData(this._schema, document.draftData, {
-			schemas: this.schemaRegistry
+			schemas: this.schemaRegistry,
+			stored: [document.draftData]
 		});
 
 		if (!validationResult.isValid) {

@@ -1,3 +1,4 @@
+import { leftoverPaths } from './new-fields';
 import type { ArrayField, Field, SchemaType, TypeReference } from '../types/index';
 import { Rule, type ValidationContext } from './rule';
 import { normalizeDateFields } from './date-utils';
@@ -40,6 +41,13 @@ export interface FieldErrors {
  */
 export interface DocumentValidationContext extends ValidationContext {
 	schemas?: SchemaType[];
+	/**
+	 * Versions of this document already saved. An undeclared field one of them holds
+	 * is a leftover of a field since removed, not a mistake in this write, so it isn't
+	 * an error. Publishing passes the draft itself: every field in it was judged when
+	 * it was saved.
+	 */
+	stored?: readonly unknown[];
 }
 
 export interface DocumentValidationResult {
@@ -51,6 +59,8 @@ export interface DocumentValidationResult {
 	 */
 	structuralErrors: FieldErrors[];
 	normalizedData: Record<string, any>; // Data with dates normalized to ISO
+	/** Saved, but worth fixing: an API key wrote to a field marked `deprecated`. */
+	warnings?: FieldErrors[];
 }
 
 /**
@@ -916,6 +926,24 @@ function skimmedCopies(value: unknown, path = ''): FieldErrors[] {
 	);
 }
 
+/** Whether a validator message says a field isn't in the schema, at whatever depth. */
+export function isUnknownFieldMessage(message: string): boolean {
+	return splitFieldMessage(message).reason.startsWith('Unknown field "');
+}
+
+/** The errors, less those about undeclared fields at the given paths. */
+function withoutLeftovers(errors: FieldErrors[], leftovers: ReadonlySet<string>): FieldErrors[] {
+	if (leftovers.size === 0) return errors;
+	return errors.flatMap((error) => {
+		const messages = error.errors.filter(
+			(message) =>
+				!isUnknownFieldMessage(message) ||
+				!leftovers.has(splitFieldMessage(message).path ?? error.field)
+		);
+		return messages.length > 0 ? [{ ...error, errors: messages }] : [];
+	});
+}
+
 export async function validateDocumentData(
 	schema: SchemaType,
 	data: Record<string, any>,
@@ -934,9 +962,13 @@ export async function validateDocumentData(
 		dataForValidation
 	});
 
+	const { stored, ...fieldContext } = context;
+	const fieldErrors = await validateFieldSet(schema.fields, dataForValidation, fieldContext);
 	const validationErrors = [
 		...skimmedCopies(data),
-		...(await validateFieldSet(schema.fields, dataForValidation, context))
+		...(stored?.length
+			? withoutLeftovers(fieldErrors, leftoverPaths(schema, data, stored, context.schemas))
+			: fieldErrors)
 	];
 
 	cmsLogger.debug('[validateDocumentData]', 'Final result', {

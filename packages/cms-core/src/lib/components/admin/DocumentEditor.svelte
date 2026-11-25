@@ -2452,7 +2452,11 @@
 	> {
 		if (!schema) return [];
 		try {
-			const { errors } = await validateDocumentData(schema, documentData, { schemas });
+			const { errors } = await validateDocumentData(schema, documentData, {
+				schemas,
+				// As the server does: leftovers of removed fields never stop a publish.
+				stored: [documentData]
+			});
 			return errors.map((issue) => ({
 				name: issue.field,
 				title: schema?.fields.find((f) => f.name === issue.field)?.title ?? issue.field,

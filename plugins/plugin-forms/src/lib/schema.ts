@@ -612,13 +612,20 @@ export const formSubmissionSchema: SchemaType = {
 	preview: {
 		select: { title: 'summary', subtitle: 'submittedAt' }
 	},
+	// The message first; what's kept alongside it (the form, the time, the
+	// emails as they were sent) on its own tab, out of the way.
+	groups: [
+		{ name: 'message', title: 'Message', default: true },
+		{ name: 'details', title: 'Details' }
+	],
 	fields: [
 		{
 			name: 'form',
 			type: 'reference',
 			title: 'Form',
 			to: [{ type: 'form' }],
-			access: NO_WRITES
+			access: NO_WRITES,
+			group: 'details'
 		},
 		{
 			// Denormalized one-line description, stamped at submit time so the list
@@ -626,19 +633,25 @@ export const formSubmissionSchema: SchemaType = {
 			name: 'summary',
 			type: 'string',
 			title: 'Summary',
-			access: NO_WRITES
+			access: NO_WRITES,
+			group: 'details'
 		},
 		{
 			name: 'submittedAt',
 			type: 'datetime',
 			title: 'Submitted at',
-			access: NO_WRITES
+			access: NO_WRITES,
+			group: 'details'
 		},
 		{
 			name: 'submissionData',
 			type: 'array',
 			title: 'Answers',
 			access: NO_WRITES,
+			// Read as a message (SubmissionView.svelte): who, when, each question as
+			// the form asked it, and a Reply.
+			input: 'form-submission',
+			group: 'message',
 			of: [
 				{
 					type: 'object',
@@ -657,6 +670,7 @@ export const formSubmissionSchema: SchemaType = {
 			type: 'array',
 			title: 'Notification snapshot',
 			access: NO_WRITES,
+			group: 'details',
 			of: [
 				{
 					type: 'object',
@@ -675,13 +689,15 @@ export const formSubmissionSchema: SchemaType = {
 			type: 'string',
 			title: 'Sent as',
 			description: 'The site’s name, in front of the address its emails come from.',
-			access: NO_WRITES
+			access: NO_WRITES,
+			group: 'details'
 		},
 		{
 			name: 'confirmationEmail',
 			type: 'object',
 			title: 'Email to the visitor',
 			access: NO_WRITES,
+			group: 'details',
 			fields: [
 				{ name: 'to', type: 'string', title: 'To' },
 				{ name: 'replyTo', type: 'string', title: 'Reply to' },
@@ -694,6 +710,7 @@ export const formSubmissionSchema: SchemaType = {
 			type: 'array',
 			title: 'Field label snapshot',
 			access: NO_WRITES,
+			group: 'details',
 			of: [
 				{
 					type: 'object',

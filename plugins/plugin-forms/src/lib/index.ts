@@ -28,6 +28,7 @@
  * engine (see `compile.ts`). One validator, two ways to author.
  */
 import { definePlugin, effectiveOrganizationRole } from '@aphexcms/cms-core';
+import SubmissionView from './SubmissionView.svelte';
 import type { AccessRule, PluginPart, SchemaAccess, SchemaType } from '@aphexcms/cms-core';
 import { formSchema, formSubmissionSchema } from './schema';
 import { handleSubmit } from './submit';
@@ -122,6 +123,7 @@ export function formsPlugin(options: FormsPluginOptions = {}) {
 			implements: 'aphex/schema',
 			schemas: [form, submissionSchema]
 		},
+		{ implements: 'aphex/field/component', input: 'form-submission', component: SubmissionView },
 		{
 			implements: 'aphex/server/route',
 			id: 'forms.submit',

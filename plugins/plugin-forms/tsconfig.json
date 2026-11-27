@@ -21,6 +21,6 @@
 		"strict": true,
 		"skipLibCheck": true
 	},
-	"include": ["src/lib/**/*.ts"],
+	"include": ["src/lib/**/*.ts", "src/lib/**/*.svelte"],
 	"exclude": ["node_modules", "dist"]
 }

@@ -101,7 +101,7 @@
 			});
 
 			if (!result.success) {
-				throw new Error(result.error || 'Failed to update organization');
+				throw new Error(result.message || result.error || 'Failed to update organization');
 			}
 
 			toast.success('Organization updated successfully');

@@ -208,6 +208,19 @@ export const organizationsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				const body = c.req.valid('json');
 
+				// The app's own rules for a name (blocked words), the same as at creation.
+				// Saving the name unchanged isn't a rename, as with the slug below.
+				const checkName = c.var.aphexCMS.config?.checkOrganizationName;
+				if (body.name !== undefined && checkName) {
+					const current = await databaseAdapter.findOrganizationById(id);
+					if (body.name !== current?.name) {
+						const nameProblem = await checkName(body.name, { organizationId: id });
+						if (nameProblem) {
+							return c.json({ success: false, error: 'Invalid name', message: nameProblem }, 400);
+						}
+					}
+				}
+
 				// The app's own rules for a slug (its address format, reserved names), the
 				// same as at creation. Saving the name alone, or the slug unchanged, isn't
 				// a rename: an organization keeps a slug made before a rule existed.

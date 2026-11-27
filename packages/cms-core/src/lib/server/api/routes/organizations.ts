@@ -53,7 +53,11 @@ export const organizationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					{
 						success: false,
 						error: 'Invalid request body',
-						message: 'Organization name and slug are required',
+						// A name's own problem (too long) says so; anything else, what's needed.
+						message:
+							result.error.issues.find(
+								(issue) => issue.path[0] === 'name' && issue.code !== 'invalid_type'
+							)?.message ?? 'Organization name and slug are required',
 						issues: result.error.issues
 					},
 					400
@@ -93,6 +97,11 @@ export const organizationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				}
 
 				const body = c.req.valid('json');
+
+				const nameProblem = await c.var.aphexCMS.config?.checkOrganizationName?.(body.name, {});
+				if (nameProblem) {
+					return c.json({ success: false, error: 'Invalid name', message: nameProblem }, 400);
+				}
 
 				const slugProblem = await c.var.aphexCMS.config?.checkOrganizationSlug?.(body.slug, {});
 				if (slugProblem) {

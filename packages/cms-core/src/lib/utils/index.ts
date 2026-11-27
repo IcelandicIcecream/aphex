@@ -18,5 +18,6 @@ export * from './initial-value-helpers';
 export * from './file-accept';
 export * from './random-id';
 export * from './item-initial-value';
+export * from './organization-name';
 export * from './dates';
 export { describeDevice } from './user-agent';

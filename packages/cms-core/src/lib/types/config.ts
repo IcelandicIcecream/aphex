@@ -626,6 +626,21 @@ export interface CMSConfig {
 		}
 	) => string | null | undefined | Promise<string | null | undefined>;
 	/**
+	 * Says whether an organization may use a name, when one is created and when it's
+	 * renamed through the API or the settings page: return a reason to refuse it (the
+	 * person sees it), or nothing to allow it. The name arrives already cleaned (one
+	 * line, trimmed, no invisible characters; `cleanOrganizationName`), so this is
+	 * only the app's own rules: blocked words, names that pass for the app's staff, a
+	 * shorter limit. A rename that keeps the same name isn't asked about.
+	 */
+	checkOrganizationName?: (
+		name: string,
+		context: {
+			/** The organization being renamed; absent when one is being created. */
+			organizationId?: string;
+		}
+	) => string | null | undefined | Promise<string | null | undefined>;
+	/**
 	 * Runs when an owner deletes an organization, after the permission check and
 	 * before anything is erased. Throw to stop the delete: nothing is changed, and
 	 * the owner sees the error's message. For what the app keeps outside the CMS,

@@ -69,11 +69,15 @@
 			<div
 				class="bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded text-xs font-medium uppercase"
 			>
-				{type.slice(0, 2)}
+				{#if schema?.icon}
+					<schema.icon class="h-4 w-4" />
+				{:else}
+					{type.slice(0, 2)}
+				{/if}
 			</div>
 		{/if}
 		<div class="min-w-0 flex-1">
-			<div class="text-foreground text-sm font-medium capitalize">{title}</div>
+			<div class="text-foreground text-sm font-medium">{title}</div>
 			{#if subtitle}
 				<div class="text-muted-foreground truncate text-xs">{subtitle}</div>
 			{/if}

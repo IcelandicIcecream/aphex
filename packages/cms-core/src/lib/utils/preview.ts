@@ -6,7 +6,10 @@ import type { PreviewConfig, SchemaType } from '../types/schemas';
  * objects) and `TypeReference` (array members, Portable Text block types) satisfy
  * it, so array rows and rich-text block cards share one resolver.
  */
-export type PreviewSource = { title?: string; preview?: PreviewConfig } | null | undefined;
+export type PreviewSource =
+	| { title?: string; icon?: any; preview?: PreviewConfig }
+	| null
+	| undefined;
 
 /**
  * Walk a dot-path (e.g. `seo.title`) through an object. Returns the

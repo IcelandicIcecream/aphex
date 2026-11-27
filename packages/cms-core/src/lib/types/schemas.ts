@@ -415,7 +415,7 @@ export interface TypeReference {
 		decorators?: Array<{ title: string; value: string }>;
 		annotations?: AnnotationDefinition[];
 	};
-	of?: Array<{ type: string; title?: string; fields?: Field[] }>; // Inline objects within block
+	of?: Array<{ type: string; title?: string; icon?: typeof LucideIcon; fields?: Field[] }>; // Inline objects within block
 }
 
 export function isBlockArray(field: ArrayField): boolean {

@@ -863,7 +863,13 @@
 		const input = [...field.querySelectorAll<HTMLElement>(FOCUSABLE)].find(
 			(el) => el.getClientRects().length > 0
 		);
-		if (input) input.focus();
+		const shown = input ?? field;
+		// Bring it to the middle, where it's easy to read: focus() alone scrolls only as
+		// far as it must, which leaves a field low in a modal at its bottom edge. One
+		// taller than half the screen (a rich text field) starts at the top instead.
+		const tall = shown.getBoundingClientRect().height > window.innerHeight / 2;
+		shown.scrollIntoView({ behavior: 'smooth', block: tall ? 'start' : 'center' });
+		if (input) input.focus({ preventScroll: true });
 		else flash(field);
 	}
 
@@ -935,7 +941,6 @@
 		const target = field ? at(field) : null;
 		if (target) {
 			unfoldAround(target);
-			target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 			focusOrFlash(target);
 			return true;
 		}
@@ -1053,6 +1058,15 @@
 					// Scroll to the caret itself — the field-level center scroll above can
 					// leave the actual cursor position off-screen in a long block.
 					richtextEditor.chain().focus().setTextSelection(cursorPos).scrollIntoView().run();
+					// A caret alone is easy to miss: flash the paragraph it landed in, as
+					// a clicked row or photo flashes.
+					const { node } = richtextEditor.view.domAtPos(cursorPos);
+					const at = node instanceof HTMLElement ? node : node.parentElement;
+					const paragraph = at?.closest<HTMLElement>('li, p, h1, h2, h3, h4, h5, h6, blockquote');
+					if (paragraph && richtextEditor.view.dom.contains(paragraph)) {
+						paragraph.scrollIntoView({ behavior: 'smooth', block: 'center' });
+						flash(paragraph);
+					}
 					return;
 				}
 			}
@@ -1093,8 +1107,8 @@
 			);
 			const target = inputs[arrayIndex];
 			if (target) {
-				target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-				target.focus();
+				target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				target.focus({ preventScroll: true });
 				return;
 			}
 		}

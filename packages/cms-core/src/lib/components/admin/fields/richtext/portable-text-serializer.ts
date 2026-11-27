@@ -225,7 +225,8 @@ function buildMarkLookup(
 
 function spansToTiptapContent(
 	children: PortableTextChild[],
-	markDefs: PortableTextMarkDefinition[] | undefined
+	markDefs: PortableTextMarkDefinition[] | undefined,
+	annotations: readonly string[] = []
 ): JSONContent[] {
 	const markLookup = buildMarkLookup(markDefs);
 	const result: JSONContent[] = [];
@@ -253,7 +254,10 @@ function spansToTiptapContent(
 		if (span.marks) {
 			for (const markRef of span.marks) {
 				const def = markLookup.get(markRef);
-				if (def && def._type === 'link') {
+				// A schema can define its own `link` annotation (one that links to a page by
+				// reference, say): its links load as that annotation, with every field, not
+				// as the built-in URL-only link, which would keep `href` alone and drop the rest.
+				if (def && def._type === 'link' && !annotations.includes('link')) {
 					// Only supply `href` and let the Link extension fill target/rel/class from its
 					// own schema defaults — so a link rebuilt on load is byte-identical to one created
 					// by typing or pasting. Hand-setting nulls here diverges from the extension's
@@ -282,7 +286,11 @@ function spansToTiptapContent(
 	return result;
 }
 
-export function portableTextToTiptap(value: PortableTextValue): JSONContent {
+export function portableTextToTiptap(
+	value: PortableTextValue,
+	options: { annotations?: readonly string[] } = {}
+): JSONContent {
+	const { annotations } = options;
 	const doc: JSONContent = { type: 'doc', content: [] };
 	if (!value || value.length === 0) {
 		doc.content = [{ type: 'paragraph' }];
@@ -307,7 +315,7 @@ export function portableTextToTiptap(value: PortableTextValue): JSONContent {
 
 		if (block.listItem) {
 			const listType = block.listItem === 'number' ? 'orderedList' : 'bulletList';
-			const listNode = buildListNode(value, i, listType, block.level || 1);
+			const listNode = buildListNode(value, i, listType, block.level || 1, annotations);
 			doc.content!.push(listNode.node);
 			i = listNode.nextIndex;
 			continue;
@@ -324,21 +332,21 @@ export function portableTextToTiptap(value: PortableTextValue): JSONContent {
 				content: text ? [{ type: 'text', text }] : []
 			});
 		} else if (block.style === 'blockquote') {
-			const content = spansToTiptapContent(block.children, block.markDefs);
+			const content = spansToTiptapContent(block.children, block.markDefs, annotations);
 			doc.content!.push({
 				type: 'blockquote',
 				content: [{ type: 'paragraph', content: content.length > 0 ? content : undefined }]
 			});
 		} else if (block.style?.startsWith('h')) {
 			const level = parseInt(block.style.slice(1), 10);
-			const content = spansToTiptapContent(block.children, block.markDefs);
+			const content = spansToTiptapContent(block.children, block.markDefs, annotations);
 			doc.content!.push({
 				type: 'heading',
 				attrs: { level },
 				content: content.length > 0 ? content : undefined
 			});
 		} else {
-			const content = spansToTiptapContent(block.children, block.markDefs);
+			const content = spansToTiptapContent(block.children, block.markDefs, annotations);
 			doc.content!.push({
 				type: 'paragraph',
 				content: content.length > 0 ? content : undefined
@@ -355,7 +363,8 @@ function buildListNode(
 	blocks: PortableTextValue,
 	startIndex: number,
 	listType: string,
-	level: number
+	level: number,
+	annotations?: readonly string[]
 ): { node: JSONContent; nextIndex: number } {
 	const items: JSONContent[] = [];
 	let i = startIndex;
@@ -370,7 +379,7 @@ function buildListNode(
 		if (blockLevel < level) break;
 
 		if (blockLevel === level) {
-			const content = spansToTiptapContent(block.children, block.markDefs);
+			const content = spansToTiptapContent(block.children, block.markDefs, annotations);
 			const itemContent: JSONContent[] = [{ type: 'paragraph', content }];
 
 			i++;
@@ -384,7 +393,7 @@ function buildListNode(
 			) {
 				const nestedType =
 					(next as PortableTextBlock).listItem === 'number' ? 'orderedList' : 'bulletList';
-				const nested = buildListNode(blocks, i, nestedType, blockLevel + 1);
+				const nested = buildListNode(blocks, i, nestedType, blockLevel + 1, annotations);
 				itemContent.push(nested.node);
 				i = nested.nextIndex;
 			}

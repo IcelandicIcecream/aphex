@@ -383,8 +383,19 @@ export interface FileField extends BaseField {
 	initialValue?: string | (() => string | Promise<string>);
 }
 
+/**
+ * A starting value for a whole object type, like Sanity's: an object, or a
+ * function (sync or async) that returns one. Used when the object is added to
+ * an array, so a page builder's block can start filled in.
+ */
+export type ObjectInitialValue =
+	| Record<string, unknown>
+	| (() => Record<string, unknown> | Promise<Record<string, unknown>>);
+
 export interface TypeReference {
 	type: string; // References a SchemaType by name or inline type definition
+	/** A starting value for the whole object when it is added to an array: an object, or a function returning one. Like Sanity's. */
+	initialValue?: ObjectInitialValue;
 	title?: string;
 	name?: string; // For inline objects
 	/** One line on what this item is for, shown in the insert menu (`options.insertMenu`). */
@@ -689,6 +700,8 @@ export interface PreviewFrame {
 
 export interface ObjectType {
 	type: 'object';
+	/** A starting value for the whole object when it is added to an array: an object, or a function returning one. Like Sanity's. */
+	initialValue?: ObjectInitialValue;
 	name: string;
 	title: string;
 	description?: string;
@@ -838,6 +851,8 @@ export interface SchemaHooks<TData = Record<string, unknown>> {
 // Schema type for all definitions
 export interface SchemaType {
 	id?: string;
+	/** A starting value for the whole object when it is added to an array: an object, or a function returning one. Like Sanity's. */
+	initialValue?: ObjectInitialValue;
 	type: 'document' | 'object';
 	name: string;
 	title: string;

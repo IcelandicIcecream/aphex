@@ -1,4 +1,5 @@
 import type { SchemaType, Field } from '../types/schemas';
+import { initialValueProblems } from '../utils/item-initial-value';
 import { cmsLogger } from '../utils/logger';
 import { unknownFieldsets } from './fieldsets';
 
@@ -198,6 +199,11 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 		if (field.type === 'array' && 'of' in field && Array.isArray(field.of)) {
 			for (const item of field.of) {
 				if (!item.fields) continue;
+				for (const problem of initialValueProblems(item)) {
+					errors.push(
+						`Schema "${parentSchema}" array field "${field.name}" item "${item.name ?? item.type}" has an initialValue that ${problem}`
+					);
+				}
 				for (const name of unknownFieldsets(item.fields, item.fieldsets)) {
 					errors.push(
 						`Schema "${parentSchema}" array field "${field.name}" item "${item.name ?? item.type}" has a field in unknown fieldset "${name}". Declare it in that item's fieldsets.`
@@ -209,6 +215,9 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 
 	// Validate each schema
 	for (const schema of schemas) {
+		for (const problem of initialValueProblems(schema)) {
+			errors.push(`Schema "${schema.name}" has an initialValue that ${problem}`);
+		}
 		// Validate schema type
 		if (schema.type !== 'document' && schema.type !== 'object') {
 			errors.push(

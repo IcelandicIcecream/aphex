@@ -16,7 +16,7 @@
 	import FieldInput from './FieldInput.svelte';
 	import InsertMenu from './InsertMenu.svelte';
 	import TagsInput from './TagsInput.svelte';
-	import { getDefaultValueForFieldType } from '../../../utils/field-defaults';
+	import { newArrayItem } from '../../../utils/item-initial-value';
 	import { DragDropProvider } from '@dnd-kit/svelte';
 	import { createSortable, isSortable } from '@dnd-kit/svelte/sortable';
 	import { arrayMove } from '@dnd-kit/helpers';
@@ -98,7 +98,8 @@
 				fields: inlineDef.fields,
 				fieldsets: inlineDef.fieldsets,
 				icon: inlineDef.icon,
-				preview: inlineDef.preview
+				preview: inlineDef.preview,
+				initialValue: inlineDef.initialValue
 			};
 		}
 
@@ -457,27 +458,14 @@
 	}
 
 	// Object array functions
-	function handleTypeSelected(selectedType: string) {
+	async function handleTypeSelected(selectedType: string) {
 		if (readonly || !selectedType) return;
 
 		const schema = getSchemaForType(selectedType);
 		if (!schema) return;
 
-		const newItem: Record<string, any> = { _type: selectedType, _key: generateKey() };
-
-		if (schema.fields) {
-			schema.fields.forEach((field) => {
-				if ('initialValue' in field && field.initialValue !== undefined) {
-					if (typeof field.initialValue !== 'function') {
-						newItem[field.name] = field.initialValue;
-					} else {
-						newItem[field.name] = getDefaultValueForFieldType(field.type);
-					}
-				} else {
-					newItem[field.name] = getDefaultValueForFieldType(field.type);
-				}
-			});
-		}
+		// Its fields' initial values, then the type's own on top (utils/item-initial-value.ts).
+		const newItem: Record<string, any> = await newArrayItem(selectedType, schema, generateKey);
 
 		// Add to array immediately so document auto-save captures it
 		const newArray = [...keyedItems, newItem];
@@ -881,6 +869,7 @@
 									<ImageField
 										field={{
 											...field.of?.[0],
+											initialValue: undefined,
 											name: `image-${index}`,
 											type: 'image',
 											title: `Image ${index + 1}`
@@ -1300,6 +1289,7 @@
 				<ImageField
 					field={{
 						...field.of?.[0],
+						initialValue: undefined,
 						name: 'image',
 						type: 'image',
 						title: 'Image'

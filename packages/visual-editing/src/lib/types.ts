@@ -19,6 +19,8 @@ export type AphexOutboundMessage =
 // Messages sent from the CMS parent → frontend iframe
 export type AphexInboundMessage =
 	| { type: 'aphex:field-focus'; fieldPath: string }
+	/** An item just added to an array field (a page's new section): scroll to it. */
+	| { type: 'aphex:item-focus'; fieldPath: string; arrayIndex: number }
 	| {
 			type: 'aphex:data';
 			document: Record<string, unknown>;

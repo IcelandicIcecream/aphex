@@ -3,6 +3,7 @@
 	import type { RelatedPreviewData } from './related-preview';
 	import { onDestroy, tick, untrack } from 'svelte';
 	import type { FieldFocusTarget } from './field-focus';
+	import { addedItem, itemKeysOf, type ItemKeys } from './added-item';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import * as DropdownMenu from '@aphexcms/ui/shadcn/dropdown-menu';
@@ -564,9 +565,19 @@
 		win.postMessage({ type: 'aphex:related-data', ...$state.snapshot(related) }, '*');
 	}
 
+	/**
+	 * The item keys the preview was last sent, for the document it was sent: an
+	 * item that appears between two sends (a section just added) is scrolled to.
+	 */
+	let sentItems: { id: string | undefined; keys: ItemKeys } | null = null;
+
 	// Snapshot the document, inject resolved asset URLs, and push it to the preview iframe.
 	async function postPreviewData(win: Window): Promise<void> {
 		const snapshot = await previewSnapshot();
+		const id = fullDocument?.id ?? documentId ?? undefined;
+		const keys = itemKeysOf(snapshot);
+		const added = sentItems && sentItems.id === id ? addedItem(sentItems.keys, keys) : null;
+		sentItems = { id, keys };
 		if (relatedPreview) postRelatedPreview(win, relatedPreview);
 		win.postMessage(
 			{
@@ -579,6 +590,12 @@
 			},
 			'*'
 		);
+		if (added) {
+			win.postMessage(
+				{ type: 'aphex:item-focus', fieldPath: added.field, arrayIndex: added.index },
+				'*'
+			);
+		}
 	}
 
 	function openPreviewInNewTab() {
@@ -825,6 +842,31 @@
 	const FOCUSABLE =
 		'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), [contenteditable="true"]';
 
+	/** Flash an outline round `element`, as a clicked row in the preview does. */
+	function flash(element: HTMLElement) {
+		element.animate(
+			[
+				{ outline: '2px solid var(--primary)', outlineOffset: '3px', borderRadius: '6px' },
+				{ outline: '2px solid transparent', outlineOffset: '8px', borderRadius: '6px' }
+			],
+			{ duration: 1200, easing: 'ease-out', fill: 'none' }
+		);
+	}
+
+	/**
+	 * Put the cursor in the field's first box. A field with nothing to type in (a
+	 * photo, a file, a toggle) flashes instead, so a click in the preview still
+	 * shows which field it landed on.
+	 */
+	function focusOrFlash(field: HTMLElement) {
+		// Only one that's shown: a photo field holds a hidden file input, which takes no focus.
+		const input = [...field.querySelectorAll<HTMLElement>(FOCUSABLE)].find(
+			(el) => el.getClientRects().length > 0
+		);
+		if (input) input.focus();
+		else flash(field);
+	}
+
 	/** The innermost open ObjectModal, if any. */
 	function topModal(): HTMLElement | null {
 		let top: HTMLElement | null = null;
@@ -894,7 +936,7 @@
 		if (target) {
 			unfoldAround(target);
 			target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-			target.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+			focusOrFlash(target);
 			return true;
 		}
 		return moved;
@@ -1039,13 +1081,7 @@
 				// Animated directly rather than via `focusedFieldName` state: that ring is
 				// field-wide, and plumbing a per-row index down through SchemaField →
 				// ArrayField would add a prop to every array just for a 1.2s flash.
-				row.animate(
-					[
-						{ outline: '2px solid var(--primary)', outlineOffset: '3px', borderRadius: '6px' },
-						{ outline: '2px solid transparent', outlineOffset: '8px', borderRadius: '6px' }
-					],
-					{ duration: 1200, easing: 'ease-out', fill: 'none' }
-				);
+				flash(row);
 				return;
 			}
 		}
@@ -1063,11 +1099,8 @@
 			}
 		}
 
-		// 4. Fallback — focus the first interactive element in the field
-		const focusable = container.querySelector<HTMLElement>(
-			'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), [contenteditable="true"]'
-		);
-		focusable?.focus();
+		// 4. Fallback — focus the first interactive element in the field, or flash it
+		focusOrFlash(container);
 	}
 
 	// Field group tabs — only render when schema declares `groups`.

@@ -257,6 +257,16 @@
 		editingValue = {};
 		editingNodeKey = key;
 		editingIsInline = false;
+		// In the text now, not when its editor closes, so the post (and its preview)
+		// shows it while it's filled in: each change updates it (handleModalUpdate).
+		editor
+			.chain()
+			.focus()
+			.insertContent({
+				type: 'portableTextObject',
+				attrs: { _type: typeName, _key: key, data: {} }
+			})
+			.run();
 		modalOpen = true;
 		insertMenuOpen = false;
 	}
@@ -290,6 +300,16 @@
 		editingValue = {};
 		editingNodeKey = key;
 		editingIsInline = true;
+		// In the text now, not when its editor closes, so the post (and its preview)
+		// shows it while it's filled in: each change updates it (handleModalUpdate).
+		editor
+			.chain()
+			.focus()
+			.insertContent({
+				type: 'portableTextInlineObject',
+				attrs: { _type: typeName, _key: key, data: {} }
+			})
+			.run();
 		modalOpen = true;
 		insertMenuOpen = false;
 	}

@@ -229,6 +229,19 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 		overlay.style.display = 'none';
 	}
 
+	/** Outline `el` and flash it, for what the editor just went to. */
+	function point(el: HTMLElement) {
+		showOn(el);
+		el.animate(
+			[
+				{ outline: `3px solid ${ACCENT}`, outlineOffset: '4px' },
+				{ outline: `3px solid ${ACCENT_FADE}`, outlineOffset: '8px' }
+			],
+			{ duration: 1200, easing: 'ease-out', fill: 'none' }
+		);
+		setTimeout(hide, 1200);
+	}
+
 	const onMouseOver = (e: MouseEvent) => {
 		if (!editMode) return;
 		const el = (e.target as Element).closest<HTMLElement>('[data-aphex-field]');
@@ -312,18 +325,34 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 			if (onRefresh) onRefresh();
 			else location.reload();
 		} else if (type === 'aphex:field-focus' && fieldPath) {
-			const el = document.querySelector<HTMLElement>(`[data-aphex-field="${fieldPath}"]`);
+			const el = document.querySelector<HTMLElement>(
+				`[data-aphex-field="${CSS.escape(fieldPath)}"]`
+			);
 			if (!el) return;
 			el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-			showOn(el);
-			el.animate(
-				[
-					{ outline: `3px solid ${ACCENT}`, outlineOffset: '4px' },
-					{ outline: `3px solid ${ACCENT_FADE}`, outlineOffset: '8px' }
-				],
-				{ duration: 1200, easing: 'ease-out', fill: 'none' }
-			);
-			setTimeout(hide, 1200);
+			point(el);
+		} else if (type === 'aphex:item-focus' && fieldPath) {
+			const { arrayIndex } = e.data as { arrayIndex?: number };
+			if (typeof arrayIndex !== 'number') return;
+			// The item arrives with the data just before this message, so it may not be
+			// drawn yet: look again on the next frames, for up to about a second.
+			const field = `[data-aphex-field="${CSS.escape(fieldPath)}"]`;
+			const find = () =>
+				document.querySelector<HTMLElement>(`${field}[data-aphex-array-index="${arrayIndex}"]`) ??
+				document.querySelector<HTMLElement>(`${field}[data-aphex-block-index="${arrayIndex}"]`);
+			let tries = 0;
+			const look = () => {
+				const el = find();
+				if (!el) {
+					if (++tries < 60) requestAnimationFrame(look);
+					return;
+				}
+				// A section taller than the window shows from its top; a shorter one, centred.
+				const tall = el.getBoundingClientRect().height > window.innerHeight * 0.8;
+				el.scrollIntoView({ behavior: 'smooth', block: tall ? 'start' : 'center' });
+				point(el);
+			};
+			requestAnimationFrame(look);
 		}
 	};
 

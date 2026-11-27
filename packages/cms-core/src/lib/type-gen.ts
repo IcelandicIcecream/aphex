@@ -742,14 +742,32 @@ ${collectionsAugmentation}
 }
 
 /**
- * CLI helper to generate types from schema file
+ * What an icon package or a `.svelte` file is while types are generated: one
+ * empty component that is the module's default export and every named export.
+ * CommonJS, because esbuild checks an ESM module's named imports against its
+ * exports and these names are not known ahead. esbuild's interop reads a named
+ * import off an object whose prototype is the module, so the proxy as the
+ * component's prototype answers every name with the component itself (but not
+ * `__esModule` or `then`, which interop and `await` look for).
  */
+export const STUB_COMPONENTS = `
+function Stub() {}
+const names = new Proxy(Function.prototype, {
+	get(target, key, receiver) {
+		if (key in target || typeof key !== 'string' || key === '__esModule' || key === 'then') return Reflect.get(target, key, receiver);
+		return Stub;
+	}
+});
+Object.setPrototypeOf(Stub, names);
+module.exports = Stub;
+`;
+
 /**
  * Compile a `.ts` module with esbuild (stubbing icons + Svelte components, which never
  * affect types) and dynamically import it, returning the module namespace. Used for both
  * the schema module and the optional plugins module.
  */
-async function compileAndImportModule(
+export async function compileAndImportModule(
 	absolutePath: string,
 	tempName: string,
 	opts: { bundlePlugins?: boolean; cmsCoreDist?: string } = {}
@@ -789,7 +807,7 @@ async function compileAndImportModule(
 			external: opts.bundlePlugins ? ['sharp', 'graphql', 'graphql-yoga'] : ['@aphexcms/*'],
 			plugins: [
 				{
-					name: 'remove-icons',
+					name: 'stub-components',
 					setup(build) {
 						/*
 						 * Map `@aphexcms/cms-core` — and its subpaths — onto the built dist.
@@ -833,32 +851,21 @@ async function compileAndImportModule(
 						build.onLoad({ filter: /.*/, namespace: 'env-stub' }, () => {
 							return { contents: 'export const env = {};', loader: 'js' };
 						});
-						build.onResolve({ filter: /^@lucide\/svelte/ }, (args) => {
-							return { path: args.path, namespace: 'lucide-stub' };
+						// Icons and Svelte components never affect types, and Svelte can't
+						// load in Node: each import of one is a stub component (STUB_COMPONENTS),
+						// so a schema can use them as values (`icon: Newspaper`, or a call
+						// that wraps a component, `icon: picture(drawing)`) without its
+						// source being rewritten.
+						build.onResolve({ filter: /^(@lucide\/svelte|lucide-svelte)(\/|$)/ }, (args) => {
+							return { path: args.path, namespace: 'component-stub' };
 						});
-						// CJS rather than ESM: esbuild validates ESM named imports against
-						// the module's exports, so `export default {}` breaks any plugin
-						// doing `import { Sparkles } from '@lucide/svelte'`. Named imports
-						// off a CJS stub become property access instead, so every icon name
-						// resolves to undefined — which is what the `icon:` rewrite below
-						// wants anyway.
-						build.onLoad({ filter: /.*/, namespace: 'lucide-stub' }, () => {
-							return { contents: 'module.exports = {}', loader: 'js' };
-						});
-						// Stub .svelte components — a schema/plugin module can transitively
-						// import component parts (actions, tools, widgets) that never affect types.
+						// Component parts a schema or plugin module can import transitively
+						// (actions, tools, widgets), by default or by name.
 						build.onResolve({ filter: /\.svelte(\?.*)?$/ }, (args) => {
-							return { path: args.path, namespace: 'svelte-stub' };
+							return { path: args.path, namespace: 'component-stub' };
 						});
-						// CJS for the same reason as the lucide stub above: components can be
-						// imported by name (`import { Foo } from './parts.svelte'`).
-						build.onLoad({ filter: /.*/, namespace: 'svelte-stub' }, () => {
-							return { contents: 'module.exports = {}', loader: 'js' };
-						});
-						build.onLoad({ filter: /\.(ts|js)$/ }, async (args) => {
-							const contents = await fs.readFile(args.path, 'utf8');
-							const transformed = contents.replace(/icon:\s*\w+/g, 'icon: undefined');
-							return { contents: transformed, loader: args.path.endsWith('.ts') ? 'ts' : 'js' };
+						build.onLoad({ filter: /.*/, namespace: 'component-stub' }, () => {
+							return { contents: STUB_COMPONENTS, loader: 'js' };
 						});
 					}
 				}

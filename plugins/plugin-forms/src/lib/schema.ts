@@ -609,6 +609,9 @@ export const formSubmissionSchema: SchemaType = {
 	description: 'A submitted form. Read-only — written by the public submit endpoint.',
 	icon: Inbox,
 	access: defaultSubmissionAccess,
+	// Nobody publishes a message (access says so too): no Publish, Schedule or
+	// Unpublish, only whether it's saved.
+	publishing: { controls: 'status' },
 	preview: {
 		select: { title: 'summary', subtitle: 'submittedAt' }
 	},

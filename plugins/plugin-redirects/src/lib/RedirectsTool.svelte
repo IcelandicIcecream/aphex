@@ -2,7 +2,6 @@
 	// Redirects: old addresses that lead somewhere new. Most are made by themselves
 	// when a page, post or section changes its address; people add their own for a
 	// site they're moving from. Data: GET/POST/DELETE /api/redirects (./index.ts).
-	import type { AdminToolProps } from '@aphexcms/cms-core';
 	import { toast } from '@aphexcms/cms-core/client';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Button } from '@aphexcms/ui/shadcn/button';
@@ -10,9 +9,6 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { ArrowRight, Trash2 } from '@lucide/svelte';
 	import type { Redirect } from './store';
-
-	// The admin passes `tool`; this screen needs nothing from it.
-	let {}: { tool: AdminToolProps } = $props();
 
 	let rows = $state<Redirect[] | null>(null);
 	let loadError = $state('');

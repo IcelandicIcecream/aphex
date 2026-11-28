@@ -132,7 +132,8 @@ describe('deferred adapters', () => {
 			twoFactorMethods: ['totp', 'email'],
 			allowAccountDeletion: false,
 			requireEmailVerification: false,
-			securityEmails: false
+			securityEmails: false,
+			socialProviders: []
 		});
 		expect(typeof auth.provider).toBe('function');
 	});

@@ -28,8 +28,9 @@
  * ```
  */
 import { definePlugin, documentPublished } from '@aphexcms/cms-core';
-import type { PluginPart } from '@aphexcms/cms-core';
+import type { AdminToolProps, PluginPart } from '@aphexcms/cms-core';
 import type { Auth, DatabaseAdapter } from '@aphexcms/cms-core/server';
+import type { Component } from 'svelte';
 import { Signpost } from '@lucide/svelte';
 import { z } from 'zod';
 import RedirectsTool from './RedirectsTool.svelte';
@@ -132,7 +133,8 @@ export function redirectsPlugin(options: RedirectsPluginOptions) {
 			id: 'redirects',
 			title: 'Redirects',
 			icon: Signpost,
-			component: RedirectsTool,
+			// The admin passes every tool screen `tool`; this one needs nothing from it.
+			component: RedirectsTool as unknown as Component<{ tool: AdminToolProps }>,
 			placement: 'sidebar',
 			requiredCapabilities: ['document.read'],
 			...(options.group ? { group: options.group } : {}),

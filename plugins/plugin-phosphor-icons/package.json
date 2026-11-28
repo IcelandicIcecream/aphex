@@ -1,0 +1,77 @@
+{
+	"name": "@aphexcms/plugin-phosphor-icons",
+	"version": "0.1.0",
+	"description": "Phosphor icons for AphexCMS: an icon field with a searchable picker of 1,512 icons in six weights, and a component that draws the stored icon with no icon set loaded",
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "plugins/plugin-phosphor-icons"
+	},
+	"type": "module",
+	"main": "./src/lib/index.js",
+	"types": "./src/lib/index.d.ts",
+	"svelte": "./src/lib/index.js",
+	"exports": {
+		".": {
+			"types": "./src/lib/index.d.ts",
+			"svelte": "./src/lib/index.js",
+			"default": "./src/lib/index.js"
+		},
+		"./schema": {
+			"types": "./src/lib/schema.d.ts",
+			"default": "./src/lib/schema.js"
+		},
+		"./icon": {
+			"types": "./src/lib/Icon.svelte.d.ts",
+			"svelte": "./src/lib/Icon.svelte",
+			"default": "./src/lib/Icon.svelte"
+		},
+		"./lookup": {
+			"types": "./src/lib/lookup.d.ts",
+			"default": "./src/lib/lookup.js"
+		},
+		"./value": {
+			"types": "./src/lib/value.d.ts",
+			"default": "./src/lib/value.js"
+		}
+	},
+	"files": [
+		"src/lib"
+	],
+	"scripts": {
+		"dev": "tsc --watch --preserveWatchOutput",
+		"build": "svelte-package",
+		"check": "svelte-check --tsconfig ./tsconfig.json",
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"test": "vitest run",
+		"generate": "node scripts/generate.mjs"
+	},
+	"keywords": [
+		"aphex",
+		"aphexcms",
+		"cms",
+		"plugin",
+		"icons",
+		"phosphor"
+	],
+	"devDependencies": {
+		"@sveltejs/package": "^2.5.6",
+		"svelte": "^5.0.0",
+		"svelte-check": "^4.0.0",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.10"
+	},
+	"peerDependencies": {
+		"@aphexcms/cms-core": "workspace:>=12.0.0-0",
+		"@aphexcms/ui": "workspace:^",
+		"@lucide/svelte": "^0.554.0",
+		"svelte": "^5.0.0",
+		"zod": "^4.0.0"
+	}
+}

@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { detectApp } from '../dist/init/detect.js';
 import {
 	addAuthPagesPath,
+	BETTER_AUTH_RANGE,
 	dropAuthHook,
 	aphexOwnsLocalsAuth,
 	blobId,
@@ -526,7 +527,7 @@ test('a kept folder says which lines are the person’s own, and can be replaced
 		const path = join(dir, 'src/routes/login/+page.svelte');
 		const source = readFileSync(path, 'utf8').replace(
 			'</svelte:head>',
-			'\t<meta name="robots" content="noindex, nofollow" />\n</svelte:head>'
+			'\t<meta name="description" content="Sign in to Acme" />\n</svelte:head>'
 		);
 		writeFileSync(path, source);
 		writeFileSync(join(dir, 'src/routes/login/notes.md'), 'ours\n');
@@ -535,7 +536,7 @@ test('a kept folder says which lines are the person’s own, and can be replaced
 	assert.deepEqual(plan.kept[0].edited, [
 		{
 			path: 'src/routes/login/+page.svelte',
-			ownLines: ['\t<meta name="robots" content="noindex, nofollow" />'],
+			ownLines: ['\t<meta name="description" content="Sign in to Acme" />'],
 			added: false
 		},
 		{ path: 'src/routes/login/notes.md', ownLines: [], added: true }
@@ -657,6 +658,25 @@ export const handle = sequence(authHook, aphexHook, seedHook);
 	assert.equal(dropAuthHook(result.code).kind, 'unchanged');
 });
 
+test('dropAuthHook finds the hook after another one in sequence()', () => {
+	const source = `import { svelteKitHandler } from 'better-auth/svelte-kit';
+import { building } from '$app/environment';
+import { auth } from '$lib/server/auth';
+
+const noIndexHook: Handle = async ({ event, resolve }) => resolve(event);
+const authHook: Handle = async ({ event, resolve }) => {
+	return svelteKitHandler({ event, resolve, auth, building });
+};
+
+export const handle = sequence(noIndexHook, authHook, aphexHook);
+`;
+	const result = dropAuthHook(source);
+	assert.equal(result.kind, 'patched');
+	assert.ok(result.code.includes('sequence(noIndexHook, aphexHook)'));
+	assert.ok(!result.code.includes('authHook'));
+	assert.ok(!result.code.includes('$app/environment'));
+});
+
 test('dropAuthHook leaves a hook it can’t place for the person', () => {
 	const source = `export const handle = ({ event, resolve }) => svelteKitHandler({ event, resolve, auth });\n`;
 	assert.equal(dropAuthHook(source).kind, 'manual');
@@ -674,5 +694,37 @@ test('the old template’s MCP route and auth hook go', () => {
 	const done = actions(plan);
 	assert.equal(done['src/routes/mcp/+server.ts'], 'delete');
 	assert.equal(done['src/hooks.server.ts'], 'update');
+	rmSync(dir, { recursive: true, force: true });
+});
+
+test('a sign-in page whose only own line is a robots tag core has goes anyway', () => {
+	const dir = oldApp((dir) => {
+		const page = join(dir, 'src/routes/login/+page.svelte');
+		const source = readFileSync(page, 'utf8');
+		const head = source.indexOf('<svelte:head>');
+		assert.ok(head >= 0, 'the fixture’s login page has a <svelte:head>');
+		const at = head + '<svelte:head>'.length;
+		writeFileSync(
+			page,
+			source.slice(0, at) +
+				'\n\t<meta name="robots" content="noindex, nofollow" />' +
+				source.slice(at)
+		);
+	});
+	const plan = buildUpgradePlan(detectApp(dir));
+	assert.equal(actions(plan)['src/routes/login/+page.svelte'], 'delete');
+	rmSync(dir, { recursive: true, force: true });
+});
+
+test('the app’s own Better Auth packages are held to @aphexcms/auth’s line', () => {
+	const auth = JSON.parse(readFileSync(join(here, '../../auth/package.json'), 'utf8'));
+	assert.equal(auth.dependencies['better-auth'], BETTER_AUTH_RANGE);
+	const dir = oldApp();
+	const plan = buildUpgradePlan(detectApp(dir));
+	const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+	if (pkg.dependencies?.['better-auth']) {
+		assert.ok(plan.pins.includes(`better-auth@${BETTER_AUTH_RANGE}`));
+	}
+	assert.ok(plan.pins.every((pin) => pin.endsWith(`@${BETTER_AUTH_RANGE}`)));
 	rmSync(dir, { recursive: true, force: true });
 });

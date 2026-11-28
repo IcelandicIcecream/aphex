@@ -60,6 +60,7 @@ It also deletes helpers that only those routes used, such as `src/lib/auth-clien
   - Removes the `api` hook that sent the invitation email. Core sends it now, so leaving the hook means invitees get two emails.
   - Points `loginUrl` at `/admin/login`, if the sign-in pages were deleted.
 - **`createAphexAuth()`:** adds `authPagesPath: '/admin'`, so password reset emails link to core's page.
+- **`package.json`:** installs your own `better-auth`, `@better-auth/api-key`, `@better-auth/core` and `@better-auth/drizzle-adapter` at `~1.6.25`, the line `@aphexcms/auth` uses. Old templates said `^1.6.25`, which now resolves to 1.7, and `@aphexcms/auth` can't import 1.7.
 - **`src/hooks.server.ts`:** removes the template's own Better Auth hook (`svelteKitHandler`). Core's hook answers `/api/auth` now. If the hook has a shape the upgrade can't place, it tells you to remove it.
 - **`locals.auth`:** renames it to `locals.aphexAuth`, together with its declaration in `app.d.ts`. This only happens when `app.d.ts` shows that `auth` is Aphex's. Apps from before v0.3.0 used the old name.
 - **`vite.config.ts` and `app.d.ts`:** adds `aphex()` and Aphex's `locals` if either is missing.

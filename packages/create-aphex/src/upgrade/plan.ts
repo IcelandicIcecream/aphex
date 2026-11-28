@@ -55,6 +55,12 @@ export interface UpgradePlan {
 	/** Installed `@aphexcms/*` packages, to move to the new major. */
 	packages: string[];
 	/**
+	 * The app's own Better Auth packages, as `name@range`, held to the line
+	 * `@aphexcms/auth` uses. A `^1.6` range resolves to 1.7 on a fresh install, which
+	 * `@aphexcms/auth` can't import, and a second copy breaks its types.
+	 */
+	pins: string[];
+	/**
 	 * Patches the app applies to an `@aphexcms/*` package. Each is pinned to the version
 	 * installed now, so moving the package makes the install fail until it's dealt with.
 	 */
@@ -99,6 +105,20 @@ export function describeEdit(path: string, source: string): EditedFile {
 		ownLines: meaningfulLines(source).filter((line) => !hashes.has(lineHash(line))),
 		added: false
 	};
+}
+
+/**
+ * Lines people added to Aphex's pages that core's own pages now do, so a file whose only
+ * own lines are these is as good as shipped: keeping six sign-in folders over a robots
+ * tag core's sign-in page already has would be all cost.
+ */
+const LINES_CORE_HAS = new Set(['<meta name="robots" content="noindex, nofollow" />']);
+
+/** True when the file's only lines of its own are ones core's version has anyway. */
+function onlyLinesCoreHas(path: string, source: string): boolean {
+	if (KNOWN_LINES[path] === undefined) return false;
+	const { ownLines } = describeEdit(path, source);
+	return ownLines.length > 0 && ownLines.every((line) => LINES_CORE_HAS.has(line.trim()));
 }
 
 /** True when the file is byte-for-byte a version Aphex shipped, with either line ending. */
@@ -221,7 +241,11 @@ export function dropAuthHook(source: string): PatchResult {
 		/^const (\w+)(?:: Handle)? = async \(\{ event, resolve \}\) => \{\s*return svelteKitHandler\(\{[^}]*\}\);?\s*\};?[ \t]*\r?\n(?:[ \t]*\r?\n)?/m
 	);
 	const name = hook?.[1];
-	const inSequence = name ? new RegExp(`(sequence\\()\\s*${name}\\s*,\\s*`) : undefined;
+	// The hook's name among sequence()'s arguments, wherever it sits: first (`name, `)
+	// or after another (`, name`).
+	const inSequence = name
+		? new RegExp(`(sequence\\([^)]*?)(?:\\b${name}\\s*,\\s*|,\\s*${name}\\b)`)
+		: undefined;
 	if (!hook || !name || !inSequence?.test(source)) {
 		return {
 			kind: 'manual',
@@ -431,7 +455,10 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 		if (files.length === 0) continue;
 		const { marker } = unit;
 		if (marker && !files.some((path) => marker.test(read(cwd, path) ?? ''))) continue;
-		const changed = files.filter((path) => !isKnownVersion(path, readFileSync(join(cwd, path))));
+		const changed = files.filter((path) => {
+			const content = readFileSync(join(cwd, path));
+			return !isKnownVersion(path, content) && !onlyLinesCoreHas(path, content.toString('utf8'));
+		});
 		// A file at a path Aphex never shipped is the app's own (a page, a component, an
 		// image), so it stays, and only Aphex's files around it go. A marker unit's files
 		// are all the app's own by definition: there, they're what core replaces.
@@ -604,14 +631,28 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 		(current('src/lib/aphex.client.ts') ?? '').includes('@aphexcms/auth/client');
 	if (needsAuth && !packages.includes('@aphexcms/auth')) packages.push('@aphexcms/auth');
 	packages.sort();
+	const pins = [...app.installed]
+		.filter((name) => BETTER_AUTH_PACKAGES.includes(name))
+		.sort()
+		.map((name) => `${name}@${BETTER_AUTH_RANGE}`);
 	return {
 		changes: [...deletes, ...keeps, ...creates, ...updates, ...manual],
 		kept,
 		staleLinks,
 		packages,
+		pins,
 		patches: aphexPatches(cwd)
 	};
 }
+
+/** The Better Auth line `@aphexcms/auth` depends on. Keep it equal to packages/auth/package.json. */
+export const BETTER_AUTH_RANGE = '~1.6.25';
+const BETTER_AUTH_PACKAGES = [
+	'better-auth',
+	'@better-auth/api-key',
+	'@better-auth/core',
+	'@better-auth/drizzle-adapter'
+];
 
 /** Folders left empty once their files are deleted, deepest first, stopping at `src/routes`. */
 export function emptiedDirs(cwd: string, deletedPaths: string[]): string[] {

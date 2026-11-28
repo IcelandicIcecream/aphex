@@ -116,7 +116,7 @@ export async function runUpgrade(cwd: string, options: InitOptions): Promise<voi
 		if (answer) replace.add(kept.unit.label);
 	}
 	const plan = replace.size > 0 ? buildUpgradePlan(app, { replace }) : first;
-	const install = await withReleaseTag(plan.packages);
+	const install = [...(await withReleaseTag(plan.packages)), ...plan.pins];
 	// A patch pinned to the installed version makes the install fail once it moves, and
 	// the fix it carries may not be in the new version, so that's the person's call.
 	const installNow = options.install && plan.patches.length === 0;

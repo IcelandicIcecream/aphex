@@ -38,7 +38,7 @@
 	import type { CMSPlugin, DocumentActionProps } from '../../plugins/types';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import { notifyDocumentChanged } from '../../document-refresh.svelte';
-	import { collectReferenceIds } from '../../utils/reference-walk';
+	import { collectStrongReferenceIds } from '../../utils/reference-walk';
 	import { cmsLogger } from '../../utils/logger';
 	import { resolvePreviewTitle } from '../../utils/preview';
 	import { toast } from 'svelte-sonner';
@@ -2274,7 +2274,8 @@
 		// published. Without this, publishing a doc that points at drafts would
 		// expose dangling references in the published perspective. One batched
 		// HTTP call regardless of ref count.
-		const refIds = collectReferenceIds(documentData, schema, schemas);
+		// Weak references (links) may point at drafts, so they aren't checked.
+		const refIds = collectStrongReferenceIds(documentData, schema, schemas);
 		if (refIds.length > 0) {
 			let fetched: any[] = [];
 			try {

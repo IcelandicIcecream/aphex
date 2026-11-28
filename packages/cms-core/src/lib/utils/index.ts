@@ -20,4 +20,5 @@ export * from './random-id';
 export * from './item-initial-value';
 export * from './organization-name';
 export * from './dates';
+export { collectStrongReferenceIds } from './reference-walk';
 export { describeDevice } from './user-agent';

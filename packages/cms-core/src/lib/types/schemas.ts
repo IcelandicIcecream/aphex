@@ -408,6 +408,8 @@ export interface TypeReference {
 	icon?: typeof LucideIcon; // Icon shown in the array item row + add menu
 	preview?: PreviewConfig; // Title/subtitle/media for the array item row
 	to?: Array<{ type: string }>; // For type: 'reference' — allowed target document types
+	/** For type: 'reference': weak, as `ReferenceField.weak`. */
+	weak?: boolean;
 	// Block-specific (only when type === 'block')
 	styles?: Array<{ title: string; value: string }>;
 	lists?: Array<{ title: string; value: string }>;
@@ -500,6 +502,14 @@ export interface DateTimeField extends BaseField {
 export interface ReferenceField extends BaseField {
 	type: 'reference';
 	to: Array<{ type: string }>;
+	/**
+	 * Weak, as Sanity's: the document may be published while what this points at
+	 * is still a draft (or gone), so two documents that point at each other can
+	 * both go live. For links, where a missing target just isn't shown. Off by
+	 * default: a strong reference keeps a document from going live pointing at
+	 * nothing.
+	 */
+	weak?: boolean;
 	initialValue?: any | (() => any | Promise<any>);
 }
 

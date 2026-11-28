@@ -27,7 +27,7 @@ import { newUnusableFields } from '../field-validation/new-fields';
 import { runDocumentHooks } from './hooks';
 import type { DocumentHookReader } from './hook-reader';
 import type { DocumentLimitGuard } from './limits';
-import { collectReferenceIds } from '../utils/reference-walk';
+import { collectStrongReferenceIds } from '../utils/reference-walk';
 import { expandReferences } from './expand-references';
 import { emitDocumentPublished } from '../events/emit';
 import { hasUnpublishedChanges } from '../utils/content-hash';
@@ -1415,8 +1415,9 @@ export class CollectionAPI<T = Document> {
 			);
 		}
 
-		// Guard: block publish if any referenced document is not published
-		const refIds = collectReferenceIds(document.draftData);
+		// Guard: block publish if any referenced document is not published. A weak
+		// reference (a link) may point at a draft, as in Sanity.
+		const refIds = collectStrongReferenceIds(document.draftData, this._schema, this.schemaRegistry);
 		if (refIds.length > 0) {
 			const unpublished: Array<{ id: string; type: string; title: string }> = [];
 			for (const refId of refIds) {

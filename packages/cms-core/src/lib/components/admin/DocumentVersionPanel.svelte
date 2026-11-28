@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate } from '../../utils/dates';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { documents } from '../../api/documents';
@@ -134,12 +135,11 @@
 				>
 					<div class="flex items-center justify-between">
 						<span class="text-muted-foreground text-[11px]">
-							{new Date(version.createdAt).toLocaleString(undefined, {
+							{formatDate(version.createdAt, {
 								month: 'short',
 								day: 'numeric',
 								hour: 'numeric',
-								minute: '2-digit',
-								hour12: true
+								minute: '2-digit'
 							})}
 						</span>
 						<Badge

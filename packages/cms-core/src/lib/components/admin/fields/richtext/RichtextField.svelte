@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import { Editor } from '@tiptap/core';
+	import { onMount, onDestroy, untrack } from 'svelte';
+	import { Editor, getSchema } from '@tiptap/core';
 	import { StarterKit } from '@tiptap/starter-kit';
 	import Link from '@tiptap/extension-link';
 	import Underline from '@tiptap/extension-underline';
@@ -22,8 +22,14 @@
 		Copy,
 		Pencil,
 		Maximize2,
-		Minimize2
+		Minimize2,
+		Pilcrow,
+		Heading,
+		TextQuote,
+		SquareCode,
+		Box
 	} from '@lucide/svelte';
+	import { Placeholder, slashAt } from './writing-aids';
 	import {
 		tiptapToPortableText,
 		portableTextToTiptap,
@@ -40,6 +46,8 @@
 	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../../types/schemas';
 	import { getSchemaContext } from '../../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../../schema-utils/utils';
+	import { hasRequiredCapabilities } from '../../../../schema-utils/required-capabilities';
+	import { findPermissions } from '../../../../permissions-context.svelte';
 	import { useBlockPreviews } from '../../../../admin/block-previews.svelte';
 	import { getRichtextEditorRegistry } from '../../../../richtext-context.svelte.js';
 	import ObjectModal from '../../ObjectModal.svelte';
@@ -76,6 +84,15 @@
 	let element = $state<HTMLElement>();
 	let editor = $state<Editor | null>(null);
 	let editorState = $state(0);
+	// Stored content this field's current config can't represent. TipTap's answer
+	// is to open an empty document with only a console warning, and the first
+	// keystroke would then autosave that over the real draft (aphex #334).
+	let contentBlocked = $state(false);
+
+	function reportBlockedContent(cause: unknown) {
+		contentBlocked = true;
+		console.error(`[RichtextField] "${field.name}" holds content its config can't show`, cause);
+	}
 	let internalVersion = 0;
 	let isSyncingFromParent = false;
 
@@ -109,7 +126,10 @@
 		}))
 	);
 	const hasAnnotations = $derived(customAnnotations.length > 0);
-	const hasLink = true;
+	// A schema's own `link` annotation replaces the built-in URL-only link: two
+	// link buttons would write two kinds of link (see portableTextToTiptap).
+	const hasLink = $derived(!customAnnotations.some((a) => a.name === 'link'));
+	const annotationNames = $derived(customAnnotations.map((a) => a.name));
 
 	const hasImageBlock = $derived(field.of.some((ref) => ref.type === 'image'));
 	const customTypes = $derived(
@@ -121,6 +141,7 @@
 					type: t.type,
 					title: t.title || registered?.title || t.type,
 					fields: t.fields || registered?.fields || [],
+					icon: t.icon ?? registered?.icon,
 					schema: registered
 				};
 			})
@@ -134,11 +155,21 @@
 				type: t.type,
 				title: t.title || registered?.title || t.type,
 				fields: t.fields || registered?.fields || [],
+				icon: t.icon ?? registered?.icon,
 				schema: registered
 			};
 		})
 	);
 	const hasInlineTypes = $derived(inlineTypes.length > 0);
+
+	// What the insert menu offers: a type the organization doesn't have
+	// (`requiredCapabilities`) is left out, as the server refuses it. The full
+	// lists above still render and edit what the text already holds.
+	const permissions = findPermissions();
+	const canInsert = (t: { schema: SchemaType | null }) =>
+		hasRequiredCapabilities(t.schema, permissions?.capabilities ?? []);
+	const insertableCustomTypes = $derived(customTypes.filter(canInsert));
+	const insertableInlineTypes = $derived(inlineTypes.filter(canInsert));
 
 	const hasDecorator = (d: string) => decorators.includes(d);
 	const hasList = (l: string) => lists.includes(l);
@@ -154,7 +185,8 @@
 		h4: 'Heading 4',
 		h5: 'Heading 5',
 		h6: 'Heading 6',
-		blockquote: 'Quote'
+		blockquote: 'Quote',
+		code: 'Code'
 	};
 
 	const activeStyle = $derived.by(() => {
@@ -162,6 +194,7 @@
 		if (!editor) return 'normal';
 		for (const s of styles) {
 			if (s === 'blockquote' && editor.isActive('blockquote')) return 'blockquote';
+			if (s === 'code' && editor.isActive('codeBlock')) return 'code';
 			if (s.startsWith('h') && editor.isActive('heading', { level: parseInt(s.slice(1), 10) }))
 				return s;
 		}
@@ -174,11 +207,141 @@
 			editor.chain().focus().setParagraph().run();
 		} else if (style === 'blockquote') {
 			editor.chain().focus().toggleBlockquote().run();
+		} else if (style === 'code') {
+			editor.chain().focus().toggleCodeBlock().run();
 		} else if (style.startsWith('h')) {
 			const level = parseInt(style.slice(1), 10) as 1 | 2 | 3 | 4 | 5 | 6;
 			editor.chain().focus().toggleHeading({ level }).run();
 		}
 		styleMenuOpen = false;
+	}
+
+	// The "/" menu: type / at the start of a line (or after a space) for what the
+	// toolbar offers, filtered by the word typed after it. Arrows choose, Enter or
+	// Tab inserts, Escape closes it until the next /.
+	type SlashItem = { id: string; label: string; group: string; icon: any; run: () => void };
+	let slash = $state<{ from: number; to: number; query: string } | null>(null);
+	let slashIndex = $state(0);
+	let slashPos = $state({ top: 0, left: 0 });
+	let slashDismissed = -1;
+
+	const slashItems = $derived.by((): SlashItem[] => {
+		const items: SlashItem[] = [];
+		if (styles.length > 1) {
+			for (const s of styles) {
+				const icon =
+					s === 'normal'
+						? Pilcrow
+						: s === 'blockquote'
+							? TextQuote
+							: s === 'code'
+								? SquareCode
+								: Heading;
+				items.push({
+					id: s,
+					label: s === 'normal' ? 'Text' : (styleLabels[s] ?? s),
+					group: 'Text',
+					icon,
+					run: () => applyStyle(s)
+				});
+			}
+		}
+		if (hasList('bullet'))
+			items.push({
+				id: 'bullet',
+				label: 'Bullet list',
+				group: 'Text',
+				icon: List,
+				run: () => editor?.chain().focus().toggleBulletList().run()
+			});
+		if (hasList('number'))
+			items.push({
+				id: 'number',
+				label: 'Numbered list',
+				group: 'Text',
+				icon: ListOrdered,
+				run: () => editor?.chain().focus().toggleOrderedList().run()
+			});
+		if (hasImageBlock)
+			items.push({
+				id: 'image',
+				label: 'Image',
+				group: 'Blocks',
+				icon: ImageIcon,
+				run: handleInsertImageBlock
+			});
+		for (const t of insertableCustomTypes)
+			items.push({
+				id: t.type,
+				label: t.title,
+				group: 'Blocks',
+				icon: t.icon ?? Box,
+				run: () => handleInsertBlock(t.type)
+			});
+		for (const t of insertableInlineTypes)
+			items.push({
+				id: t.type,
+				label: t.title,
+				group: 'Inline',
+				icon: t.icon ?? Box,
+				run: () => handleInsertInline(t.type)
+			});
+		return items;
+	});
+
+	const slashMatches = $derived.by(() => {
+		if (!slash) return [];
+		const q = slash.query.toLowerCase();
+		return slashItems.filter(
+			(i) => i.label.toLowerCase().includes(q) || i.id.toLowerCase().startsWith(q)
+		);
+	});
+
+	function updateSlash(e: Editor) {
+		const found = e.isEditable && e.isFocused ? slashAt(e.state) : null;
+		if (!found || found.from === slashDismissed) {
+			slash = null;
+			if (!found) slashDismissed = -1;
+			return;
+		}
+		if (slash?.query !== found.query || slash?.from !== found.from) slashIndex = 0;
+		slash = found;
+		const at = e.view.coordsAtPos(found.from);
+		const MENU_H = 300;
+		const below = at.bottom + 4 + MENU_H <= window.innerHeight - 8;
+		slashPos = {
+			top: below ? at.bottom + 4 : Math.max(8, at.top - 4 - MENU_H),
+			left: Math.min(at.left, window.innerWidth - 248)
+		};
+	}
+
+	function chooseSlash(item: SlashItem) {
+		if (!editor || !slash) return;
+		const { from, to } = slash;
+		slash = null;
+		editor.chain().focus().deleteRange({ from, to }).run();
+		item.run();
+	}
+
+	function slashKeydown(event: KeyboardEvent): boolean {
+		if (!slash || slashMatches.length === 0) return false;
+		const n = slashMatches.length;
+		if (event.key === 'ArrowDown') slashIndex = (slashIndex + 1) % n;
+		else if (event.key === 'ArrowUp') slashIndex = (slashIndex - 1 + n) % n;
+		else if (event.key === 'Enter' || event.key === 'Tab') chooseSlash(slashMatches[slashIndex]!);
+		else if (event.key === 'Escape') {
+			slashDismissed = slash.from;
+			slash = null;
+		} else return false;
+		event.preventDefault();
+		return true;
+	}
+
+	/** Keep the chosen row in view as the arrows move through a long list. */
+	function keepInView(node: HTMLElement, active: boolean) {
+		const show = (on: boolean) => on && node.scrollIntoView({ block: 'nearest' });
+		show(active);
+		return { update: show };
 	}
 
 	function genKey(): string {
@@ -237,6 +400,16 @@
 		editingValue = {};
 		editingNodeKey = key;
 		editingIsInline = false;
+		// In the text now, not when its editor closes, so the post (and its preview)
+		// shows it while it's filled in: each change updates it (handleModalUpdate).
+		editor
+			.chain()
+			.focus()
+			.insertContent({
+				type: 'portableTextObject',
+				attrs: { _type: typeName, _key: key, data: {} }
+			})
+			.run();
 		modalOpen = true;
 		insertMenuOpen = false;
 	}
@@ -270,6 +443,16 @@
 		editingValue = {};
 		editingNodeKey = key;
 		editingIsInline = true;
+		// In the text now, not when its editor closes, so the post (and its preview)
+		// shows it while it's filled in: each change updates it (handleModalUpdate).
+		editor
+			.chain()
+			.focus()
+			.insertContent({
+				type: 'portableTextInlineObject',
+				attrs: { _type: typeName, _key: key, data: {} }
+			})
+			.run();
 		modalOpen = true;
 		insertMenuOpen = false;
 	}
@@ -473,7 +656,7 @@
 	function createEditor() {
 		editor?.destroy();
 		if (!element) return;
-		const tiptapDoc = portableTextToTiptap(value || []);
+		const tiptapDoc = portableTextToTiptap(value || [], { annotations: annotationNames });
 		const starterKitConfig: Record<string, any> = {
 			heading: {
 				levels: [1, 2, 3, 4, 5, 6].filter((l) => hasStyle(`h${l}`))
@@ -481,6 +664,11 @@
 			bulletList: hasList('bullet') ? {} : false,
 			orderedList: hasList('number') ? {} : false,
 			blockquote: hasStyle('blockquote') ? {} : false,
+			// Only what the schema allows: these come with typing shortcuts (``` and ---),
+			// which would otherwise make a code block the field refuses, or a divider
+			// Portable Text has no place for, so it vanished on save.
+			codeBlock: hasStyle('code') ? {} : false,
+			horizontalRule: false,
 			bold: hasDecorator('strong') ? {} : false,
 			italic: hasDecorator('em') ? {} : false,
 			strike: hasDecorator('strike-through') ? {} : false,
@@ -513,8 +701,12 @@
 							onDelete: handleDeleteBlock,
 							// Let each block's card read its own type's `preview` config
 							// (falls back to the registered schema's, for named object types).
-							resolveSchema: (type: string) =>
-								field.of.find((ref) => ref.type === type) ?? getSchemaByName(schemas, type),
+							// An entry that only names its type ({ type: 'postCode' }) has no
+							// title, icon or preview of its own: those are on the registered type.
+							resolveSchema: (type: string) => {
+								const ref = field.of.find((r) => r.type === type);
+								return ref?.fields ? ref : (getSchemaByName(schemas, type) ?? ref);
+							},
 							// An app-registered preview renders the real block inline instead.
 							resolveComponent: (type: string) => blockPreviews(type)
 						})
@@ -528,22 +720,35 @@
 						})
 					]
 				: []),
-			...customAnnotations.map((a) => createAnnotationMark(a.name))
+			...customAnnotations.map((a) => createAnnotationMark(a.name)),
+			Placeholder.configure({
+				empty: field.placeholder ?? 'Start writing, or type / to add something',
+				line: 'Type / to add something'
+			})
 		];
 		internalVersion = 0;
 		lastSyncedVersion = 0;
 		editorJustCreated = true;
 		expanded = false;
+		contentBlocked = false;
+		let unreadable = false;
+		try {
+			getSchema(extensions).nodeFromJSON(tiptapDoc);
+		} catch (cause) {
+			unreadable = true;
+			reportBlockedContent(cause);
+		}
 		editor = new Editor({
 			element,
-			editable: !readonly,
+			editable: !readonly && !unreadable,
 			extensions,
 			content: tiptapDoc,
 			editorProps: {
-				transformPastedHTML: sanitizePastedHTML
+				transformPastedHTML: sanitizePastedHTML,
+				handleKeyDown: (_view, event) => slashKeydown(event)
 			},
 			onUpdate: ({ editor: e }) => {
-				if (isSyncingFromParent) return;
+				if (isSyncingFromParent || contentBlocked) return;
 				internalVersion++;
 				const json = e.getJSON();
 				const pt = tiptapToPortableText(json);
@@ -551,6 +756,7 @@
 			},
 			onTransaction: ({ editor: e }) => {
 				editor = e as any;
+				updateSlash(e as Editor);
 				queueMicrotask(() => {
 					editorState++;
 				});
@@ -633,7 +839,8 @@
 		}
 		if (e.key === 'k' && (e.metaKey || e.ctrlKey) && editor?.isFocused) {
 			e.preventDefault();
-			openLinkEdit();
+			if (hasLink) openLinkEdit();
+			else openAnnotation('link');
 		}
 	}
 
@@ -685,14 +892,28 @@
 		// preview round-trip in presentation mode reassigns documentData); replacing
 		// the doc in that case needlessly collapses the selection to the end — which
 		// reads as "the cursor jumps to the bottom" mid-edit.
-		const tiptapDoc = portableTextToTiptap(v || []);
+		const tiptapDoc = portableTextToTiptap(v || [], { annotations: annotationNames });
 		// Normalize the incoming doc THROUGH the editor schema before comparing. The raw
 		// serializer output omits node attrs/defaults that ProseMirror fills in, so comparing it
 		// directly against `editor.getJSON()` (already schema-normalized) reports a false
 		// "changed" for some docs (notably lists + links) — which triggers a destructive
 		// replaceWith that resets the caret and makes links impossible to click. Round-tripping
 		// the incoming doc through `nodeFromJSON().toJSON()` normalizes both sides identically.
-		const incomingDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
+		let incomingDoc;
+		try {
+			incomingDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
+		} catch (cause) {
+			if (!contentBlocked) {
+				editor.setEditable(false, false);
+				reportBlockedContent(cause);
+			}
+			return;
+		}
+		// A readable value arrived (a restored version, say), so editing is safe again.
+		if (contentBlocked) {
+			contentBlocked = false;
+			editor.setEditable(!readonly, false);
+		}
 		if (
 			JSON.stringify(stripVolatileMarks(incomingDoc.toJSON())) ===
 			JSON.stringify(stripVolatileMarks(editor.getJSON()))
@@ -704,6 +925,12 @@
 		isSyncingFromParent = true;
 		editor.view.dispatch(tr);
 		isSyncingFromParent = false;
+		// An object open in its editor shows what came in too, or the next keystroke
+		// there would write its old copy back.
+		untrack(() => {
+			const open = editingSchema && editingNodeKey ? findNodeByKey(editingNodeKey) : null;
+			if (open) editingValue = { ...open.node.attrs.data };
+		});
 	});
 
 	$effect(() => {
@@ -959,7 +1186,7 @@
 		? `position: fixed; top: ${containerBounds.top}px; left: ${containerBounds.left}px; width: ${containerBounds.width}px; height: ${containerBounds.height}px; z-index: 50;`
 		: ''}
 >
-	{#if editor && !readonly}
+	{#if editor && !readonly && !contentBlocked}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<Tooltip.Provider>
 			<!--
@@ -1039,12 +1266,14 @@
 						Strikethrough
 					)}
 				{/if}
-				{@render toolbarBtn(
-					() => editor?.chain().focus().toggleCodeBlock().run(),
-					'Code block',
-					() => editor?.isActive('codeBlock') ?? false,
-					Code
-				)}
+				{#if hasStyle('code')}
+					{@render toolbarBtn(
+						() => editor?.chain().focus().toggleCodeBlock().run(),
+						'Code block',
+						() => editor?.isActive('codeBlock') ?? false,
+						Code
+					)}
+				{/if}
 
 				{#if (hasDecorator('strong') || hasDecorator('em')) && (hasList('bullet') || hasList('number') || hasLink)}
 					<div class="bg-border mx-1 h-4 w-px"></div>
@@ -1084,7 +1313,7 @@
 					{@render toolbarBtn(handleInsertImageBlock, 'Insert image', () => false, ImageIcon)}
 				{/if}
 
-				{#if hasCustomTypes || hasInlineTypes}
+				{#if insertableCustomTypes.length > 0 || insertableInlineTypes.length > 0}
 					<div class="bg-border mx-1 h-4 w-px"></div>
 					<div class="relative">
 						<Tooltip.Root delayDuration={400}>
@@ -1104,42 +1333,50 @@
 							<div
 								class="bg-popover border-rule absolute top-full left-0 z-40 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
 							>
-								{#if hasCustomTypes}
+								{#if insertableCustomTypes.length > 0}
 									<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
 										Blocks
 									</div>
-									{#each customTypes as ct}
+									{#each insertableCustomTypes as ct}
 										<button
 											type="button"
 											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
 											onclick={() => handleInsertBlock(ct.type)}
 										>
-											<span
-												class="bg-muted text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium uppercase"
-												>{ct.type.slice(0, 2)}</span
-											>
-											<span class="capitalize">{ct.title}</span>
+											{#if ct.icon}
+												<ct.icon class="text-muted-foreground h-4 w-4 shrink-0" />
+											{:else}
+												<span
+													class="bg-muted text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium uppercase"
+													>{ct.type.slice(0, 2)}</span
+												>
+											{/if}
+											<span>{ct.title}</span>
 										</button>
 									{/each}
 								{/if}
-								{#if hasInlineTypes}
-									{#if hasCustomTypes}
+								{#if insertableInlineTypes.length > 0}
+									{#if insertableCustomTypes.length > 0}
 										<div class="bg-border mx-2 my-1 h-px"></div>
 									{/if}
 									<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
 										Inline
 									</div>
-									{#each inlineTypes as it}
+									{#each insertableInlineTypes as it}
 										<button
 											type="button"
 											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
 											onclick={() => handleInsertInline(it.type)}
 										>
-											<span
-												class="bg-primary/20 text-primary flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium uppercase"
-												>{it.type.slice(0, 2)}</span
-											>
-											<span class="capitalize">{it.title}</span>
+											{#if it.icon}
+												<it.icon class="text-primary h-4 w-4 shrink-0" />
+											{:else}
+												<span
+													class="bg-primary/20 text-primary flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium uppercase"
+													>{it.type.slice(0, 2)}</span
+												>
+											{/if}
+											<span>{it.title}</span>
 										</button>
 									{/each}
 								{/if}
@@ -1164,7 +1401,12 @@
 									openAnnotation(ann.name);
 								}}
 							>
-								{ann.title.slice(0, 2).toUpperCase()}
+								{#if ann.icon ?? (ann.name === 'link' ? LinkIcon : null)}
+									{@const Icon = ann.icon ?? LinkIcon}
+									<Icon class="h-4 w-4" />
+								{:else}
+									{ann.title.slice(0, 2).toUpperCase()}
+								{/if}
 							</Tooltip.Trigger>
 							<Tooltip.Content side="bottom" sideOffset={4}>{ann.title}</Tooltip.Content>
 						</Tooltip.Root>
@@ -1199,7 +1441,54 @@
 		</Tooltip.Provider>
 	{/if}
 
-	<div bind:this={element} class="richtext-content"></div>
+	{#if contentBlocked}
+		<div role="alert" class="text-destructive p-3 text-sm">
+			This text can't be shown because this field's settings changed after it was written. Your
+			saved text is safe, and editing is locked here so it can't be overwritten. Please ask your web
+			team to look at it.
+		</div>
+	{/if}
+	<div
+		bind:this={element}
+		class="richtext-content"
+		style:display={contentBlocked ? 'none' : undefined}
+	></div>
+
+	{#if slash && slashMatches.length > 0}
+		<div
+			use:portal
+			role="listbox"
+			aria-label="Add"
+			class="border-rule bg-popover fixed z-[60] max-h-[300px] w-60 overflow-y-auto rounded-md border py-1 shadow-lg"
+			style="top: {slashPos.top}px; left: {slashPos.left}px;"
+		>
+			{#each slashMatches as item, i (item.group + item.id)}
+				{#if i === 0 || slashMatches[i - 1]!.group !== item.group}
+					<div class="text-muted-foreground px-3 pt-1.5 pb-1 text-[10px] font-medium uppercase">
+						{item.group}
+					</div>
+				{/if}
+				<button
+					type="button"
+					role="option"
+					aria-selected={i === slashIndex}
+					use:keepInView={i === slashIndex}
+					class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors {i ===
+					slashIndex
+						? 'bg-muted text-foreground'
+						: 'text-muted-foreground'}"
+					onmouseenter={() => (slashIndex = i)}
+					onmousedown={(e) => {
+						e.preventDefault();
+						chooseSlash(item);
+					}}
+				>
+					<item.icon class="h-4 w-4 shrink-0" />
+					<span>{item.label}</span>
+				</button>
+			{/each}
+		</div>
+	{/if}
 
 	{#if linkMode === 'preview'}
 		<div
@@ -1342,6 +1631,15 @@
 {/if}
 
 <style>
+	.richtext-content :global(.tiptap .is-empty::before) {
+		content: attr(data-placeholder);
+		color: var(--muted-foreground);
+		opacity: 0.7;
+		float: left;
+		height: 0;
+		pointer-events: none;
+	}
+
 	.richtext-editor {
 		position: relative;
 		border: 1px solid var(--border);
@@ -1366,9 +1664,11 @@
 		overflow: auto;
 	}
 
+	/* Room to write, as a word processor gives: about WordPress's box. It still
+	   grows with the text, and fills the screen when expanded. */
 	.richtext-content :global(.tiptap) {
-		padding: 0.75rem 1rem;
-		min-height: 150px;
+		padding: 1rem 1.25rem;
+		min-height: 18rem;
 		flex: 1;
 		outline: none;
 		font-size: 1rem;

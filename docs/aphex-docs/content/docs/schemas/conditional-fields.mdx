@@ -87,6 +87,25 @@ row one is set to.
 `documentData` is there for the genuine cases — a field on a block that depends on something
 at the top of the document, like a page-wide layout switch.
 
+### Following the parent
+
+A field in an array item sometimes depends on the block that owns the array: a feature's
+photo means nothing when the block's layout is a plain list. `siblingData` stops at the item,
+so `parentOf` (from `@aphexcms/cms-core`) finds the object that holds it:
+
+```ts
+import { parentOf } from '@aphexcms/cms-core';
+
+{
+	name: 'image',
+	type: 'image',
+	hidden: ({ siblingData, documentData }) => parentOf(documentData, siblingData)?.variant === 'list'
+}
+```
+
+It matches the item by its `_key`, so it works on the copy the editor holds as well as on the
+stored document. Call it on its own result to go up again (an item, its category, the block).
+
 ## Hidden fields are not validated
 
 A hidden field is skipped by validation as well as by the renderer.
@@ -193,6 +212,26 @@ The hero from the website template, where three fields depend on one choice:
 
 Choosing **None** leaves one dropdown. Choosing **Low impact** shows content and alignment.
 Choosing **High impact** shows content and media. Nothing on screen is inert.
+
+## Retiring a field
+
+`hidden` is for people. To stop an AI agent using a field as well, mark it `deprecated`:
+
+```ts
+{
+	name: 'emoji',
+	type: 'string',
+	title: 'Emoji',
+	deprecated: { reason: 'Use "symbol".' },
+	// Shown only where one is still set, so it can be cleared.
+	hidden: ({ siblingData }) => !siblingData.emoji
+}
+```
+
+Retired means it still works: keep rendering it. Agents aren't shown the field, and a new value is
+refused with the reason. An API key's write is saved, with the reason in `validation.warnings`, so
+integrations have time to move. When you stop rendering it, delete the field: API keys are then
+refused too, and values left in stored documents don't stop anyone saving or publishing.
 
 ## Related
 

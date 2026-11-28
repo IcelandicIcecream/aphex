@@ -1,4 +1,5 @@
 import type { FormFieldValue } from './compile';
+import { withFieldKeys } from './keys';
 
 /**
  * `{{fieldName}}` substitution for notification emails.
@@ -50,7 +51,7 @@ export function renderTemplate(
 /** Field name → the label an editor gave it, for readable email output. */
 export function fieldLabels(fields: FormFieldValue[]): Map<string, string> {
 	const labels = new Map<string, string>();
-	for (const field of fields) {
+	for (const field of withFieldKeys(fields)) {
 		if (typeof field.name === 'string' && field.name) {
 			labels.set(field.name, field.label ?? field.name);
 		}

@@ -18,6 +18,15 @@ export interface AphexPreviewOptions {
 	 * if omitted, the overlay falls back to a full `location.reload()`.
 	 */
 	onRefresh?: () => void;
+	/**
+	 * Called with a live snapshot of a *different* document the page shows, such as a
+	 * form a page's block renders, while that document is open in a stacked editor.
+	 * It arrives as it is typed, before that document saves.
+	 */
+	onRelatedData?: (
+		doc: Record<string, unknown>,
+		meta: { documentType: string; documentId: string }
+	) => void;
 }
 
 /**
@@ -73,8 +82,25 @@ function navigatesAway(target: Element): boolean {
 	return false;
 }
 
+/**
+ * What the hover label calls an element. Inside an item, the field the path ends
+ * on (`heading`, `image`), or the item it ends on (`columns[0]`): naming the
+ * top-level field would label every part of a page builder `blocks`. Otherwise
+ * the field, with the row number for a list entry — several rows of one list
+ * would all hover as the same bare name, with nothing to say which is which.
+ */
+function labelFor(d: DOMStringMap): string {
+	const path = d.aphexObjectPath;
+	if (path) {
+		const last = path.match(/(?:^|\.)([^.]+)$/)?.[1];
+		if (last && !last.startsWith('[')) return last;
+	}
+	const idx = d.aphexArrayIndex;
+	return (d.aphexField ?? '') + (idx != null ? `[${idx}]` : '');
+}
+
 export function enableAphexPreview(options: AphexPreviewOptions = {}): () => void {
-	const { stega = true, onData, onRefresh } = options;
+	const { stega = true, onData, onRefresh, onRelatedData } = options;
 
 	if (typeof window === 'undefined' || window.parent === window) return () => {};
 
@@ -193,10 +219,7 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 
 	function showOn(el: HTMLElement) {
 		activeEl = el;
-		// Show the row number for a list entry — several rows of one list otherwise all
-		// hover as the same bare field name, with nothing to say which slot is which.
-		const idx = el.dataset.aphexArrayIndex;
-		label.textContent = (el.dataset.aphexField ?? '') + (idx != null ? `[${idx}]` : '');
+		label.textContent = labelFor(el.dataset);
 		positionOn(el);
 		overlay.style.display = 'block';
 	}
@@ -204,6 +227,19 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 	function hide() {
 		activeEl = null;
 		overlay.style.display = 'none';
+	}
+
+	/** Outline `el` and flash it, for what the editor just went to. */
+	function point(el: HTMLElement) {
+		showOn(el);
+		el.animate(
+			[
+				{ outline: `3px solid ${ACCENT}`, outlineOffset: '4px' },
+				{ outline: `3px solid ${ACCENT_FADE}`, outlineOffset: '8px' }
+			],
+			{ duration: 1200, easing: 'ease-out', fill: 'none' }
+		);
+		setTimeout(hide, 1200);
 	}
 
 	const onMouseOver = (e: MouseEvent) => {
@@ -280,24 +316,43 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 			onData?.(doc, { documentType, documentId });
 			// Re-scan after the framework re-renders with the new stega-encoded values
 			requestAnimationFrame(scanStega);
+		} else if (type === 'aphex:related-data' && doc && documentType && documentId) {
+			onRelatedData?.(doc, { documentType, documentId });
+			requestAnimationFrame(scanStega);
 		} else if (type === 'aphex:refresh') {
 			// Re-fetch server-loaded data (a different document changed). Prefer the
 			// app's invalidate hook; otherwise hard-reload the preview.
 			if (onRefresh) onRefresh();
 			else location.reload();
 		} else if (type === 'aphex:field-focus' && fieldPath) {
-			const el = document.querySelector<HTMLElement>(`[data-aphex-field="${fieldPath}"]`);
+			const el = document.querySelector<HTMLElement>(
+				`[data-aphex-field="${CSS.escape(fieldPath)}"]`
+			);
 			if (!el) return;
 			el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-			showOn(el);
-			el.animate(
-				[
-					{ outline: `3px solid ${ACCENT}`, outlineOffset: '4px' },
-					{ outline: `3px solid ${ACCENT_FADE}`, outlineOffset: '8px' }
-				],
-				{ duration: 1200, easing: 'ease-out', fill: 'none' }
-			);
-			setTimeout(hide, 1200);
+			point(el);
+		} else if (type === 'aphex:item-focus' && fieldPath) {
+			const { arrayIndex } = e.data as { arrayIndex?: number };
+			if (typeof arrayIndex !== 'number') return;
+			// The item arrives with the data just before this message, so it may not be
+			// drawn yet: look again on the next frames, for up to about a second.
+			const field = `[data-aphex-field="${CSS.escape(fieldPath)}"]`;
+			const find = () =>
+				document.querySelector<HTMLElement>(`${field}[data-aphex-array-index="${arrayIndex}"]`) ??
+				document.querySelector<HTMLElement>(`${field}[data-aphex-block-index="${arrayIndex}"]`);
+			let tries = 0;
+			const look = () => {
+				const el = find();
+				if (!el) {
+					if (++tries < 60) requestAnimationFrame(look);
+					return;
+				}
+				// A section taller than the window shows from its top; a shorter one, centred.
+				const tall = el.getBoundingClientRect().height > window.innerHeight * 0.8;
+				el.scrollIntoView({ behavior: 'smooth', block: tall ? 'start' : 'center' });
+				point(el);
+			};
+			requestAnimationFrame(look);
 		}
 	};
 

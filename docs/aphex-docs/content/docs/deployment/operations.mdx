@@ -196,6 +196,17 @@ single password-reset request throttles everyone. Only name a header your proxy
 overwrites: on a directly-reachable app it is client-supplied, and trusting it lets a
 caller pick their own IP and skip rate limiting entirely.
 
+Core's own limits (the per-caller API and MCP limits, and password reset requests) use
+the address SvelteKit gives the request instead. With `adapter-node`, which the
+templates use, set `ADDRESS_HEADER` (and `XFF_DEPTH` for `x-forwarded-for`), with the
+same rule: only a header your proxy overwrites.
+
+```bash
+ADDRESS_HEADER=cf-connecting-ip           # behind Cloudflare
+ADDRESS_HEADER=x-forwarded-for            # one proxy in front
+XFF_DEPTH=1
+```
+
 ## Backups
 
 Three things, and only the first is obvious:

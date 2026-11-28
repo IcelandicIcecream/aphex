@@ -21,6 +21,50 @@ interface MapOptions {
 	parentSchemaName?: string;
 	/** Collected block content field info for union typing. */
 	blockContentFields?: BlockContentFieldInfo[];
+	/**
+	 * The `_type` an inline object array item is stored with (its `name`, else its
+	 * `type`), emitted as a literal so a union of items narrows on `_type`.
+	 */
+	arrayItemTag?: string;
+}
+
+/**
+ * The `_type` an inline object array entry's items are stored with, or null when
+ * the entry isn't an inline object. Mirrors how ArrayField and validation pick an
+ * entry for an item (`ref.name === item._type || ref.type === item._type`): an
+ * entry written `{ type: 'hero', fields }` stores `hero`, one written
+ * `{ type: 'object', name: 'linkItem', fields }` stores `linkItem`.
+ */
+function inlineObjectTag(item: { type: string; name?: string; fields?: unknown }): string | null {
+	if (!Array.isArray(item.fields)) return null;
+	return item.name ?? item.type;
+}
+
+/** A string as a TypeScript string literal type. */
+function literal(value: string): string {
+	return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+/**
+ * The values a string field's `list` allows, for a union of literals: every
+ * option, and with a `DependentList` every option of every branch. Null when
+ * the field has no list (or an empty one), which stays `string`.
+ */
+function listValues(field: Field): string[] | null {
+	const list = (field as { list?: unknown }).list;
+	const flat = Array.isArray(list)
+		? list
+		: list && typeof list === 'object' && 'options' in list
+			? Object.values((list as { options: Record<string, unknown[]> }).options).flat()
+			: [];
+	const values = [
+		...new Set(
+			flat
+				.map((item) => (typeof item === 'string' ? item : (item as { value?: unknown })?.value))
+				.filter((value): value is string => typeof value === 'string')
+		)
+	];
+	return values.length > 0 ? values : null;
 }
 
 /**
@@ -31,9 +75,19 @@ function mapFieldTypeToTS(
 	schemaMap: Map<string, SchemaType>,
 	opts: MapOptions = {}
 ): string {
-	const { inArray = false, resolved = false, parentSchemaName, blockContentFields } = opts;
+	const {
+		inArray = false,
+		resolved = false,
+		parentSchemaName,
+		blockContentFields,
+		arrayItemTag
+	} = opts;
 	switch (field.type) {
-		case 'string':
+		case 'string': {
+			const values = listValues(field);
+			if (values) return values.map(literal).join(' | ');
+			return 'string';
+		}
 		case 'text':
 		case 'slug':
 		case 'url':
@@ -93,17 +147,31 @@ function mapFieldTypeToTS(
 						}
 						return targets.length === 1 ? `Reference<${targets[0]}>` : `Reference<${union}>`;
 					}
+					// Inline object: `{ type: 'object', name, fields }`, or a page-builder
+					// block declared in place as `{ type: 'hero', fields }`. The second used
+					// to fall through to `unknown` (its `type` is neither a field type nor a
+					// schema), which dropped it and typed the whole array `unknown[]`.
+					// Checked before the registry, as `getArrayTypes` does: an entry with
+					// its own `fields` is that object, whatever its `type` also names.
+					const tag = inlineObjectTag(item);
+					if (tag !== null) {
+						return mapFieldTypeToTS({ ...(item as Field), type: 'object' } as Field, schemaMap, {
+							inArray: true,
+							resolved,
+							arrayItemTag: tag
+						});
+					}
 					// Named object schema — refs inside it are part of the same
 					// document tree, so in resolved mode point at the *Resolved
 					// variant (only if it actually has refs; otherwise no Resolved
-					// variant was emitted).
+					// variant was emitted). Items are stored with the schema's name.
 					const refSchema = schemaMap.get(item.type);
 					if (refSchema && refSchema.type === 'object') {
 						const useResolved = resolved && hasReferences(refSchema, schemaMap);
 						const name = toPascalCase(item.type) + (useResolved ? 'Resolved' : '');
-						return `(${name} & { _key?: string })`;
+						return `(${name} & { _type: ${literal(item.type)}; _key?: string })`;
 					}
-					// Inline object or primitive — recurse, propagating resolved.
+					// Primitive — recurse, propagating resolved.
 					return mapFieldTypeToTS(item as Field, schemaMap, { inArray: true, resolved });
 				})
 				.filter((t) => t !== 'unknown');
@@ -117,9 +185,13 @@ function mapFieldTypeToTS(
 				return 'Record<string, unknown>';
 			}
 			// Generate inline interface for object fields. When this object is
-			// itself an array item, prepend the runtime-only `_key?` and
-			// `_type?` discriminator props.
-			const arrayMeta = inArray ? '  _key?: string;\n  _type?: string;\n' : '';
+			// itself an array item, prepend `_key?` (added by the editor) and its
+			// `_type`, which validation requires on every object item.
+			const arrayMeta = inArray
+				? arrayItemTag
+					? `  _type: ${literal(arrayItemTag)};\n  _key?: string;\n`
+					: '  _key?: string;\n  _type?: string;\n'
+				: '';
 			const props = field.fields
 				.map((f) => {
 					const tsType = mapFieldTypeToTS(f, schemaMap, { resolved });
@@ -136,7 +208,7 @@ function mapFieldTypeToTS(
 					?.map((t) => (schemaMap.get(t.type) ? toPascalCase(t.type) : null))
 					.filter((s): s is string => !!s) ?? [];
 			if (resolved) {
-				// At depth=1 the ref is replaced with the full target doc (raw shape).
+				// At depth=1 the ref is replaced with the target as a direct read returns it.
 				if (targets.length === 0) return 'unknown';
 				return targets.length === 1 ? targets[0]! : targets.join(' | ');
 			}
@@ -445,6 +517,8 @@ ${fields}
     updatedBy?: string;
     publishedAt?: Date | null;
     publishedHash?: string | null;
+    /** Draft reads of a published document: the draft differs from what's live. */
+    hasUnpublishedChanges?: boolean;
   };`;
 	} else {
 		// Object types include _type for array item discrimination
@@ -480,6 +554,10 @@ function fieldHasReferences(
 	if (field.type === 'array' && 'of' in field && field.of) {
 		return field.of.some((item) => {
 			if (item.type === 'reference') return true;
+			// An inline object (`{ type: 'hero', fields }` included), as in mapFieldTypeToTS.
+			if (inlineObjectTag(item) !== null) {
+				return (item.fields as Field[]).some((f) => fieldHasReferences(f, schemaMap, visited));
+			}
 			const named = schemaMap.get(item.type);
 			if (named && named.type === 'object') return hasReferences(named, schemaMap, visited);
 			return fieldHasReferences(item as Field, schemaMap, visited);
@@ -664,14 +742,32 @@ ${collectionsAugmentation}
 }
 
 /**
- * CLI helper to generate types from schema file
+ * What an icon package or a `.svelte` file is while types are generated: one
+ * empty component that is the module's default export and every named export.
+ * CommonJS, because esbuild checks an ESM module's named imports against its
+ * exports and these names are not known ahead. esbuild's interop reads a named
+ * import off an object whose prototype is the module, so the proxy as the
+ * component's prototype answers every name with the component itself (but not
+ * `__esModule` or `then`, which interop and `await` look for).
  */
+export const STUB_COMPONENTS = `
+function Stub() {}
+const names = new Proxy(Function.prototype, {
+	get(target, key, receiver) {
+		if (key in target || typeof key !== 'string' || key === '__esModule' || key === 'then') return Reflect.get(target, key, receiver);
+		return Stub;
+	}
+});
+Object.setPrototypeOf(Stub, names);
+module.exports = Stub;
+`;
+
 /**
  * Compile a `.ts` module with esbuild (stubbing icons + Svelte components, which never
  * affect types) and dynamically import it, returning the module namespace. Used for both
  * the schema module and the optional plugins module.
  */
-async function compileAndImportModule(
+export async function compileAndImportModule(
 	absolutePath: string,
 	tempName: string,
 	opts: { bundlePlugins?: boolean; cmsCoreDist?: string } = {}
@@ -711,7 +807,7 @@ async function compileAndImportModule(
 			external: opts.bundlePlugins ? ['sharp', 'graphql', 'graphql-yoga'] : ['@aphexcms/*'],
 			plugins: [
 				{
-					name: 'remove-icons',
+					name: 'stub-components',
 					setup(build) {
 						/*
 						 * Map `@aphexcms/cms-core` — and its subpaths — onto the built dist.
@@ -755,32 +851,21 @@ async function compileAndImportModule(
 						build.onLoad({ filter: /.*/, namespace: 'env-stub' }, () => {
 							return { contents: 'export const env = {};', loader: 'js' };
 						});
-						build.onResolve({ filter: /^@lucide\/svelte/ }, (args) => {
-							return { path: args.path, namespace: 'lucide-stub' };
+						// Icons and Svelte components never affect types, and Svelte can't
+						// load in Node: each import of one is a stub component (STUB_COMPONENTS),
+						// so a schema can use them as values (`icon: Newspaper`, or a call
+						// that wraps a component, `icon: picture(drawing)`) without its
+						// source being rewritten.
+						build.onResolve({ filter: /^(@lucide\/svelte|lucide-svelte)(\/|$)/ }, (args) => {
+							return { path: args.path, namespace: 'component-stub' };
 						});
-						// CJS rather than ESM: esbuild validates ESM named imports against
-						// the module's exports, so `export default {}` breaks any plugin
-						// doing `import { Sparkles } from '@lucide/svelte'`. Named imports
-						// off a CJS stub become property access instead, so every icon name
-						// resolves to undefined — which is what the `icon:` rewrite below
-						// wants anyway.
-						build.onLoad({ filter: /.*/, namespace: 'lucide-stub' }, () => {
-							return { contents: 'module.exports = {}', loader: 'js' };
-						});
-						// Stub .svelte components — a schema/plugin module can transitively
-						// import component parts (actions, tools, widgets) that never affect types.
+						// Component parts a schema or plugin module can import transitively
+						// (actions, tools, widgets), by default or by name.
 						build.onResolve({ filter: /\.svelte(\?.*)?$/ }, (args) => {
-							return { path: args.path, namespace: 'svelte-stub' };
+							return { path: args.path, namespace: 'component-stub' };
 						});
-						// CJS for the same reason as the lucide stub above: components can be
-						// imported by name (`import { Foo } from './parts.svelte'`).
-						build.onLoad({ filter: /.*/, namespace: 'svelte-stub' }, () => {
-							return { contents: 'module.exports = {}', loader: 'js' };
-						});
-						build.onLoad({ filter: /\.(ts|js)$/ }, async (args) => {
-							const contents = await fs.readFile(args.path, 'utf8');
-							const transformed = contents.replace(/icon:\s*\w+/g, 'icon: undefined');
-							return { contents: transformed, loader: args.path.endsWith('.ts') ? 'ts' : 'js' };
+						build.onLoad({ filter: /.*/, namespace: 'component-stub' }, () => {
+							return { contents: STUB_COMPONENTS, loader: 'js' };
 						});
 					}
 				}

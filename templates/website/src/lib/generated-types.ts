@@ -43,14 +43,14 @@ export interface PortableTextBlock {
 export interface BannerBlock {
 	_type: 'banner';
 	_key: string;
-	style?: string;
+	style?: 'info' | 'warning' | 'error' | 'success';
 	content: string;
 }
 
 export interface CodeBlock {
 	_type: 'code';
 	_key: string;
-	language?: string;
+	language?: 'typescript' | 'javascript' | 'svelte' | 'html' | 'css' | 'bash' | 'json';
 	code: string;
 }
 
@@ -100,25 +100,79 @@ export interface Page {
 	 */
 	slug: string;
 	hero?: {
-		variant?: string;
+		variant?: 'none' | 'highImpact' | 'mediumImpact' | 'lowImpact';
 		richText?: PortableTextBlock[];
-		align?: string;
+		align?: 'left' | 'center';
 		links?: {
+			_type: 'linkItem';
 			_key?: string;
-			_type?: string;
-			linkType?: string;
+			linkType?: 'reference' | 'custom';
 			label?: string;
 			reference?: Reference<Page | Post>;
 			url?: string;
 			newTab?: boolean;
-			appearance?: string;
+			appearance?: 'default' | 'outline' | 'link';
 		}[];
 		media?: ImageValue;
 	};
 	/**
 	 * The page body, block by block.
 	 */
-	layout?: unknown[];
+	layout?: Array<
+		| {
+				_type: 'cta';
+				_key?: string;
+				richText?: PortableTextBlock[];
+				links?: {
+					_type: 'linkItem';
+					_key?: string;
+					linkType?: 'reference' | 'custom';
+					label?: string;
+					reference?: Reference<Page | Post>;
+					url?: string;
+					newTab?: boolean;
+					appearance?: 'default' | 'outline' | 'link';
+				}[];
+		  }
+		| {
+				_type: 'content';
+				_key?: string;
+				columns?: {
+					_type: 'column';
+					_key?: string;
+					size?: 'oneThird' | 'half' | 'twoThirds' | 'full';
+					richText?: PortableTextBlock[];
+					enableLink?: boolean;
+					linkType?: 'reference' | 'custom';
+					label?: string;
+					reference?: Reference<Page | Post>;
+					url?: string;
+					newTab?: boolean;
+					appearance?: 'default' | 'outline' | 'link';
+				}[];
+		  }
+		| {
+				_type: 'mediaBlock';
+				_key?: string;
+				media: ImageValue;
+				caption?: string;
+		  }
+		| {
+				_type: 'archive';
+				_key?: string;
+				introContent?: PortableTextBlock[];
+				populateBy?: 'collection' | 'selection';
+				categories?: Reference<Category>[];
+				limit?: number;
+				selectedDocs?: Reference<Post>[];
+		  }
+		| {
+				_type: 'formBlock';
+				_key?: string;
+				form: Reference<Form>;
+				introContent?: PortableTextBlock[];
+		  }
+	>;
 	/**
 	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
 	 */
@@ -140,6 +194,8 @@ export interface Page {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -179,6 +235,8 @@ export interface Post {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -208,6 +266,8 @@ export interface Category {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -218,9 +278,9 @@ export interface Header {
 	 * Six is already too many. Internal links follow their document’s slug.
 	 */
 	navItems?: {
+		_type: 'linkItem';
 		_key?: string;
-		_type?: string;
-		linkType?: string;
+		linkType?: 'reference' | 'custom';
 		label?: string;
 		reference?: Reference<Page | Post>;
 		url?: string;
@@ -237,6 +297,8 @@ export interface Header {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -244,9 +306,9 @@ export interface Footer {
 	/** Document ID */
 	id: string;
 	navItems?: {
+		_type: 'linkItem';
 		_key?: string;
-		_type?: string;
-		linkType?: string;
+		linkType?: 'reference' | 'custom';
 		label?: string;
 		reference?: Reference<Page | Post>;
 		url?: string;
@@ -267,6 +329,8 @@ export interface Footer {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -304,6 +368,8 @@ export interface SiteSettings {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -311,28 +377,136 @@ export interface Form {
 	/** Document ID */
 	id: string;
 	/**
-	 * Internal name, and the default heading where the form is embedded.
+	 * The form’s name, and its heading on the page unless the Form block gives another.
 	 */
 	title: string;
-	fields: unknown[];
+	fields: Array<
+		| {
+				_type: 'formText';
+				_key?: string;
+				label: string;
+				required?: boolean;
+				width?: 'full' | 'half';
+				placeholder?: string;
+				defaultValue?: string;
+				name?: string;
+		  }
+		| {
+				_type: 'formEmail';
+				_key?: string;
+				label: string;
+				required?: boolean;
+				width?: 'full' | 'half';
+				placeholder?: string;
+				name?: string;
+		  }
+		| {
+				_type: 'formPhone';
+				_key?: string;
+				label: string;
+				required?: boolean;
+				width?: 'full' | 'half';
+				placeholder?: string;
+				name?: string;
+		  }
+		| {
+				_type: 'formTextarea';
+				_key?: string;
+				label: string;
+				required?: boolean;
+				width?: 'full' | 'half';
+				placeholder?: string;
+				rows?: number;
+				name?: string;
+		  }
+		| {
+				_type: 'formDate';
+				_key?: string;
+				label: string;
+				required?: boolean;
+				width?: 'full' | 'half';
+				notPast?: boolean;
+				name?: string;
+		  }
+		| {
+				_type: 'formRadio';
+				_key?: string;
+				label: string;
+				required?: boolean;
+				width?: 'full' | 'half';
+				options: {
+					_type: 'option';
+					_key?: string;
+					label: string;
+					value?: string;
+				}[];
+				name?: string;
+		  }
+		| {
+				_type: 'formSelect';
+				_key?: string;
+				label: string;
+				required?: boolean;
+				width?: 'full' | 'half';
+				options: {
+					_type: 'option';
+					_key?: string;
+					label: string;
+					value?: string;
+				}[];
+				name?: string;
+		  }
+		| {
+				_type: 'formCheckbox';
+				_key?: string;
+				label: string;
+				required?: boolean;
+				width?: 'full' | 'half';
+				defaultValue?: boolean;
+				name?: string;
+		  }
+		| {
+				_type: 'formNumber';
+				_key?: string;
+				label: string;
+				required?: boolean;
+				width?: 'full' | 'half';
+				min?: number;
+				max?: number;
+				name?: string;
+		  }
+		| {
+				_type: 'formMessage';
+				_key?: string;
+				message?: PortableTextBlock[];
+		  }
+	>;
 	submitButtonLabel?: string;
-	confirmationType?: string;
+	confirmationType?: 'message' | 'redirect';
 	confirmationMessage?: PortableTextBlock[];
 	/**
-	 * A site path (/thanks) or an absolute URL.
+	 * A page of your site (/thanks) or a full web address (https://…).
 	 */
 	redirectUrl?: string;
 	/**
-	 * Sent after a submission is stored. Reference an answer with {{fieldName}}; {{allFields}} expands to the whole submission.
+	 * Who hears about each message. {{allFields}} puts in every answer; {{phone}} puts in one, by its answer key. With none here, messages go to your site’s own email address, where the site has one.
 	 */
 	emails?: {
+		_type: 'notification';
 		_key?: string;
-		_type?: string;
 		to: string;
 		replyTo?: string;
 		subject: string;
 		message: string;
 	}[];
+	/**
+	 * A short note to the address they gave, so they know it arrived. Replies to it come to your site’s email address.
+	 */
+	confirmationEmail?: {
+		enabled?: boolean;
+		subject?: string;
+		message?: string;
+	};
 	/** Document metadata */
 	_meta?: {
 		type: string;
@@ -344,6 +518,8 @@ export interface Form {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -357,22 +533,32 @@ export interface FormSubmission {
 	 */
 	submittedAt?: string;
 	submissionData?: {
+		_type: 'answer';
 		_key?: string;
-		_type?: string;
 		field?: string;
 		value?: string;
 	}[];
 	notificationEmails?: {
+		_type: 'submissionNotification';
 		_key?: string;
-		_type?: string;
 		to?: string;
 		replyTo?: string;
 		subject?: string;
 		message?: string;
 	}[];
+	/**
+	 * The site’s name, in front of the address its emails come from.
+	 */
+	senderName?: string;
+	confirmationEmail?: {
+		to?: string;
+		replyTo?: string;
+		subject?: string;
+		message?: string;
+	};
 	notificationFieldLabels?: {
+		_type: 'submissionFieldLabel';
 		_key?: string;
-		_type?: string;
 		field?: string;
 		label?: string;
 	}[];
@@ -387,6 +573,8 @@ export interface FormSubmission {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -412,25 +600,79 @@ export interface PageResolved {
 	 */
 	slug: string;
 	hero?: {
-		variant?: string;
+		variant?: 'none' | 'highImpact' | 'mediumImpact' | 'lowImpact';
 		richText?: PortableTextBlock[];
-		align?: string;
+		align?: 'left' | 'center';
 		links?: {
+			_type: 'linkItem';
 			_key?: string;
-			_type?: string;
-			linkType?: string;
+			linkType?: 'reference' | 'custom';
 			label?: string;
 			reference?: Page | Post;
 			url?: string;
 			newTab?: boolean;
-			appearance?: string;
+			appearance?: 'default' | 'outline' | 'link';
 		}[];
 		media?: ImageValue;
 	};
 	/**
 	 * The page body, block by block.
 	 */
-	layout?: unknown[];
+	layout?: Array<
+		| {
+				_type: 'cta';
+				_key?: string;
+				richText?: PortableTextBlock[];
+				links?: {
+					_type: 'linkItem';
+					_key?: string;
+					linkType?: 'reference' | 'custom';
+					label?: string;
+					reference?: Page | Post;
+					url?: string;
+					newTab?: boolean;
+					appearance?: 'default' | 'outline' | 'link';
+				}[];
+		  }
+		| {
+				_type: 'content';
+				_key?: string;
+				columns?: {
+					_type: 'column';
+					_key?: string;
+					size?: 'oneThird' | 'half' | 'twoThirds' | 'full';
+					richText?: PortableTextBlock[];
+					enableLink?: boolean;
+					linkType?: 'reference' | 'custom';
+					label?: string;
+					reference?: Page | Post;
+					url?: string;
+					newTab?: boolean;
+					appearance?: 'default' | 'outline' | 'link';
+				}[];
+		  }
+		| {
+				_type: 'mediaBlock';
+				_key?: string;
+				media: ImageValue;
+				caption?: string;
+		  }
+		| {
+				_type: 'archive';
+				_key?: string;
+				introContent?: PortableTextBlock[];
+				populateBy?: 'collection' | 'selection';
+				categories?: Category[];
+				limit?: number;
+				selectedDocs?: Post[];
+		  }
+		| {
+				_type: 'formBlock';
+				_key?: string;
+				form: Form;
+				introContent?: PortableTextBlock[];
+		  }
+	>;
 	/**
 	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
 	 */
@@ -452,6 +694,8 @@ export interface PageResolved {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -491,6 +735,8 @@ export interface PostResolved {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -501,9 +747,9 @@ export interface HeaderResolved {
 	 * Six is already too many. Internal links follow their document’s slug.
 	 */
 	navItems?: {
+		_type: 'linkItem';
 		_key?: string;
-		_type?: string;
-		linkType?: string;
+		linkType?: 'reference' | 'custom';
 		label?: string;
 		reference?: Page | Post;
 		url?: string;
@@ -520,6 +766,8 @@ export interface HeaderResolved {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -527,9 +775,9 @@ export interface FooterResolved {
 	/** Document ID */
 	id: string;
 	navItems?: {
+		_type: 'linkItem';
 		_key?: string;
-		_type?: string;
-		linkType?: string;
+		linkType?: 'reference' | 'custom';
 		label?: string;
 		reference?: Page | Post;
 		url?: string;
@@ -550,6 +798,8 @@ export interface FooterResolved {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 
@@ -563,22 +813,32 @@ export interface FormSubmissionResolved {
 	 */
 	submittedAt?: string;
 	submissionData?: {
+		_type: 'answer';
 		_key?: string;
-		_type?: string;
 		field?: string;
 		value?: string;
 	}[];
 	notificationEmails?: {
+		_type: 'submissionNotification';
 		_key?: string;
-		_type?: string;
 		to?: string;
 		replyTo?: string;
 		subject?: string;
 		message?: string;
 	}[];
+	/**
+	 * The site’s name, in front of the address its emails come from.
+	 */
+	senderName?: string;
+	confirmationEmail?: {
+		to?: string;
+		replyTo?: string;
+		subject?: string;
+		message?: string;
+	};
 	notificationFieldLabels?: {
+		_type: 'submissionFieldLabel';
 		_key?: string;
-		_type?: string;
 		field?: string;
 		label?: string;
 	}[];
@@ -593,6 +853,8 @@ export interface FormSubmissionResolved {
 		updatedBy?: string;
 		publishedAt?: Date | null;
 		publishedHash?: string | null;
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges?: boolean;
 	};
 }
 

@@ -47,6 +47,25 @@ export interface AgentToolDefinition<TInput = unknown> {
 	 */
 	mutates: boolean;
 	/**
+	 * What people see the tool called, in a client's permission prompt or tool list
+	 * ("Publish document"). Defaults to the name in words (`publish_document` →
+	 * "Publish document"). MCP's `title` annotation.
+	 */
+	title?: string;
+	/**
+	 * Whether a call can overwrite or remove what's there, rather than only add to
+	 * it. Only means anything when `mutates`; MCP's `destructiveHint`, which clients
+	 * use to decide what needs the person's approval. Defaults to true for a
+	 * mutating tool unless its name says it only adds (`create_…`, `upload_…`,
+	 * `add_…`); say so explicitly when the name doesn't tell.
+	 */
+	destructive?: boolean;
+	/**
+	 * Whether it reaches outside this site, such as fetching a web page someone named.
+	 * MCP's `openWorldHint`. Defaults to false: a tool acts on this site's own content.
+	 */
+	openWorld?: boolean;
+	/**
 	 * Capabilities required to see AND to invoke this tool — checked at both
 	 * advertisement (don't list a tool the caller can't use) and execution
 	 * (don't trust the advertisement check alone). A tool hidden from an
@@ -58,12 +77,24 @@ export interface AgentToolDefinition<TInput = unknown> {
 	inputSchema: z.ZodType<TInput>;
 }
 
+/** An image a tool hands back for the model to look at, base64 without a `data:` prefix. */
+export interface AgentToolImage {
+	mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+	data: string;
+}
+
 /** Outcome of a single tool call. */
 export interface AgentToolResult {
 	success: boolean;
 	data?: unknown;
 	/** Present when `success` is false — a message safe to show the model/user. */
 	error?: string;
+	/**
+	 * Images for the model to see, after `data`: a photo the owner uploaded, a logo. MCP
+	 * sends them as image content, which Claude and ChatGPT look at. Keep them small
+	 * (resize to about 768px): each costs the client's context like a page of text.
+	 */
+	images?: AgentToolImage[];
 }
 
 /** Everything an `execute` function needs to act on behalf of the calling request. */

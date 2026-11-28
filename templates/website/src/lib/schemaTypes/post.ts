@@ -111,7 +111,9 @@ const postType = defineType({
 			type: 'array',
 			title: 'Related posts',
 			group: 'meta',
-			of: [{ type: 'reference', to: [{ type: 'post' }] }]
+			// Weak, so two posts that recommend each other can both be published. One
+			// that isn't live is left out of the list.
+			of: [{ type: 'reference', to: [{ type: 'post' }], weak: true }]
 		}
 		// No `publishedAt` field: Aphex stamps one on the document when it's first
 		// published (`_meta.publishedAt`), and `publishedAt` is a reserved column

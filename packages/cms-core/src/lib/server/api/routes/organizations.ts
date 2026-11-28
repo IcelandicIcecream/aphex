@@ -53,7 +53,11 @@ export const organizationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					{
 						success: false,
 						error: 'Invalid request body',
-						message: 'Organization name and slug are required',
+						// A name's own problem (too long) says so; anything else, what's needed.
+						message:
+							result.error.issues.find(
+								(issue) => issue.path[0] === 'name' && issue.code !== 'invalid_type'
+							)?.message ?? 'Organization name and slug are required',
 						issues: result.error.issues
 					},
 					400
@@ -62,10 +66,11 @@ export const organizationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 		}),
 		async (c) => {
 			try {
-				const { databaseAdapter } = c.var.aphexCMS;
+				const { databaseAdapter, rolesService } = c.var.aphexCMS;
 				const auth = c.var.auth;
 
-				if (!auth || auth.type !== 'session') {
+				// A session with no organization yet counts, because this is how it gets one.
+				if (!auth || auth.type === 'api_key') {
 					return c.json(
 						{
 							success: false,
@@ -76,18 +81,32 @@ export const organizationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					);
 				}
 
-				if (auth.user.role !== 'super_admin') {
-					return c.json(
-						{
-							success: false,
-							error: 'Forbidden',
-							message: 'Only super admins can create organizations'
-						},
-						403
-					);
+				const isSuperAdmin = auth.user.role === 'super_admin';
+				if (!isSuperAdmin) {
+					const { allowUserOrgCreation } = await databaseAdapter.getInstanceSettings();
+					if (!allowUserOrgCreation) {
+						return c.json(
+							{
+								success: false,
+								error: 'Forbidden',
+								message: 'Only super admins can create organizations on this instance'
+							},
+							403
+						);
+					}
 				}
 
 				const body = c.req.valid('json');
+
+				const nameProblem = await c.var.aphexCMS.config?.checkOrganizationName?.(body.name, {});
+				if (nameProblem) {
+					return c.json({ success: false, error: 'Invalid name', message: nameProblem }, 400);
+				}
+
+				const slugProblem = await c.var.aphexCMS.config?.checkOrganizationSlug?.(body.slug, {});
+				if (slugProblem) {
+					return c.json({ success: false, error: 'Invalid slug', message: slugProblem }, 400);
+				}
 
 				const existingOrg = await databaseAdapter.findOrganizationBySlug(body.slug);
 				if (existingOrg) {
@@ -101,11 +120,39 @@ export const organizationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					);
 				}
 
+				// Members of a parent organization can reach its children, so a new organization
+				// only goes under one when the caller asks for it and administers it. With no
+				// parent named it is top-level, for super admins too: defaulting to the active
+				// organization put organizations under whatever the caller happened to be in.
+				const requestedParent = body.parentOrganizationId;
+				if (requestedParent && !isSuperAdmin) {
+					const membership = await databaseAdapter.findUserMembership(
+						auth.user.id,
+						requestedParent
+					);
+					const capabilities = membership
+						? await rolesService.getCapabilities(requestedParent, membership.role)
+						: [];
+					if (!capabilities.includes('org.settings')) {
+						return c.json(
+							{
+								success: false,
+								error: 'Forbidden',
+								message: 'You can only add organizations under one you administer'
+							},
+							403
+						);
+					}
+				}
+				if (requestedParent && !(await databaseAdapter.findOrganizationById(requestedParent))) {
+					return c.json({ success: false, error: 'Parent organization not found' }, 404);
+				}
+
 				const newOrganization = await databaseAdapter.createOrganization({
 					name: body.name,
 					slug: body.slug,
 					metadata: body.metadata || null,
-					parentOrganizationId: auth.organizationId,
+					parentOrganizationId: requestedParent ?? null,
 					createdBy: auth.user.id
 				});
 

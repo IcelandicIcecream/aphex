@@ -1,6 +1,6 @@
 ---
 title: MCP Server
-description: Let AI clients like Claude Code and Cursor read and write your CMS content through the Model Context Protocol.
+description: Let AI clients like Claude, ChatGPT, Claude Code and Cursor read and write your CMS content through the Model Context Protocol.
 icon: Bot
 ---
 
@@ -8,13 +8,28 @@ Aphex ships a built-in [MCP](https://modelcontextprotocol.io) server, so AI clie
 
 ## Mounting the endpoint
 
-The implementation lives in `@aphexcms/cms-core`; your app exposes it with a one-line re-export. Scaffolded apps already include this at `src/routes/mcp/+server.ts`:
+There's nothing to mount: Aphex's hook serves the MCP endpoint at `/admin/mcp` on your app's origin, as it serves `/api`. Everything Aphex answers sits under `/admin`, so it can't collide with your site's pages. Bump the package to update the server; there's nothing else to maintain.
+
+It also answers at `/mcp`, where it lived first, so clients already set up with that address keep working. Use `/admin/mcp` for new ones.
+
+A route of your own at exactly `src/routes/mcp/+server.ts` (or `admin/mcp/`) takes its place; a catch-all or `[slug]` page that merely matches the address doesn't. Apps made before this have a `/mcp` route that re-exports core's, which keeps working and can be deleted:
 
 ```ts
 export { POST, GET, DELETE } from '@aphexcms/cms-core/routes/mcp';
 ```
 
-That serves an MCP endpoint at `/mcp` on your app's origin. Bump the package to update the server — there's nothing else to maintain.
+### Turning it off
+
+MCP is on in every app. It doesn't add any access: it takes the same API keys as `/api`, a request without a key or token gets a 401, and connecting Claude or ChatGPT by signing in needs OAuth, which is off until you turn it on. To serve no MCP at all:
+
+```ts
+// aphex.config.ts
+export default createCMSConfig({
+	mcp: { enabled: false }
+});
+```
+
+`/admin/mcp` and `/mcp` are then ordinary paths: the first is the admin's, and the second is free for a page of your own. Their OAuth discovery documents go too, and the MCP SDK is never loaded.
 
 ## Transport
 
@@ -22,16 +37,90 @@ The endpoint speaks **streamable HTTP** — the current MCP transport (spec 2025
 
 ## Authentication
 
-Requests authenticate with an **org-scoped API key** passed as an `x-api-key` header. Create keys in **Admin → Settings → API Keys** — see [API Keys](/api-keys) for scopes and capabilities. A read-only key limits the client to querying; `write` unlocks create/update/publish.
+There are two ways in, and both act as one user in one organization:
 
-Prefer one key per client or environment, so you can revoke narrowly.
+- **An API key**, for developer tools that take a header (Claude Code, Codex, Cursor). Send it as `x-api-key` (or `Authorization: Bearer`). Create keys in **Admin → Settings → API Keys**; see [API Keys](/api-keys) for scopes and capabilities. A read-only key limits the client to querying; `write` unlocks create, update and publish. Prefer one key per client or environment, so you can revoke narrowly.
+- **OAuth**, for apps that connect by signing in: Claude (claude.ai, the desktop and mobile apps) and ChatGPT. Nobody copies a key; see [Connecting Claude and ChatGPT](#connecting-claude-and-chatgpt).
 
-## Connecting clients
+Whichever it is, the user's role in that organization is the ceiling, and it's checked on every request: removing someone from the organization, or changing their role, applies to their keys and connected apps at once.
+
+### Rate limits
+
+Every tool call counts against the caller's share a minute, the same one as the [HTTP API](/http-api#rate-limits): 120 reads, 60 changes and 10 uploads for each API key or connected app by default. Over it, the tool answers an error such as "Too many changes at once. Wait 12 seconds, then try again.", so the agent waits instead of retrying blindly. Set the numbers with `rateLimit` in `aphex.config.ts`.
+
+## Connecting Claude and ChatGPT
+
+Turn OAuth on in `aphex.config.ts`:
+
+```ts
+auth: aphexAuth({
+	secret: env.AUTH_SECRET,
+	baseURL: env.AUTH_URL,
+	oauth: { enabled: true }
+});
+```
+
+It adds four auth tables (`oauth_client`, `oauth_access_token`, `oauth_refresh_token`, `oauth_consent`), so generate a migration after upgrading (`pnpm db:generate`); SQLite creates them on start.
+
+Then, in Claude, open **Plugins**, choose **Custom connector** from the **Add** menu, name it and give it the address `https://your-app.com/admin/mcp`, leaving the rest as it is. In ChatGPT, open **Plugins**, choose **Add**, then **Add custom MCP server**, and give it the same address. The app does the rest:
+
+1. `/admin/mcp` answers 401 with `WWW-Authenticate: Bearer resource_metadata="…"`, pointing at `/.well-known/oauth-protected-resource/admin/mcp`.
+2. That names the authorization server, whose metadata is at `/.well-known/oauth-authorization-server/api/auth`.
+3. The app registers itself (dynamic client registration) and sends the user to sign in.
+4. After signing in, the user **picks the site** the app may use (`/admin/oauth/site`) and **allows it** (`/admin/oauth/consent`). The consent page names the host the answer goes back to, since anyone can register an app under any name.
+5. The app gets a token for that one organization and calls `/admin/mcp` with it.
+
+What a connected app can do:
+
+| Scope            | Allows                                                                |
+| ---------------- | --------------------------------------------------------------------- |
+| `aphex:read`     | Reading content and media.                                            |
+| `aphex:write`    | Creating and editing drafts, uploading media, and plugins' own tools. |
+| `offline_access` | Staying connected (a refresh token) until the user disconnects it.    |
+
+A new connection works on **drafts only**: it can't publish, unpublish or delete until the user allows it, and it can **never** manage members, roles, keys or settings, whatever the user's role. Tools it can't use aren't listed to it. Users see and disconnect their apps under **Settings → Account → Connected apps**; disconnecting removes the grant and its tokens, so the app's next call fails.
+
+### Letting a connected app publish
+
+Under each app in **Connected apps**, the user can switch on what it may do beyond drafts, one at a time (`OAUTH_OPT_IN_CAPABILITIES`):
+
+| Switch                                 | Capability           |
+| -------------------------------------- | -------------------- |
+| Publish drafts, so its changes go live | `document.publish`   |
+| Take content off the live site         | `document.unpublish` |
+| Delete documents                       | `document.delete`    |
+| Delete media                           | `asset.delete`       |
+
+- Only what the user can do themselves is offered, and the server refuses the rest (403): an app never holds more than the person it acts for, and losing a role takes it from the app too.
+- It applies from the app's next request: the token is checked on every call. With publishing on, the app is told it may publish, and only when the user asks; `publish_document` appears in its tools.
+- It belongs to that one connection, and lasts while the app renews its tokens. Disconnecting removes it; connecting the app again afterwards starts from drafts only.
+- An app reads content it didn't write (websites, form messages), and some of it may try to give it instructions. Publishing removes the person who would catch that before it's live, so switch it on only for an app you watch, and keep the app's own instructions telling it to publish only what the user said yes to.
+
+Stored on the grant itself, as `aphex:allow:<capability>` entries in its consent's scopes, so it needs no table of its own; `PATCH /api/settings/connected-apps/:clientId` with `{ "allowed": ["document.publish"] }` sets it.
+
+Tokens are opaque and checked against the database on every call, and they're issued only for the MCP server on `baseURL`'s origin (`/admin/mcp`, or `/mcp`). Serve the app from that address, and set `baseURL`: without it there's no issuer to advertise.
+
+## Requiring a plan
+
+To make MCP a paid feature, name the capability it needs. It's usually one of `organizationCapabilities` (see [Features per organization](/multi-tenancy#features-per-organization)):
+
+```ts
+organizationCapabilities: {
+	ids: ['billing.pro'],
+	labels: { 'billing.pro': { title: 'Pro' } },
+	resolve: async ({ organizationId }) => ((await planFor(organizationId)) === 'pro' ? ['billing.pro'] : [])
+},
+mcp: { requiredCapabilities: ['billing.pro'] }
+```
+
+Every MCP request checks it, with a key or a connected app alike, and answers 403 naming what's missing (`needs Pro`). A downgrade cuts access off on the next call, and the site picker shows sites without it as unavailable. An id nothing declares fails at boot.
+
+## Connecting developer tools
 
 **Claude Code:**
 
 ```bash
-claude mcp add --transport http aphex https://your-app.com/mcp \
+claude mcp add --transport http aphex https://your-app.com/admin/mcp \
   --header "x-api-key: <your-api-key>"
 ```
 
@@ -41,7 +130,7 @@ claude mcp add --transport http aphex https://your-app.com/mcp \
 {
 	"mcpServers": {
 		"aphex": {
-			"url": "https://your-app.com/mcp",
+			"url": "https://your-app.com/admin/mcp",
 			"headers": { "x-api-key": "<your-api-key>" }
 		}
 	}
@@ -52,30 +141,138 @@ Once connected, the tools appear under the server name you chose (e.g. `mcp__aph
 
 ## Tools
 
-| Tool                | What it does                                                                           |
-| ------------------- | -------------------------------------------------------------------------------------- |
-| `describe_cms`      | Orientation: all content types, relationships, field-type vocabulary, key permissions. |
-| `list_collections`  | List document collections with names and titles.                                       |
-| `get_schema`        | Field schema for one collection — the shape to use when writing documents.             |
-| `query_documents`   | Query with `where` filters, sorting, pagination, and draft/published perspective.      |
-| `get_document`      | Read a single document by id.                                                          |
-| `create_document`   | Create a document (optionally publish).                                                |
-| `update_document`   | Update a document's fields (optionally publish).                                       |
-| `publish_document`  | Publish an existing draft.                                                             |
-| `get_singleton`     | Read a singleton (e.g. site settings) without needing an id.                           |
-| `update_singleton`  | Update a singleton's fields.                                                           |
-| `validate_document` | Dry-run validation against the collection schema — same validator as create/update.    |
-| `validate_schema`   | Validate a proposed schema definition before writing a schema file.                    |
-| `list_assets`       | List media assets, filterable by type and filename.                                    |
+| Tool                | What it does                                                                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `describe_cms`      | Orientation: all content types, relationships, field-type vocabulary, key permissions.                                                                                        |
+| `list_collections`  | List document collections with names and titles.                                                                                                                              |
+| `get_schema`        | One collection's shape as a compact TypeScript outline. A page builder lists its block types; pass `types` for the ones you'll write, or `detail: 'full'` for the raw schema. |
+| `query_documents`   | Query with `where` filters, sorting, draft/published perspective; 20 at a time (50 at most), fewer when they're large.                                                        |
+| `get_document`      | Read a document by id: whole, `fields`, one `path`, or `skim` (each block's key, type and label).                                                                             |
+| `create_document`   | Create a document (optionally publish).                                                                                                                                       |
+| `update_document`   | Update a document's fields (optionally publish).                                                                                                                              |
+| `patch_document`    | Edit part of a document by path (one block's heading, a phrase in rich text, a block added, moved or removed) and get back only the new revision.                             |
+| `publish_document`  | Publish an existing draft.                                                                                                                                                    |
+| `get_singleton`     | Read a singleton (e.g. site settings) without needing an id.                                                                                                                  |
+| `update_singleton`  | Update a singleton's fields.                                                                                                                                                  |
+| `validate_document` | Dry-run validation against the collection schema — same validator as create/update. Pass `id` when checking changes to an existing document.                                  |
+| `validate_schema`   | Validate a proposed schema definition before writing a schema file.                                                                                                           |
+| `list_assets`       | List media assets, 25 at a time (50 at most), filterable.                                                                                                                     |
+| `upload_asset`      | Upload an image or file from base64 data or a URL, ready to drop into a field.                                                                                                |
+
+Each caller sees only the tools its capabilities allow, plus any tools your plugins add (`aphex/agent/tool`).
+
+### Keeping it cheap
+
+Every character a tool returns is a token the client pays for, so the tools answer with what was asked:
+
+- `get_schema` sends an outline rather than the raw schema: on a page builder with 22 block types, about 1.6k characters by default and 4k with two blocks' fields, instead of 118k.
+- `get_document` with `skim` gives a page's structure in under half its size; `path` reads one block. Each skimmed item carries its label as `_skim`, and a save refuses anything still carrying it, so a summary can't be written back over the content.
+- `patch_document` sends the change, not the field it's in, and answers with the new revision.
+- Answers are compact JSON, and `_meta` carries only the type, status, revision and dates.
 
 All schema information is derived live from the running config — never stale.
 
-## Suggested workflow for agents
+## What clients are told
 
-1. Call `describe_cms` first — it returns the content model and what the API key may do.
-2. `get_schema` for the collection you're about to write.
-3. `validate_document` to dry-run the payload and get field-level errors.
-4. `create_document` / `update_document`, publishing when ready.
+When a client connects, the MCP server sends it instructions, which Claude, ChatGPT, Claude Code and Cursor read before they call a tool. Nobody installs anything: every connection gets them. They come in three parts.
+
+**Core's guide**, for every site:
+
+- start with `describe_cms`, and call `get_schema` before writing to a collection
+- slugs are bare strings
+- singletons use `get_singleton` and `update_singleton`
+- read only what's needed (`skim`, then `path`), edit with `patch_document`, let saving validate, and pass `expectedRevision`
+- images go through `upload_asset`, never as a raw URL
+- everything is a draft until published; a connection that can't publish hands over to the owner, with a link to the admin
+- don't invent prices, hours or addresses
+- report back with links to each document in the admin.
+
+**Your app's section**, from `mcp.instructions`. Say what's particular to your app: how a good page is put together, which blocks suit what, your domain's rules. A function gets the site, the caller, their capabilities and the server's origin, so it can tailor the text:
+
+```ts
+// aphex.config.ts
+export default createCMSConfig({
+	mcp: {
+		instructions: ({ organization, capabilities }) =>
+			[
+				`Pages for ${organization.name} start with a hero, then two to four sections.`,
+				capabilities.has('site.menus') ? 'Restaurant menus live in the `menu` collection.' : null
+			]
+				.filter(Boolean)
+				.join('\n')
+	}
+});
+```
+
+**Plugin sections**, from `aphex/agent/instructions` parts. Each part is shown only to a caller holding its `requiredCapabilities`, like the plugin's tools. See [Plugins](/plugins).
+
+`coreMcpInstructions` is exported from `@aphexcms/cms-core/server`, if you want to see exactly what core says.
+
+### Guides
+
+Instructions go to every connection and fill the model's context whether the job needs them or not, and some clients cut long ones short. Keep them to the rules that apply every time, and put the depth in guides, which work like skills: the instructions list each guide in a line, and the agent reads one in full with the `get_guide` tool when it's on that job.
+
+```ts
+// aphex.config.ts
+export default createCMSConfig({
+	mcp: {
+		instructions: 'Build pages from blocks. Read the "pages" guide before building one.',
+		guides: [
+			{
+				name: 'pages',
+				title: 'Building pages',
+				description: 'Before building or rewriting any page.',
+				content: pagesGuide // markdown
+			},
+			{
+				name: 'food',
+				title: 'Cafés and restaurants',
+				description: 'For a business that serves food.',
+				// A function gets what `instructions` gets; null leaves the guide out.
+				content: ({ capabilities }) => (capabilities.has('site.menu') ? foodGuide : null)
+			}
+		]
+	}
+});
+```
+
+A name is lowercase letters, digits and dashes, and two guides can't share one: both fail at boot. `get_guide` is only offered when the app has guides. Guides are a tool rather than MCP resources or prompts because every client calls tools, while support for the other two varies.
+
+### Prompts
+
+Prompts are ready-made requests a client offers its user. Claude lists them in its "+" menu, so "Make my site" is one click instead of a paragraph to type, and asks for any arguments first. Each one becomes a message the user sends as their own:
+
+```ts
+mcp: {
+	prompts: [
+		{
+			name: 'make-my-site',
+			title: 'Make my site',
+			description: 'Build the whole site from what you have.',
+			arguments: [{ name: 'website', description: 'Your current website, if you have one' }],
+			text: (args, { organization }) =>
+				`Make the website for ${organization.name}. Read the make-my-site guide first.` +
+				(args.website ? ` Our current site is ${args.website}.` : '')
+		}
+	];
+}
+```
+
+Some clients never show prompts, so a prompt only starts a job: what the agent must know belongs in the instructions or a guide. Names follow the guides' rule, and argument names are lowercase with underscores; both are checked at boot.
+
+### Tools that return images
+
+A plugin tool may return images beside its data, and MCP sends them as image content the model looks at: a photo the owner uploaded, so the agent can place it and describe it; a logo, to read its colours.
+
+```ts
+execute: async ({ id }) => ({
+	success: true,
+	data: { id, width: 768 },
+	images: [{ mimeType: 'image/jpeg', data: jpeg.toString('base64') }]
+});
+```
+
+Resize first (about 768px is plenty): each image fills the client's context like a page of text.
 
 Validation runs through the same pipeline as the HTTP and Local APIs, so an agent can't write shapes the admin UI couldn't.
 

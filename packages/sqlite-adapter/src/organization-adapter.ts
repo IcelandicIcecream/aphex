@@ -78,6 +78,12 @@ export class SQLiteOrganizationAdapter implements OrganizationAdapter {
 	}
 
 	async deleteOrganization(id: string): Promise<boolean> {
+		// Anyone working in it, member or not (a super admin looking in): their row points
+		// here without a cascade, and would refuse the delete. They land in another.
+		await this.db
+			.delete(this.tables.userSessions)
+			.where(eq(this.tables.userSessions.activeOrganizationId, id));
+
 		const result = await this.db
 			.delete(this.tables.organizations)
 			.where(eq(this.tables.organizations.id, id))

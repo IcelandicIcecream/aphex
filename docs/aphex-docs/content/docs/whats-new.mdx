@@ -1,0 +1,92 @@
+---
+title: What's new in Aphex 2
+description: Aphex 2 runs the whole admin from core, builds sites with AI, and serves many sites from one app. What changed, what you give up, and how to upgrade.
+icon: Megaphone
+---
+
+The short version: **your app no longer holds a copy of the admin.** Core serves the admin, the sign-in and account pages, God Mode, `/api`, `/media` and `/mcp` from one route, and your app keeps its schemas, its site and one small client config. Upgrading mostly means deleting files, and `pnpm create aphex` does that for you.
+
+## What's new
+
+### The admin lives in core
+
+- **One route.** `src/routes/admin/[...path]` is the whole admin. An app made from an Aphex 1 template had about 70 route and helper files for it. See [Upgrading to the Embedded Admin](/upgrading-to-embedded-admin).
+- **One client file.** `src/lib/aphex.client.ts` gives the admin your schemas, plugins, auth client, sidebar links and any account page you replace.
+- **Add Aphex to an app you already have.** `pnpm create aphex` run inside a SvelteKit app adds Aphex to it, claiming only `/admin`, `/api`, `/media` and `/mcp`. See [Add to an Existing App](/add-to-existing-app).
+- **One config file.** Every adapter can be declared inline in `aphex.config.ts`: `sqliteAdapter()`, `postgresAdapter()`, `aphexAuth()`, `s3Storage()`.
+
+### Built to be built by AI
+
+- **Claude and ChatGPT connect with a sign-in**, not an API key, over OAuth. Each connected app's changes show in Activity with Undo, and publishing is off until you allow it. See [MCP](/mcp).
+- **Your app tells the AI how your site works.** `mcp.instructions` go to every client on connecting, `mcp.guides` are read when the AI is on that job, and `mcp.prompts` are ready-made requests like "Make my site". The website template ships a set in `src/lib/agent/`.
+- **Cheaper tools.** `patch_document` edits part of a document by path, reads can be skimmed, and every caller gets a fair rate limit.
+
+### Many sites from one app
+
+- **Each organization can have its own address**, with its own sign-in page branding. See [Multi-Tenancy](/multi-tenancy).
+- **Plans and limits.** `organizationCapabilities` switches features per organization (content types, fields, choices), and `documentLimits`, `storageLimits` and `memberLimits` cap what each can make.
+
+### Editing
+
+- Autosave that never loses an edit, and an editor that keeps up with saves from another tab or an AI.
+- Validation messages written for editors: "Layout › FAQ (item 3) › Title: This is required.", under the field, once it's been visited.
+- Click-to-edit reaches anything nested, and the editor and preview follow each other.
+- Fieldsets, a searchable "add item" dialog, inherited values, a "/" menu in rich text, server-side search in reference pickers.
+- **Weak references** (`weak: true`): a page can be published while a page it links to is a draft, so pages that link to each other can both go live. Publish asks first. See [References](/schemas/reference).
+- A document that's still referenced isn't deleted without asking.
+
+### Sign-in
+
+- **Continue with Google** (or any Better Auth provider) on core's sign-in page when you set `socialProviders`. People who signed up with Google can set a password later. See [OAuth](/authentication#oauth).
+- **Security emails**, when you turn them on: a sign-in from a new browser, repeated wrong passwords, a changed password, two-factor turned off, a new API key or connected app, a new owner or admin. Each has a **This wasn't me** link that signs out every device and stops the password working. See [Security emails](/authentication#security-emails).
+- Account settings lists the signed-in devices, with Sign out for each.
+- Invitations need a confirmed email, nobody can give out more access than they hold, and only owners can remove an owner.
+- Every API key, connected app and person gets a fair rate limit, so a leaked key or a looping agent can't slow the site for everyone.
+- Two-factor pages, invitations and password reset are all in core.
+
+### Plugins
+
+- Forms: messages you can read and reply to, phone, date and choose-one questions, per-site emails.
+- SEO: a dashboard of what to fix.
+- Plugins can add admin screens, document actions in the ⋯ menu, agent tools and settings. See [Plugins](/plugins).
+
+## What you give up
+
+Moving the admin into core is what makes upgrades a version bump instead of a merge. It also takes some things away. Know these before you upgrade.
+
+### You don't own the admin's files any more
+
+Core draws the admin, the sign-in page, invitations, password reset, two-factor and God Mode. There are no files in your app to edit, and core's changes reach you when you update the package.
+
+What you can still change:
+
+| You want to                                      | Use                                                                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Brand the admin and the sign-in pages            | `customization.branding` and `loginBranding` in `aphex.config.ts`                                                  |
+| Add links or groups to the sidebar               | `sidebar` in `aphex.client.ts`                                                                                     |
+| Replace the sign-in page or another account page | `components.login` (and the others) in `aphex.client.ts`. See [Replacing a page](/authentication#replacing-a-page) |
+| Add a screen of your own to the admin            | A plugin's admin tool. See [Add your own screen to the admin](/plugins#add-your-own-screen-to-the-admin)           |
+| Add a button to the document editor              | A plugin's document action                                                                                         |
+
+**The escape hatch** is a route of your own at the same address: it wins over core's. But then you maintain that page, and core's fixes to it don't reach you. Prefer `components` for account pages: yours gets core's data and stays at core's URL.
+
+### Custom admin pages have to move
+
+In Aphex 1 you could add a page under `src/routes/(protected)/admin` and it got the sidebar. In Aphex 2 a file like that still works as your own route, but outside the admin's frame: no sidebar. Make it a plugin's admin tool instead, which appears in the sidebar and gets the active organization. The upgrade keeps files you added, and tells you which ones.
+
+### The session is `locals.aphexAuth`
+
+`locals.auth` is now `locals.aphexAuth`, and auth comes from `aphexAuth()` or `createAphexAuth()` in `@aphexcms/auth`. Code that reads the session changes name. The upgrade renames it where it can tell the name is Aphex's. Better Auth stays on the 1.6 line (`~1.6.25`) until its OAuth provider catches up, so don't bump `better-auth` yourself.
+
+### The upgrade is one way
+
+It deletes about 60 files. Commit first, run `pnpm create aphex --dry-run` to see the plan, and keep the commit until the app works. Plugins need their Aphex 2 releases too.
+
+## Upgrade
+
+1. Commit or stash your work.
+2. `pnpm create aphex --dry-run` in your app, to see what it will delete, create and change.
+3. `pnpm create aphex` to do it and install the new packages.
+4. Work through the [Migration Guide](/migration-guide), which lists every breaking change with how to find and fix it, then [check the upgrade](/upgrading-to-embedded-admin#check-after-upgrading).
+
+To hand the upgrade to Claude Code or Cursor, see [Upgrading with an Agent](/upgrading-with-an-agent).

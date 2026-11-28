@@ -24,8 +24,27 @@
 	 * permissions context the admin shell provides (`usePermissions`).
 	 */
 
-	let team = $state<OrganizationTeam | null>(null);
+	/**
+	 * `team` may be provided by the server (the embedded `/admin/settings/members`
+	 * catch-all SSR's it via `createAdminLoad`), in which case the page paints with
+	 * data and no client round-trip. When omitted — a legacy mount that only sets
+	 * `<MembersSettings />` — it falls back to fetching on mount. `refresh()` always
+	 * re-reads from the API after a mutation.
+	 */
+	let { team: initialTeam = null }: { team?: OrganizationTeam | null } = $props();
+
+	// Seed from the server value at init so the SSR render has data (effects don't
+	// run during SSR, so this can't be deferred to the effect below).
+	// svelte-ignore state_referenced_locally
+	let team = $state<OrganizationTeam | null>(initialTeam);
 	let loadError = $state<string | null>(null);
+
+	// Adopt fresh SSR data when the catch-all re-runs its load (e.g. navigating
+	// back to members). Mutations still update `team` via `refresh()`; this only
+	// fires when the server-provided value actually changes.
+	$effect(() => {
+		if (initialTeam) team = initialTeam;
+	});
 
 	async function load() {
 		try {
@@ -40,7 +59,10 @@
 		}
 	}
 
-	onMount(load);
+	// Only fetch if the server didn't hand us the team already.
+	onMount(() => {
+		if (!team) load();
+	});
 
 	const currentUserId = $derived(team?.currentUserId ?? null);
 	// Flatten `{ member, user }` so the template reads like a row.
@@ -48,6 +70,9 @@
 	const pendingInvitations = $derived(team?.invitations ?? []);
 	const inviteRoles = $derived(team?.inviteRoles ?? []);
 	const emailConfigured = $derived(team?.emailConfigured ?? true);
+	// `config.memberLimits`: at it, the invite form gives way to the reason.
+	const memberLimit = $derived(team?.memberLimit ?? null);
+	const full = $derived(memberLimit !== null && memberLimit.used >= memberLimit.max);
 
 	let inviteEmail = $state('');
 	let inviteRole = $state<string>('editor');
@@ -164,7 +189,7 @@
 			// one click away rather than leaving the admin to hunt for it in the
 			// pending list.
 			const email = inviteEmail.trim();
-			const inviteUrl = result.data ? `${location.origin}/invite/${result.data.token}` : null;
+			const inviteUrl = result.data?.inviteUrl ?? null;
 			if (emailConfigured) {
 				toast.success(`Invitation sent to ${email}`);
 			} else if (inviteUrl) {
@@ -332,42 +357,46 @@
 					</Card.Description>
 				</Card.Header>
 				<Card.Content>
-					<div class="flex flex-col gap-3 lg:flex-row lg:items-end">
-						<div class="flex-1">
-							<Input
-								id="invite-email"
-								type="email"
-								bind:value={inviteEmail}
-								placeholder="email@example.com"
-							/>
+					{#if full && memberLimit}
+						<p class="text-muted-foreground text-sm">{memberLimit.message}</p>
+					{:else}
+						<div class="flex flex-col gap-3 lg:flex-row lg:items-end">
+							<div class="flex-1">
+								<Input
+									id="invite-email"
+									type="email"
+									bind:value={inviteEmail}
+									placeholder="email@example.com"
+								/>
+							</div>
+							<div class="lg:w-[170px]">
+								<Select.Root type="single" name="role" bind:value={inviteRole}>
+									<Select.Trigger>
+										<span class="capitalize">{formatRole(inviteRole)}</span>
+									</Select.Trigger>
+									<Select.Content>
+										{#each inviteRoles as option (option.name)}
+											<Select.Item value={option.name} label={option.name}>
+												<div>
+													<div class="font-medium capitalize">{formatRole(option.name)}</div>
+													{#if option.description}
+														<div class="text-muted-foreground text-xs">{option.description}</div>
+													{/if}
+												</div>
+											</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
+							</div>
+							<Button class="lg:w-auto" onclick={inviteMember} disabled={isInviting}>
+								{#if emailConfigured}
+									{isInviting ? 'Sending...' : 'Send invite'}
+								{:else}
+									{isInviting ? 'Creating...' : 'Create invite link'}
+								{/if}
+							</Button>
 						</div>
-						<div class="lg:w-[170px]">
-							<Select.Root type="single" name="role" bind:value={inviteRole}>
-								<Select.Trigger>
-									<span class="capitalize">{formatRole(inviteRole)}</span>
-								</Select.Trigger>
-								<Select.Content>
-									{#each inviteRoles as option (option.name)}
-										<Select.Item value={option.name} label={option.name}>
-											<div>
-												<div class="font-medium capitalize">{formatRole(option.name)}</div>
-												{#if option.description}
-													<div class="text-muted-foreground text-xs">{option.description}</div>
-												{/if}
-											</div>
-										</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Root>
-						</div>
-						<Button class="lg:w-auto" onclick={inviteMember} disabled={isInviting}>
-							{#if emailConfigured}
-								{isInviting ? 'Sending...' : 'Send invite'}
-							{:else}
-								{isInviting ? 'Creating...' : 'Create invite link'}
-							{/if}
-						</Button>
-					</div>
+					{/if}
 				</Card.Content>
 			</Card.Root>
 		{/if}

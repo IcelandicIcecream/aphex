@@ -48,6 +48,9 @@ function buildEvent(
 	opts: {
 		asset?: FakeAsset | null;
 		auth?: { organizationId: string } | null;
+		/** The organization the request's address names. */
+		tenant?: { id: string } | null;
+		childOrganizations?: string[];
 		signedDownloads?: {
 			shouldUseSignedURL: (asset: any) => boolean | Promise<boolean>;
 			expiresIn?: number;
@@ -90,12 +93,15 @@ function buildEvent(
 			request: new Request('http://localhost/media/asset-1/pic.png'),
 			setHeaders: (h: Record<string, string>) => Object.assign(headers, h),
 			locals: {
-				auth: opts.auth
+				aphexAuth: opts.auth
 					? { type: 'session', organizationId: opts.auth.organizationId, user: { id: 'u' } }
 					: null,
+				aphexTenantOrganization: opts.tenant ?? null,
 				aphexCMS: {
 					assetService: { findAssetByIdGlobal: async () => asset },
-					databaseAdapter: {},
+					databaseAdapter: opts.childOrganizations
+						? { getChildOrganizations: async () => opts.childOrganizations }
+						: {},
 					storageAdapter,
 					cmsEngine: {
 						// `page.secret` is an image field flagged private; anything else
@@ -228,6 +234,24 @@ describe('GET /media/:id/:filename — access control', () => {
 		const res = await serveAssetCDN(event);
 		expect(res.status).toBe(200);
 	});
+
+	it("404s a public asset on another tenant's address", async () => {
+		const { event } = buildEvent({ tenant: { id: 'org-b' } });
+		const res = await serveAssetCDN(event);
+		expect(res.status).toBe(404);
+	});
+
+	it("serves a public asset on its own tenant's address", async () => {
+		const { event } = buildEvent({ tenant: { id: 'org-a' } });
+		const res = await serveAssetCDN(event);
+		expect(res.status).toBe(200);
+	});
+
+	it("serves a child organization's asset on its parent tenant's address", async () => {
+		const { event } = buildEvent({ tenant: { id: 'org-parent' }, childOrganizations: ['org-a'] });
+		const res = await serveAssetCDN(event);
+		expect(res.status).toBe(200);
+	});
 });
 
 describe('GET /media/:id/:filename — cache headers', () => {
@@ -263,13 +287,16 @@ describe('GET /media/:id/:filename — SVG containment', () => {
 		mimeType: 'image/svg+xml'
 	};
 
-	it('refuses to serve an SVG as a renderable document', async () => {
-		const { event, headers } = buildEvent({ asset: SVG_ASSET });
-		await serveAssetCDN(event);
+	it.each(['image/svg+xml', 'image/svg+xml; charset=utf-8', 'image/SVG+XML'])(
+		'refuses to serve %s as a renderable document',
+		async (mimeType) => {
+			const { event, headers } = buildEvent({ asset: { ...SVG_ASSET, mimeType } });
+			await serveAssetCDN(event);
 
-		expect(headers['Content-Disposition']).toMatch(/^attachment;/);
-		expect(headers['Content-Security-Policy']).toBe("default-src 'none'; sandbox");
-	});
+			expect(headers['Content-Disposition']).toMatch(/^attachment;/);
+			expect(headers['Content-Security-Policy']).toBe("default-src 'none'; sandbox");
+		}
+	);
 
 	it('leaves a raster image inline and unsandboxed', async () => {
 		const { event, headers } = buildEvent();

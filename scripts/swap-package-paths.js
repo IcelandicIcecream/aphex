@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, rename, writeFile } from 'fs/promises';
 
 /**
  * Swaps package.json paths between src/lib/ and dist/
@@ -92,7 +92,11 @@ async function swapPackagePaths(packageJsonPath, target, srcSubdir = '') {
 	}
 
 	// Write back with pretty formatting
-	await writeFile(packageJsonPath, JSON.stringify(pkg, null, '\t') + '\n', 'utf-8');
+	// Packages publish side by side and read each other's package.json, so swap it in
+	// whole: a plain write leaves it empty for a moment, which failed a release.
+	const next = `${packageJsonPath}.${process.pid}.tmp`;
+	await writeFile(next, JSON.stringify(pkg, null, '\t') + '\n', 'utf-8');
+	await rename(next, packageJsonPath);
 	console.log(`✓ Switched package.json to use ${target}/ paths`);
 }
 

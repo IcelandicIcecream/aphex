@@ -18,7 +18,9 @@ export const agentChatMessageSchema = z.object({
 			})
 		)
 		.optional(),
-	toolCallId: z.string().optional()
+	toolCallId: z.string().optional(),
+	// Opaque to core: the adapter that wrote it checks it on replay (`AIMessage.providerState`).
+	providerState: z.unknown().optional()
 });
 
 export const agentChatRequest = z.object({

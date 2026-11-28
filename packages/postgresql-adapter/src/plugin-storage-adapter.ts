@@ -83,4 +83,27 @@ export class PostgreSQLPluginStorageAdapter {
 		const totals = await this.db.select({ value: count() }).from(pluginStorage).where(where);
 		return { items: rows.map(toRecord), total: Number(totals[0]?.value ?? 0), limit, offset };
 	}
+
+	async updatePluginRecord(
+		organizationId: string,
+		id: string,
+		data: Record<string, unknown>
+	): Promise<PluginStorageRecord | null> {
+		const { pluginStorage } = this.tables;
+		const [row] = await this.db
+			.update(pluginStorage)
+			.set({ data })
+			.where(and(eq(pluginStorage.id, id), eq(pluginStorage.organizationId, organizationId)))
+			.returning();
+		return row ? toRecord(row) : null;
+	}
+
+	async deletePluginRecord(organizationId: string, id: string): Promise<boolean> {
+		const { pluginStorage } = this.tables;
+		const rows = await this.db
+			.delete(pluginStorage)
+			.where(and(eq(pluginStorage.id, id), eq(pluginStorage.organizationId, organizationId)))
+			.returning({ id: pluginStorage.id });
+		return rows.length > 0;
+	}
 }

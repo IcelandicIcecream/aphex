@@ -1,6 +1,8 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"ui": "tui",
+	// Every package's tsconfig extends this one, so a change to it rebuilds them all.
+	"globalDependencies": ["tsconfig.json"],
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],

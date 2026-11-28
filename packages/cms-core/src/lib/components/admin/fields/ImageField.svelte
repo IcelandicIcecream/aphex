@@ -398,7 +398,7 @@
 						<DropdownMenuGroup>
 							<DropdownMenuItem onclick={openFileDialog} disabled={isUploading}>
 								<Upload size={16} />
-								Replace
+								Upload
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onclick={() => {
@@ -407,7 +407,7 @@
 								disabled={isUploading}
 							>
 								<ImageIcon size={16} />
-								Browse media
+								Replace
 							</DropdownMenuItem>
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
@@ -417,7 +417,7 @@
 							class="text-destructive focus:text-destructive"
 						>
 							<CircleX size={16} />
-							Clear field
+							Remove
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -447,8 +447,10 @@
 		<!-- Image preview with controls -->
 		<div class="border-border overflow-hidden rounded-md border {validationClasses}">
 			<div class="group relative">
-				<!-- Image preview (Sanity-style aspect ratio ~2.75:1) -->
-				<div class="bg-muted flex items-center justify-center" style="aspect-ratio: 2.75 / 1;">
+				<!-- Image preview: a fixed height rather than an aspect ratio, so a small
+				     or square image (a logo, an icon) isn't stretched into a huge, mostly
+				     empty box on a wide panel. -->
+				<div class="bg-muted flex items-center justify-center" style="height: 260px;">
 					{#if loadingAsset}
 						<div class="text-muted-foreground flex flex-col items-center gap-2">
 							<div class="border-primary h-8 w-8 animate-spin rounded-full border-b-2"></div>
@@ -493,7 +495,7 @@
 										disabled={isUploading}
 									>
 										<ImageIcon size={16} />
-										Browse media
+										Replace
 									</DropdownMenuItem>
 								</DropdownMenuGroup>
 								<DropdownMenuSeparator />
@@ -514,7 +516,7 @@
 									class="text-destructive focus:text-destructive"
 								>
 									<CircleX size={16} />
-									Clear field
+									Remove
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>

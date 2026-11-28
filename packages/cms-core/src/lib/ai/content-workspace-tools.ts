@@ -28,6 +28,7 @@ export const contentWorkspaceTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'content_patch_fields',
+			title: 'Edit open fields',
 			description:
 				'Patch scalar/reference/asset fields on the document currently open in the editor. ' +
 				'Buffered in-memory only — nothing is persisted until content_save_draft is called. ' +
@@ -44,6 +45,7 @@ export const contentWorkspaceTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'content_save_draft',
+			title: 'Save the open draft',
 			description:
 				'Persist the field patch(es) applied via content_patch_fields to the open document as ' +
 				'one draft save, guarded against concurrent edits. Does not publish.',

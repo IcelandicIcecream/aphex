@@ -11,6 +11,7 @@ import type { ApiResponse } from './types';
 import type {
 	CreateOrganizationRequest,
 	UpdateOrganizationRequest,
+	SetOrganizationCapabilitiesRequest,
 	SwitchOrganizationRequest,
 	InviteMemberRequest,
 	UpdateMemberRoleRequest,
@@ -95,12 +96,13 @@ export class OrganizationsApi {
 	}
 
 	/**
-	 * Invite a member to the organization. The response is the invitation row,
-	 * including its `token` — the accept URL is `/invite/<token>`, so a caller
-	 * can hand the link over directly when email isn't an option.
+	 * Invite a member to the organization. The response is the invitation row plus
+	 * its accept link, so a caller can hand that over when email isn't an option.
 	 */
-	static async inviteMember(data: InviteMemberRequest): Promise<ApiResponse<Invitation>> {
-		return apiClient.post<Invitation>('/organizations/invitations', data);
+	static async inviteMember(
+		data: InviteMemberRequest
+	): Promise<ApiResponse<Invitation & { inviteUrl: string }>> {
+		return apiClient.post<Invitation & { inviteUrl: string }>('/organizations/invitations', data);
 	}
 
 	/**
@@ -130,6 +132,17 @@ export class OrganizationsApi {
 	}
 
 	/**
+	 * Give an organization exactly these organization capabilities. Super admins only,
+	 * and only where the config has `organizationCapabilities.set`.
+	 */
+	static async setCapabilities(
+		id: string,
+		data: SetOrganizationCapabilitiesRequest
+	): Promise<ApiResponse<{ capabilities: string[] }>> {
+		return apiClient.put<{ capabilities: string[] }>(`/organizations/${id}/capabilities`, data);
+	}
+
+	/**
 	 * Cancel a pending invitation
 	 */
 	static async cancelInvitation(
@@ -155,6 +168,7 @@ export const organizations = {
 	getById: OrganizationsApi.getById.bind(OrganizationsApi),
 	getActive: OrganizationsApi.getActive.bind(OrganizationsApi),
 	update: OrganizationsApi.update.bind(OrganizationsApi),
+	setCapabilities: OrganizationsApi.setCapabilities.bind(OrganizationsApi),
 	remove: OrganizationsApi.remove.bind(OrganizationsApi),
 	getMembers: OrganizationsApi.getMembers.bind(OrganizationsApi),
 	getTeam: OrganizationsApi.getTeam.bind(OrganizationsApi),

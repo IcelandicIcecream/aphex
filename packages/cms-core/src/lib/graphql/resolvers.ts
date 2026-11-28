@@ -226,7 +226,9 @@ export function createResolvers(
 		schemaTypes.forEach((schemaType) => {
 			const typeName = toPascalCase(schemaType.name);
 
-			function processFields(fields: any[], currentTypeName: string) {
+			// `path` is the names leading here, as schema.ts builds its inline type names:
+			// the two must agree, or Yoga refuses a resolver for a type that isn't there.
+			function processFields(fields: any[], currentTypeName: string, path: string) {
 				fields.forEach((field: any) => {
 					// Handle reference fields
 					if (field.type === 'reference' && field.to && field.to.length > 0) {
@@ -313,13 +315,13 @@ export function createResolvers(
 
 					// Handle nested objects
 					if (field.type === 'object' && field.fields) {
-						const nestedTypeName = toPascalCase(`${schemaType.name}${field.name}Object`);
-						processFields(field.fields, nestedTypeName);
+						const nestedPath = `${path}${field.name}`;
+						processFields(field.fields, toPascalCase(`${nestedPath}Object`), nestedPath);
 					}
 				});
 			}
 
-			processFields(schemaType.fields, typeName);
+			processFields(schemaType.fields, typeName, schemaType.name);
 		});
 	}
 

@@ -6,7 +6,7 @@ import type { Auth } from '../types/auth';
 import type { LocalAPIContext } from './types';
 
 /**
- * Convert SvelteKit locals.auth to LocalAPIContext
+ * Convert SvelteKit locals.aphexAuth to LocalAPIContext
  *
  * This helper bridges the gap between the authentication system
  * (handled in the app layer and enriched by handleAuthHook) and
@@ -15,7 +15,7 @@ import type { LocalAPIContext } from './types';
  * Preserves the full Auth object in context.auth so custom permission
  * logic can access any custom fields added via module augmentation.
  *
- * @param auth - Auth object from locals.auth (already validated by handleAuthHook)
+ * @param auth - Auth object from locals.aphexAuth (already validated by handleAuthHook)
  * @returns LocalAPIContext for use with LocalAPI operations
  *
  * @example
@@ -25,7 +25,7 @@ import type { LocalAPIContext } from './types';
  *
  * export const GET: RequestHandler = async ({ locals }) => {
  *   const api = locals.aphexCMS.localAPI;
- *   const context = authToContext(locals.auth);
+ *   const context = authToContext(locals.aphexAuth);
  *
  *   const pages = await api.collections.page.find(context, {
  *     where: { status: { equals: 'published' } }
@@ -74,7 +74,7 @@ export function authToContext(auth: Auth | null | undefined): LocalAPIContext {
  * Check if auth exists and convert to context
  * Alias for authToContext - more semantic in some contexts
  *
- * @param auth - Auth object from locals.auth
+ * @param auth - Auth object from locals.aphexAuth
  * @returns LocalAPIContext
  * @throws Error if auth is missing or invalid
  */

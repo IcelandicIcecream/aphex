@@ -11,7 +11,9 @@ import {
 	type NotificationEmailValue
 } from './compile';
 import { fieldLabels, toStoredValue, type Answer } from './template';
+import { withFieldKeys } from './keys';
 import { formSubmissionCreated } from './events';
+import { isEmailAddress, type FormSite, type FormSiteResolver } from './sender';
 
 /** A stored submission, as this plugin writes and reads it. */
 interface FormSubmissionDocument {
@@ -21,6 +23,8 @@ interface FormSubmissionDocument {
 	submittedAt: string;
 	submissionData: Array<Answer & { _type: 'answer'; _key: string }>;
 	notificationEmails: Array<NotificationEmailValue & { _type: string; _key: string }>;
+	senderName?: string;
+	confirmationEmail?: { to: string; replyTo?: string; subject: string; message: string };
 	notificationFieldLabels: Array<{
 		_type: string;
 		_key: string;
@@ -41,6 +45,7 @@ interface FormSubmissionDocument {
  *  - Only fields the form declares are stored. A key the form doesn't define is
  *    dropped rather than persisted, so a crafted request can't stuff arbitrary
  *    data into a document.
+ *  - On a tenant's host the form must belong to that tenant (`c.var.tenant`).
  *  - The submission is written under `systemContext`, which bypasses RBAC — the
  *    visitor has no account. That is safe only because the shape written here is
  *    fully determined by the form document, never by the request.
@@ -120,7 +125,36 @@ async function parseRequest(c: Context<AphexEnv>): Promise<z.infer<typeof submit
 	return parsed.success ? parsed.data : null;
 }
 
-export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
+/** The site's name and address, from the app; nothing when it gives none or can't say. */
+async function siteDetails(
+	resolve: FormSiteResolver | undefined,
+	site: Parameters<FormSiteResolver>[0],
+	log: (message: string, error: unknown) => void
+): Promise<FormSite> {
+	if (!resolve) return {};
+	try {
+		return (await resolve(site)) ?? {};
+	} catch (error) {
+		// The submission matters more than the sender's name: store it and send as the app.
+		log('[forms] could not read the site’s name and email', error);
+		return {};
+	}
+}
+
+/** The visitor's own address: the first email question they answered. */
+function visitorAddress(inputs: FormFieldValue[], answers: Answer[]): string | undefined {
+	for (const field of inputs) {
+		if (field._type !== 'formEmail') continue;
+		const value = answers.find((answer) => answer.field === field.name)?.value.trim();
+		if (isEmailAddress(value)) return value;
+	}
+	return undefined;
+}
+
+export async function handleSubmit(
+	c: Context<AphexEnv>,
+	resolveSite?: FormSiteResolver
+): Promise<Response> {
 	const { aphexCMS } = c.var;
 
 	const parsed = await parseRequest(c);
@@ -150,6 +184,14 @@ export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
 		'form'
 	);
 	if (!organizationId) return c.json({ success: false, error: 'Form not found' }, 404);
+	// On a tenant's address (a site's own host), only that tenant's forms take
+	// submissions. Otherwise any site's page could store submissions, and send their
+	// notification emails, through another site's form. Same answer as a missing
+	// form, so an address can't be used to probe which forms exist elsewhere.
+	const tenant = c.var.tenant;
+	if (tenant && tenant.id !== organizationId) {
+		return c.json({ success: false, error: 'Form not found' }, 404);
+	}
 	const context = systemContext(organizationId);
 
 	/*
@@ -182,7 +224,7 @@ export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
 		);
 	}
 
-	const declared = (formDoc.fields ?? []) as FormFieldValue[];
+	const declared = withFieldKeys((formDoc.fields ?? []) as FormFieldValue[]);
 	const inputs = declared.filter(isInputField);
 
 	// Keep only what the form declares — see the note above about stuffing.
@@ -214,17 +256,73 @@ export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
 		? `${labels.get(first.field) ?? first.field}: ${first.value}`
 		: 'Submission';
 
+	/*
+	 * The site's own limit (`config.documentLimits` for `formSubmission`, such as a
+	 * plan's messages a month). The write below is the system's, which limits
+	 * don't apply to, so it's asked for here on the visitor's behalf.
+	 */
+	try {
+		await aphexCMS.localAPI.checkDocumentLimit(organizationId, 'formSubmission');
+	} catch (error) {
+		if (error instanceof Error && error.name === 'DocumentLimitError') {
+			return c.json({ success: false, error: error.message, code: 'limit_reached' }, 402);
+		}
+		throw error;
+	}
+
 	const submissionId = crypto.randomUUID();
-	const notificationEmails = (formDoc.emails ?? [])
+	const site = await siteDetails(
+		resolveSite,
+		{ organizationId, context, localAPI: aphexCMS.localAPI },
+		(message, error) => aphexCMS.logger?.error(message, error)
+	);
+	const siteEmail = isEmailAddress(site.email) ? site.email.trim() : undefined;
+	// Replying to a message answers the person who sent it, unless the form says otherwise.
+	const visitor = visitorAddress(inputs, answers);
+	const authored = (formDoc.emails ?? [])
 		.filter((email) => typeof email.to === 'string' && email.to.trim().length > 0)
 		.map((email, index) => ({
 			_type: 'submissionNotification',
 			_key: `notification-${index}`,
 			to: email.to?.trim(),
-			replyTo: email.replyTo?.trim() || undefined,
+			replyTo: email.replyTo?.trim() || visitor,
 			subject: email.subject ?? 'New form submission',
 			message: email.message ?? '{{allFields}}'
 		}));
+	// A form that names nobody still reaches the site, at its own address.
+	const notificationEmails =
+		authored.length > 0 || !siteEmail
+			? authored
+			: [
+					{
+						_type: 'submissionNotification',
+						_key: 'notification-site',
+						to: siteEmail,
+						replyTo: visitor,
+						subject: formDoc.title
+							? `New message: ${formDoc.title}`
+							: 'New message from your website',
+						message: '{{allFields}}'
+					}
+				];
+	// The visitor's copy: the owner's words only (the form refuses tokens in it, and
+	// one that slipped in some other way isn't sent), to the address they gave.
+	const confirmation = formDoc.confirmationEmail;
+	const confirmationSubject = confirmation?.subject?.trim() ?? '';
+	const confirmationMessage = confirmation?.message?.trim() ?? '';
+	const confirmationEmail =
+		confirmation?.enabled === true &&
+		visitor &&
+		confirmationSubject &&
+		confirmationMessage &&
+		!`${confirmationSubject}${confirmationMessage}`.includes('{{')
+			? {
+					to: visitor,
+					replyTo: siteEmail,
+					subject: confirmationSubject,
+					message: confirmationMessage
+				}
+			: undefined;
 	await submissions.create(
 		context,
 		{
@@ -237,6 +335,8 @@ export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
 				...answer
 			})),
 			notificationEmails,
+			senderName: site.name?.trim() || undefined,
+			confirmationEmail,
 			notificationFieldLabels: inputs.map((field, index) => ({
 				_type: 'submissionFieldLabel',
 				_key: `label-${index}`,

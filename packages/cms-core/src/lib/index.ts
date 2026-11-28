@@ -51,6 +51,11 @@ export * from './utils/index';
 // definition of "pending"/"expired" shared by cms-core, @aphexcms/auth and apps.
 export * from './auth/invitation-status';
 
+// Removing preview markers from a value (plain JS over @vercel/stega). Here as well as
+// in /client so server code (a page's <head>, a plugin's meta helper) can clean
+// values without importing the admin.
+export { stegaClean } from './preview/stega';
+
 // Unified API client
 export * from './api/index';
 export type { ApiResponse } from './api/index';

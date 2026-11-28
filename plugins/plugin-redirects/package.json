@@ -1,0 +1,64 @@
+{
+	"name": "@aphexcms/plugin-redirects",
+	"version": "0.1.0",
+	"description": "Redirects plugin for AphexCMS: old addresses keep working when a page, post or section moves, plus redirects you add by hand",
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "plugins/plugin-redirects"
+	},
+	"type": "module",
+	"main": "./src/lib/index.js",
+	"types": "./src/lib/index.d.ts",
+	"svelte": "./src/lib/index.js",
+	"exports": {
+		".": {
+			"types": "./src/lib/index.d.ts",
+			"svelte": "./src/lib/index.js",
+			"default": "./src/lib/index.js"
+		},
+		"./paths": {
+			"types": "./src/lib/paths.d.ts",
+			"default": "./src/lib/paths.js"
+		}
+	},
+	"files": [
+		"src/lib"
+	],
+	"scripts": {
+		"dev": "tsc --watch --preserveWatchOutput",
+		"build": "svelte-package",
+		"check": "svelte-check --tsconfig ./tsconfig.json",
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"test": "vitest run"
+	},
+	"keywords": [
+		"aphex",
+		"aphexcms",
+		"cms",
+		"plugin",
+		"redirects",
+		"seo"
+	],
+	"devDependencies": {
+		"@sveltejs/package": "^2.5.6",
+		"svelte": "^5.0.0",
+		"svelte-check": "^4.0.0",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.10"
+	},
+	"peerDependencies": {
+		"@aphexcms/cms-core": "workspace:>=12.0.0-0",
+		"@aphexcms/ui": "workspace:^",
+		"@lucide/svelte": "^0.554.0",
+		"svelte": "^5.0.0",
+		"svelte-sonner": "^1.0.7",
+		"zod": "^4.0.0"
+	}
+}

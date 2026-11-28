@@ -28,10 +28,13 @@
  * engine (see `compile.ts`). One validator, two ways to author.
  */
 import { definePlugin, effectiveOrganizationRole } from '@aphexcms/cms-core';
-import type { AccessRule, PluginPart, SchemaAccess } from '@aphexcms/cms-core';
+import SubmissionView from './SubmissionView.svelte';
+import type { AccessRule, PluginPart, SchemaAccess, SchemaType } from '@aphexcms/cms-core';
 import { formSchema, formSubmissionSchema } from './schema';
 import { handleSubmit } from './submit';
-import { notifyOnSubmission } from './notify';
+import { confirmSubmission, notifyOnSubmission } from './notify';
+import type { FormSiteResolver } from './sender';
+import type { PrepareFormEmail } from './prepare';
 import { formSubmissionCreated } from './events';
 
 const PLUGIN_ID = '@aphexcms/plugin-forms';
@@ -46,12 +49,42 @@ export interface FormsPluginOptions {
 	from?: string;
 
 	/**
+	 * The site a form belongs to, for an app that runs several: its name, shown in
+	 * front of `from` on every email (`"Lily's Bakery" <forms@example.com>`), and
+	 * its own address, which hears about messages from a form that names nobody
+	 * and takes replies to a visitor's confirmation. Server only; read when a form
+	 * is submitted and kept with the submission.
+	 */
+	site?: FormSiteResolver;
+
+	/**
+	 * Called with each email before it's sent: limit who may be written to and how
+	 * much, or give it a design. An app where anyone can sign up should set this: a
+	 * form emails whatever addresses its author typed. Server only.
+	 */
+	prepareEmail?: PrepareFormEmail;
+
+	/**
+	 * Put in front of the help in the form editor, to say what `prepareEmail` does:
+	 * on who hears about messages, and on the visitor's own email.
+	 */
+	help?: { recipients?: string; confirmation?: string };
+
+	/**
 	 * Override submission collection access. Defaults to owner/admin read and
 	 * delete access, with direct create/update/publish operations blocked. Partial
 	 * overrides are merged with those defaults, so adding a custom reviewer role
 	 * does not accidentally reopen writes.
 	 */
 	submissionAccess?: SchemaAccess;
+
+	/**
+	 * Where the admin previews a form, beside the editor, the way a page opens next
+	 * to itself. The plugin ships no markup (see "What the app still owns"), so the
+	 * app names its own page that draws one form; usually it's built from the
+	 * third argument, the form's id. Unset, a form has no preview.
+	 */
+	previewUrl?: SchemaType['previewUrl'];
 }
 
 function strictSubmissionRule(rule: AccessRule | undefined): AccessRule | undefined {
@@ -71,17 +104,32 @@ export function formsPlugin(options: FormsPluginOptions = {}) {
 		) as SchemaAccess
 	};
 
+	const help: Record<string, string | undefined> = {
+		emails: options.help?.recipients,
+		confirmationEmail: options.help?.confirmation
+	};
+	const form: SchemaType = {
+		...formSchema,
+		...(options.previewUrl ? { previewUrl: options.previewUrl } : {}),
+		fields: formSchema.fields.map((field) =>
+			help[field.name]
+				? { ...field, description: `${help[field.name]} ${field.description ?? ''}`.trim() }
+				: field
+		)
+	};
+
 	const parts: PluginPart[] = [
 		{
 			implements: 'aphex/schema',
-			schemas: [formSchema, submissionSchema]
+			schemas: [form, submissionSchema]
 		},
+		{ implements: 'aphex/field/component', input: 'form-submission', component: SubmissionView },
 		{
 			implements: 'aphex/server/route',
 			id: 'forms.submit',
 			method: 'POST',
 			path: '/form-submissions',
-			handler: handleSubmit,
+			handler: (c) => handleSubmit(c, options.site),
 			/*
 			 * The one endpoint here that must be open: a form is for people who
 			 * don't have accounts. Opting out of the capability gate is deliberate
@@ -95,7 +143,13 @@ export function formsPlugin(options: FormsPluginOptions = {}) {
 			implements: 'aphex/event/consumer',
 			id: 'forms.notify',
 			events: [formSubmissionCreated.type],
-			handler: notifyOnSubmission(options.from)
+			handler: notifyOnSubmission(options.from, options.prepareEmail)
+		},
+		{
+			implements: 'aphex/event/consumer',
+			id: 'forms.confirm',
+			events: [formSubmissionCreated.type],
+			handler: confirmSubmission(options.from, options.prepareEmail)
 		}
 	];
 
@@ -109,7 +163,15 @@ export {
 	formFieldTypes
 } from './schema';
 export { compileForm, isInputField, optionValue } from './compile';
-export type { FormDocument, FormFieldValue, NotificationEmailValue } from './compile';
+export type {
+	ConfirmationEmailValue,
+	FormDocument,
+	FormFieldValue,
+	NotificationEmailValue
+} from './compile';
 export { formSubmissionCreated } from './events';
+export { fromHeader, isEmailAddress } from './sender';
+export type { FormSite, FormSiteResolver } from './sender';
 export { renderTemplate, fieldLabels, toStoredValue } from './template';
+export type { OutgoingFormEmail, PreparedFormEmail, PrepareFormEmail } from './prepare';
 export type { Answer } from './template';

@@ -10,6 +10,8 @@
 		onBlur?: (event: any) => void;
 		onFocus?: (event: any) => void;
 		readonly?: boolean;
+		/** What the field is while empty (`field.inherits`): shown, never stored. */
+		inherited?: unknown;
 	}
 
 	let {
@@ -19,7 +21,8 @@
 		validationClasses,
 		onBlur,
 		onFocus,
-		readonly = false
+		readonly = false,
+		inherited
 	}: Props = $props();
 
 	function handleInputChange(event: Event) {
@@ -31,7 +34,7 @@
 <Textarea
 	id={field.name}
 	value={value || ''}
-	placeholder={field.title}
+	placeholder={typeof inherited === 'string' ? inherited : field.placeholder}
 	rows={field.rows}
 	oninput={handleInputChange}
 	onblur={onBlur}

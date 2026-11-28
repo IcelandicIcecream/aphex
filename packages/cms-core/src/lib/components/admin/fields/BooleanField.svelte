@@ -12,6 +12,8 @@
 	}
 
 	let { field, value, onUpdate, validationClasses, onBlur, readonly = false }: Props = $props();
+	// Its own id, not the field's name: a list repeats the same field once per item.
+	const id = $props.id();
 
 	function handleBooleanChange(event: Event) {
 		const target = event.target as HTMLInputElement;
@@ -21,7 +23,7 @@
 
 <div class="flex items-center space-x-2">
 	<input
-		id={field.name}
+		{id}
 		type="checkbox"
 		checked={value || false}
 		onchange={handleBooleanChange}
@@ -29,7 +31,7 @@
 		class="border-input h-4 w-4 rounded border {validationClasses}"
 		disabled={readonly}
 	/>
-	<Label for={field.name} class="text-sm font-normal">
+	<Label for={id} class="text-sm font-normal">
 		{field.title}
 	</Label>
 </div>

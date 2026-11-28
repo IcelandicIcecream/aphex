@@ -6,6 +6,8 @@ icon: Globe
 
 The HTTP API gives you full CRUD access to documents, assets, and schemas. All document and asset endpoints require authentication via session or [API key](/api-keys).
 
+The HTTP API, [GraphQL](/graphql) and the [MCP server](/mcp) are three doors onto one engine: each goes through the [Local API](/local-api), with the same permissions, validation, hooks, revisions and events. A document written over MCP is the same as one written here. The one thing MCP has that HTTP doesn't is `patch_document`, which edits one item in an array by its `_key`; over HTTP, `PUT` replaces whole fields.
+
 ## Live API reference
 
 Your running studio describes its own API. Two endpoints, both generated from the instance itself:
@@ -39,7 +41,7 @@ Both endpoints require authentication. `/api/openapi.json` enumerates your entir
 The reference UI loads [Scalar](https://scalar.com) from a public CDN — the one thing it does that the JSON endpoint doesn't. On an instance that shouldn't pull third-party scripts, unmount it, after which it answers `404`:
 
 ```ts title="aphex.config.ts"
-export default defineConfig({
+export default createCMSConfig({
 	openapi: { docsUi: false }
 });
 ```
@@ -61,12 +63,12 @@ https://your-app.com/api/...
 Three different layers handle requests under `/api/*`, and they're picked in this order:
 
 ```
-1. SvelteKit handle hook       → Better Auth (/api/auth/*)
-2. SvelteKit filesystem router → specific +server.ts files
-3. Catch-all (/api/[...slug])  → forwards into Hono → CMS routes
+1. SvelteKit filesystem router → a +server.ts of yours, if one matches
+2. SvelteKit handle hook       → Better Auth (/api/auth/*)
+3. SvelteKit handle hook       → Hono → CMS routes, if nothing matched in step 1
 ```
 
-SvelteKit's filesystem router prefers more-specific paths over rest parameters. Hono only sees what falls through the catch-all — it does **not** take precedence over a sibling `+server.ts`. That means if you create `apps/studio/src/routes/api/documents/+server.ts`, your file silently shadows the CMS's `/api/documents` handler and the CMS code never runs.
+The router runs first, so a route of yours always wins. That means if you create `src/routes/api/documents/+server.ts`, your file silently shadows the CMS's `/api/documents` handler and the CMS code never runs.
 
 To wrap or replace a CMS route safely, use the [`api(app)` config hook](/configuration#api) — it registers your handler inside Hono itself, where you can call `await next()` to chain to the built-in handler.
 
@@ -122,6 +124,9 @@ The full list of URLs the CMS owns. (`/api/docs` renders this same list from the
 | `DELETE` | `/api/organizations/members`     | Remove a member.                                                                                                 |
 | `POST`   | `/api/organizations/invitations` | Send an invitation.                                                                                              |
 | `DELETE` | `/api/organizations/invitations` | Cancel an invitation.                                                                                            |
+| `GET`    | `/api/invitations`               | List the signed-in user's pending invitations.                                                                   |
+| `POST`   | `/api/invitations/:id/accept`    | Accept an invitation.                                                                                            |
+| `POST`   | `/api/invitations/:id/reject`    | Decline an invitation.                                                                                           |
 | `GET`    | `/api/organizations/:id`         | Read a specific org.                                                                                             |
 | `PATCH`  | `/api/organizations/:id`         | Update org name / slug / metadata.                                                                               |
 | `DELETE` | `/api/organizations/:id`         | Delete an org (super admin / owner).                                                                             |
@@ -151,6 +156,33 @@ The full list of URLs the CMS owns. (`/api/docs` renders this same list from the
 | `PATCH` | `/api/user/cms-preference`         | Update editor preferences.                        |
 | `POST`  | `/api/user/request-password-reset` | Trigger a password-reset email.                   |
 | `POST`  | `/api/user/reset-password`         | Complete a password reset with the emailed token. |
+
+### API keys and connected apps
+
+Session only: an API key can't make or list keys, and a connected app can't manage connections. Making or revoking a key also needs `apiKey.manage`. See [API Keys](/api-keys) and [MCP](/mcp).
+
+| Method   | Path                                     | Notes                                                                                   |
+| -------- | ---------------------------------------- | --------------------------------------------------------------------------------------- |
+| `GET`    | `/api/settings/api-keys`                 | The active organization's keys (never the secret).                                      |
+| `POST`   | `/api/settings/api-keys`                 | Make a key. The secret is in this response only.                                        |
+| `DELETE` | `/api/settings/api-keys/:id`             | Revoke a key.                                                                           |
+| `GET`    | `/api/settings/connected-apps`           | The apps (Claude, ChatGPT…) the signed-in person has connected over OAuth.              |
+| `PATCH`  | `/api/settings/connected-apps/:clientId` | What one app may do beyond drafts (publishing, deleting). Never more than you can.      |
+| `DELETE` | `/api/settings/connected-apps/:clientId` | Disconnect an app: its tokens stop working straight away.                               |
+| `POST`   | `/api/oauth/site`                        | Step of the connect flow the admin drives: the site the app gets. `404` without OAuth.  |
+| `POST`   | `/api/oauth/consent`                     | Step of the connect flow: allow or deny. Answers with the URL the browser goes to next. |
+
+### In-admin agent
+
+Session only. These are the admin's own assistant, not [MCP](/mcp): writes made over MCP aren't recorded as change sets. `/api/agent/chat` and `/api/agent/operations` answer `404` unless `aiProvider` is configured.
+
+| Method | Path                              | Notes                                                                  |
+| ------ | --------------------------------- | ---------------------------------------------------------------------- |
+| `POST` | `/api/agent/chat`                 | One streamed turn of the admin's assistant.                            |
+| `POST` | `/api/agent/operations`           | Records a write the assistant made in the browser, for its change set. |
+| `GET`  | `/api/agent/change-sets`          | What agents changed, newest first. Needs `document.read`.              |
+| `GET`  | `/api/agent/change-sets/:id`      | One change set and its writes.                                         |
+| `POST` | `/api/agent/change-sets/:id/undo` | Undo a change set's writes. Needs `document.update`.                   |
 
 ### Jobs and events
 
@@ -200,12 +232,12 @@ Session only — these reject API keys. Secret values are returned redacted and 
 | ------------------------ | --------------------------------------------------------------------------------------------------------------- |
 | `/api/auth/*`            | Better Auth — handled by `svelteKitHandler` in `hooks.server.ts`, intercepts before the filesystem router runs. |
 | `/api/graphql`           | The GraphQL endpoint. Configurable via `graphql.path` in `aphex.config.ts`.                                     |
-| `/api/instance-settings` | Studio `+server.ts` (super-admin gated). See [God Mode](/god-mode#instance-settings).                           |
+| `/api/instance-settings` | Core (super-admin gated). See [God Mode](/god-mode#instance-settings).                                          |
 | `/media/:id/:filename`   | Studio `+server.ts` — asset CDN handler. Lives at `/media/*`, **not** `/api/media/*`.                           |
 
 ### Picking a safe path for custom endpoints
 
-When you mount your own `+server.ts` under `/api/*`, avoid these prefixes: `/api/auth`, `/api/documents`, `/api/assets`, `/api/organizations`, `/api/roles`, `/api/schemas`, `/api/user`, `/api/graphql`, `/api/instance-settings`. The convention some teams adopt to be future-proof:
+When you mount your own `+server.ts` under `/api/*`, avoid these prefixes: `/api/auth`, `/api/documents`, `/api/assets`, `/api/organizations`, `/api/invitations`, `/api/roles`, `/api/schemas`, `/api/user`, `/api/settings`, `/api/oauth`, `/api/agent`, `/api/jobs`, `/api/events`, `/api/internal`, `/api/plugin-settings`, `/api/instance-settings`, `/api/graphql`, `/api/docs`, `/api/openapi.json` and `/api/aphex-health`. Plugins can add routes of their own too (the forms plugin's `/api/form-submissions`, for one). The convention some teams adopt to be future-proof:
 
 - Namespace custom routes under a stable prefix, e.g. `/api/app/*` or `/api/v1/*`.
 - For one-off webhooks: `/api/webhooks/<provider>` (Stripe, Slack, GitHub).
@@ -231,6 +263,38 @@ Each API key is scoped to the organization that was active when the key was crea
 Mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) require write permission. API keys with only `read` permission receive a `403` response on mutations.
 
 The one exception is `POST /api/documents/query`, which is treated as a read operation (it uses POST only because the filter payload can be complex).
+
+### Rate limits
+
+Each caller gets a share a minute, counted per API key, per connected app and per signed-in person:
+
+| Caller                                    | Reads | Changes | Uploads |
+| ----------------------------------------- | ----- | ------- | ------- |
+| API key or connected app (`agent`)        | 120   | 60      | 10      |
+| Signed-in person in the admin (`session`) | 600   | 240     | 60      |
+
+Reads are `GET` and `POST /api/documents/query`; uploads are `POST /api/assets` and `POST /api/assets/upload-url`; every other `POST`, `PUT`, `PATCH` and `DELETE` is a change. Over the limit, the API answers `429` with a `Retry-After` header in seconds:
+
+```json
+{
+	"success": false,
+	"error": "Too many requests",
+	"message": "Too many changes at once. Wait 12 seconds, then try again."
+}
+```
+
+[MCP](/mcp) tool calls count against the same share. Sign-in, password reset and other anonymous endpoints keep limits of their own.
+
+Change any number, or turn it off, in `aphex.config.ts`:
+
+```ts
+export default createCMSConfig({
+	rateLimit: { agent: { write: 30, upload: 5 } }
+	// rateLimit: false
+});
+```
+
+The counts are kept in each server process, so behind several instances each one allows the full share. For a hard ceiling, add a limit in front of the app as well (a Cloudflare rate-limiting rule on `/api/*` and `/mcp`, for one).
 
 ## Response format
 

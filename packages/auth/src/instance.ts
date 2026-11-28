@@ -3,19 +3,23 @@ import { apiKey } from '@better-auth/api-key';
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { cmsLogger, emitUserDeleted } from '@aphexcms/cms-core';
+import { cmsLogger } from '@aphexcms/cms-core';
 import {
-	assertAccountDeletable,
 	assertSignUpAllowed,
-	AccountDeletionBlockedError,
 	createUserProfileWithBootstrap,
-	detachUserFromOrganizations,
+	eraseAccountRows,
+	isDeletionBlocked,
 	SignUpBlockedError,
 	type CacheAdapter
 } from '@aphexcms/cms-core/server';
 import { resolveBootstrapPolicy } from './bootstrap-policy.js';
 import type { AphexAuthConfig } from './types.js';
 import { defaultTwoFactorOtpEmail } from './email/two-factor-otp.js';
+import { defaultEmailVerification, defaultPasswordReset } from './email/link-emails.js';
+import { createSecurityEmails, type SecurityContext, type SecurityEmails } from './security.js';
+import { checkOAuthRequest, createOAuthPlugin } from './oauth.js';
+
+const securityByInstance = new WeakMap<object, SecurityEmails>();
 
 /** Per-address cooldown between verification emails, in seconds. */
 const VERIFICATION_EMAIL_COOLDOWN = 60;
@@ -79,14 +83,17 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		socialProviders,
 		twoFactor,
 		appName,
+		oauth,
 		betterAuth: extend
 	} = config;
+	const oauthEnabled = oauth?.enabled === true;
 
 	const {
 		requireEmailVerification = false,
 		inviteOnly = true,
 		allowAccountDeletion = false,
-		twoFactorMethods = ['totp', 'email']
+		twoFactorMethods = ['totp', 'email'],
+		securityEmails = false
 	} = config.options ?? {};
 
 	// betterAuth() throws without these, and SvelteKit's analyse pass imports every
@@ -112,22 +119,23 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		// A link for the first two templates, a six-digit code for `twoFactorOtp`.
 		url: string
 	) {
-		if (!emailAdapter || !emailConfig) {
-			cmsLogger.warn('[Auth]', `Email adapter not configured. ${template} email not sent.`);
+		const from = emailConfig?.from ?? emailAdapter?.defaultFrom;
+		if (!emailAdapter || !from) {
+			cmsLogger.warn(
+				'[Auth]',
+				`${template} email not sent: ${emailAdapter ? 'set `from` on the email adapter' : 'no email adapter is configured'}.`
+			);
 			return;
 		}
-		// Only the OTP template has a built-in fallback — the other two carry links
-		// into app-specific routes, so there is nothing generic to send for them.
-		const resolved =
-			emailConfig[template] ?? (template === 'twoFactorOtp' ? defaultTwoFactorOtpEmail : undefined);
-		if (!resolved) {
-			cmsLogger.warn('[Auth]', `No ${template} email template configured. Email not sent.`);
-			return;
-		}
+		const defaults = {
+			passwordReset: defaultPasswordReset,
+			emailVerification: defaultEmailVerification,
+			twoFactorOtp: defaultTwoFactorOtpEmail
+		};
 		try {
-			const { subject, render } = resolved;
+			const { subject, render } = emailConfig?.[template] ?? defaults[template];
 			const { html, text } = await render(userName, url);
-			const result = await emailAdapter.send({ from: emailConfig.from, to, subject, html, text });
+			const result = await emailAdapter.send({ from, to, subject, html, text });
 			if (result.error) {
 				cmsLogger.error('[Auth]', `Failed to send ${template} email:`, result.error);
 			} else {
@@ -136,6 +144,27 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		} catch (error) {
 			cmsLogger.error('[Auth]', `Error sending ${template} email:`, error);
 		}
+	}
+
+	// Set once the instance exists, for the pieces that need it at request time.
+	const built: { instance?: { $context: Promise<SecurityContext & { internalAdapter: any }> } } =
+		{};
+
+	const security = createSecurityEmails({
+		enabled: securityEmails,
+		baseURL,
+		authPagesPath: config.authPagesPath ?? '',
+		emailAdapter,
+		email: emailConfig,
+		cache,
+		ipAddressHeaders,
+		context: async () => {
+			if (!built.instance) throw new Error('The auth instance is not built yet.');
+			return built.instance.$context;
+		}
+	});
+	if (securityEmails && !emailAdapter && !building) {
+		cmsLogger.warn('[Auth]', 'securityEmails is on but no email adapter is configured.');
 	}
 
 	const bootstrapPolicy = resolveBootstrapPolicy(config.bootstrap);
@@ -172,38 +201,6 @@ export function createAuthInstance(config: AphexAuthConfig) {
 				cmsLogger.error('[Auth]', 'Error creating user profile:', error);
 			}
 		}
-
-		// better-auth mounts this as `/delete-user`, not `/user/delete-user`.
-		if (ctx.path === '/delete-user' && ctx.context.user) {
-			const deleted = ctx.context.user;
-			try {
-				// Memberships are read first: deleting the profile is what removes them, and
-				// after that there's nothing left to say which organizations this account
-				// left data in.
-				const memberships = await db.findUserOrganizations(deleted.id);
-				const organizationIds = memberships.map((m) => m.organization.id);
-
-				// One transaction, so the erasure events can't go missing for an account
-				// that is already gone. That's the whole point of the outbox here: after
-				// this commits, the only remaining pointer to the user's avatar is the
-				// event, and a consumer will act on it even if this process dies now.
-				await db.withTransaction(async (tx) => {
-					await emitUserDeleted(tx, organizationIds, {
-						id: deleted.id,
-						email: deleted.email,
-						image: deleted.image
-					});
-					// Memberships don't cascade — `cms_organization_members.user_id` points
-					// at the auth layer's user, which cms-core doesn't own — so without this
-					// a deleted account keeps showing up in member lists holding its old role.
-					await detachUserFromOrganizations(tx, deleted.id, organizationIds);
-					await tx.deleteUserProfile(deleted.id);
-				});
-				cmsLogger.info('[Auth]', `Deleted user profile and queued erasure for ${deleted.id}`);
-			} catch (error) {
-				cmsLogger.error('[Auth]', 'Error deleting user profile:', error);
-			}
-		}
 	});
 
 	/**
@@ -228,6 +225,7 @@ export function createAuthInstance(config: AphexAuthConfig) {
 				message: 'API keys are managed through the CMS, not through the auth endpoint.'
 			});
 		}
+		checkOAuthRequest(oauthEnabled, ctx);
 	});
 
 	// better-auth reads `appName` as the default TOTP issuer, so it's what shows up
@@ -252,8 +250,11 @@ export function createAuthInstance(config: AphexAuthConfig) {
 	 * default rather than a ceiling.
 	 */
 	const wantsEmailOtp = twoFactorMethods.includes('email');
-	const canSendOtpEmail = wantsEmailOtp && Boolean(emailAdapter && emailConfig);
-	if (wantsEmailOtp && !canSendOtpEmail && !building) {
+	const canSendOtpEmail =
+		wantsEmailOtp && Boolean(emailAdapter && (emailConfig?.from ?? emailAdapter.defaultFrom));
+	// Only when asked for by name: email is on by default, and a config with no email
+	// adapter hasn't done anything to warn about.
+	if (config.options?.twoFactorMethods?.includes('email') && !canSendOtpEmail && !building) {
 		cmsLogger.warn(
 			'[Auth]',
 			"twoFactorMethods includes 'email' but no email adapter is configured — email codes are unavailable."
@@ -301,14 +302,14 @@ export function createAuthInstance(config: AphexAuthConfig) {
 					user: {
 						deleteUser: {
 							enabled: true,
-							// Runs before better-auth touches the user row, so refusing here
-							// leaves the account fully intact. The rule itself lives in
-							// cms-core so it holds for any provider.
-							beforeDelete: async (user: { id: string }) => {
+							// Runs before better-auth touches the user row (and after it checked the
+							// password), so a refusal or a failure leaves the account able to retry.
+							beforeDelete: async (user: { id: string; email: string; image?: string | null }) => {
 								try {
-									await assertAccountDeletable(db, user.id);
+									if (config.eraseAccount) await config.eraseAccount(user);
+									else await eraseAccountRows(db, user);
 								} catch (error) {
-									if (error instanceof AccountDeletionBlockedError) {
+									if (isDeletionBlocked(error)) {
 										throw new APIError('BAD_REQUEST', { message: error.message });
 									}
 									throw error;
@@ -327,7 +328,10 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			// Only set when we have a header we trust. Passing an empty list would
 			// tell better-auth to look at nothing, which is the same shared-bucket
 			// fallback but without the warning that explains it.
-			...(ipAddressHeaders.length > 0 ? { ipAddress: { ipAddressHeaders } } : {})
+			...(ipAddressHeaders.length > 0 ? { ipAddress: { ipAddressHeaders } } : {}),
+			...(config.cookieDomain
+				? { crossSubDomainCookies: { enabled: true, domain: config.cookieDomain } }
+				: {})
 		},
 		database: drizzleAdapter(drizzleDb as never, { provider: dialect }),
 		databaseHooks: {
@@ -356,6 +360,12 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			enabled: true,
 			requireEmailVerification,
 			revokeSessionsOnPasswordReset: true,
+			onPasswordReset: async (
+				{ user }: { user: { id: string; email: string; name?: string } },
+				request?: Request
+			) => {
+				security.notify(user, 'password-changed', { headers: request?.headers });
+			},
 			sendResetPassword: async ({
 				user,
 				token
@@ -365,7 +375,7 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			}) => {
 				// better-auth's default link is /reset-password?token=…; the apps route
 				// the token as a path segment instead.
-				const resetUrl = `${baseURL || 'http://localhost:5173'}/reset-password/${token}`;
+				const resetUrl = `${baseURL || 'http://localhost:5173'}${config.authPagesPath ?? ''}/reset-password/${token}`;
 				await sendAuthEmail('passwordReset', user.email, user.name || user.email, resetUrl);
 			}
 		},
@@ -373,7 +383,6 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			enabled: true,
 			sendOnSignUp: requireEmailVerification,
 			autoSignInAfterVerification: true,
-			verifyEmailPath: '/verify-email',
 			sendVerificationEmail: async ({
 				user,
 				url
@@ -408,7 +417,10 @@ export function createAuthInstance(config: AphexAuthConfig) {
 				// endpoint on the generic 100/minute allowance, which is no throttle at
 				// all for an email-sending route.
 				'/request-password-reset': { window: 60, max: 2 },
-				'/forget-password': { window: 60, max: 2 }
+				'/forget-password': { window: 60, max: 2 },
+				// Registration is open to anyone (that's how Claude and ChatGPT connect),
+				// so it's the one OAuth endpoint worth a tight limit.
+				'/oauth2/register': { window: 60, max: 10 }
 			}
 		},
 		...(socialProviders ? { socialProviders } : {}),
@@ -434,12 +446,36 @@ export function createAuthInstance(config: AphexAuthConfig) {
 	// its own: the behaviour that needs a verification screen only engages for a
 	// user who has *enabled* 2FA, which requires the app to have built that UI to
 	// call `twoFactor.enable` in the first place.
+	// Always registered, like 2FA, so the tuple stays fixed; `oauth.enabled` decides
+	// whether its endpoints answer (`checkOAuthRequest`). Its pieces that need the
+	// built instance (the verification store) reach it through `built`, which is set
+	// before any request can arrive.
+	const oauthPlugin = createOAuthPlugin({
+		database: db,
+		verification: async () => {
+			if (!built.instance) throw new Error('The auth instance is not built yet.');
+			return (await built.instance.$context).internalAdapter;
+		},
+		// The MCP server's address, and `/mcp`, where it lived first.
+		resources: ['/admin/mcp', '/mcp'].map(
+			(path) => `${new URL(baseURL ?? 'http://localhost').origin}${path}`
+		)
+	});
+
 	const options = {
 		...base,
-		plugins: [apiKeyPlugin, twoFactorPlugin(twoFactorOptions ?? {})]
+		plugins: [apiKeyPlugin, twoFactorPlugin(twoFactorOptions ?? {}), oauthPlugin, security.plugin]
 	};
 
-	return betterAuth(extend ? (extend(options) as typeof options) : options);
+	const instance = betterAuth(extend ? (extend(options) as typeof options) : options);
+	built.instance = instance;
+	securityByInstance.set(instance, security);
+	return instance;
+}
+
+/** The security emails built with an instance, for the service that shares it. */
+export function securityEmailsOf(instance: AphexAuthInstance): SecurityEmails | undefined {
+	return securityByInstance.get(instance);
 }
 
 export type AphexAuthInstance = ReturnType<typeof createAuthInstance>;

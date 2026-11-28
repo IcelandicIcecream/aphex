@@ -16,6 +16,8 @@ import {
 } from '../images/variants';
 import { DEFAULT_ALLOWED_MIME_TYPES, isAcceptedFileType } from '../utils/file-accept';
 import { validateFile } from '../utils/mime-detect';
+import type { StorageLimitResolver } from '../types/config';
+import { assertStorageLimit } from '../local-api/limits';
 
 /**
  * Maximum asset ids per `IN (...)` when resolving refs for injection.
@@ -110,7 +112,9 @@ export class AssetService {
 		private storage: StorageAdapter,
 		private database: DatabaseAdapter,
 		private images: ImageConfig | null = null,
-		private allowedMimeTypes: readonly string[] = DEFAULT_ALLOWED_MIME_TYPES
+		private allowedMimeTypes: readonly string[] = DEFAULT_ALLOWED_MIME_TYPES,
+		/** `config.storageLimits`, checked before every upload is kept. */
+		private storageLimits?: StorageLimitResolver
 	) {}
 
 	/**
@@ -121,6 +125,7 @@ export class AssetService {
 			allowedMimeTypes: this.allowedMimeTypes
 		});
 		if (!validation.valid) throw new Error(validation.error);
+		await assertStorageLimit(this.storageLimits, organizationId, data.size, this.database);
 		const safeMimeType = validation.detectedMimeType || data.mimeType;
 
 		// Determine asset type
@@ -283,6 +288,13 @@ export class AssetService {
 		const finalPath = this.storage.resolvePath(intent.finalKey);
 		const pendingAssetPath = `${finalPath}.unverified`;
 		const uploadSize = await this.verifyUploadedObject(uploadPath, extras.maxBytes);
+		// The signed PUT already happened, so the bytes are discarded if they'd go over.
+		try {
+			await assertStorageLimit(this.storageLimits, organizationId, uploadSize, this.database);
+		} catch (error) {
+			await this.storage.delete(uploadPath).catch(() => false);
+			throw error;
+		}
 		const initialMetadata: AssetMetadata = {
 			...(intent.schemaType ? { schemaType: intent.schemaType } : {}),
 			...(intent.fieldPath ? { fieldPath: intent.fieldPath } : {}),
@@ -551,8 +563,15 @@ export class AssetService {
 	 *
 	 * Note: If the asset was stored by a different adapter (e.g., switching from R2 to local),
 	 * file deletion may fail. The database record will still be removed for a clean state.
+	 *
+	 * With `strict`, throws and keeps the record when a file could not be removed, so
+	 * the file can still be found and the delete tried again.
 	 */
-	async deleteAsset(organizationId: string, id: string): Promise<boolean> {
+	async deleteAsset(
+		organizationId: string,
+		id: string,
+		{ strict = false }: { strict?: boolean } = {}
+	): Promise<boolean> {
 		const asset = await this.database.findAssetById(organizationId, id);
 		if (!asset) {
 			return false;
@@ -562,7 +581,7 @@ export class AssetService {
 		// If the asset was stored by a different adapter, this may fail
 		if (asset.storageAdapter === this.storage.name) {
 			// Same adapter - delete should work
-			await this.deleteAssetObjects(asset);
+			await this.deleteAssetObjects(asset, strict);
 		} else {
 			// Different adapter - log warning but continue with database cleanup
 			cmsLogger.warn(
@@ -597,7 +616,7 @@ export class AssetService {
 	 * prefix from the id would either match nothing or — much worse — match
 	 * something else.
 	 */
-	private async deleteAssetObjects(asset: Asset): Promise<void> {
+	private async deleteAssetObjects(asset: Asset, strict: boolean): Promise<void> {
 		const paths = new Set<string>([asset.path]);
 
 		for (const variant of getVariants(asset)?.widths ?? []) {
@@ -613,6 +632,7 @@ export class AssetService {
 				// is what `delete` takes.
 				for (const object of objects) paths.add(object.key);
 			} catch (error) {
+				if (strict) throw error;
 				// A failed listing costs orphaned derivatives, not a failed delete.
 				// The original and the recorded variants still go.
 				cmsLogger.warn(
@@ -624,6 +644,15 @@ export class AssetService {
 
 		const targets = [...paths];
 		const results = await Promise.allSettled(targets.map((path) => this.storage.delete(path)));
+		if (strict) {
+			for (const [i, result] of results.entries()) {
+				if (result.status === 'rejected') throw result.reason;
+				// Adapters answer false for a file that was already gone, too.
+				if (!result.value && (await this.storage.exists(targets[i] ?? ''))) {
+					throw new Error(`Could not delete ${targets[i]} from storage`);
+				}
+			}
+		}
 		results.forEach((result, i) => {
 			if (result.status === 'rejected') {
 				cmsLogger.warn(`Failed to delete file from storage: ${targets[i]}`, result.reason);

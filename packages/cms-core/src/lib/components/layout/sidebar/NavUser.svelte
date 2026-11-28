@@ -87,12 +87,12 @@
 					<Settings class="mr-2 h-4 w-4" />
 					<span>Account Settings</span>
 				</DropdownMenuItem>
-				<DropdownMenuItem class="cursor-pointer" onclick={() => goto('/invitations')}>
+				<DropdownMenuItem class="cursor-pointer" onclick={() => goto('/admin/invitations')}>
 					<Mail class="mr-2 h-4 w-4" />
 					<span>Invitations</span>
 				</DropdownMenuItem>
 				{#if user.role === 'super_admin'}
-					<DropdownMenuItem class="cursor-pointer" onclick={() => goto('/god-mode')}>
+					<DropdownMenuItem class="cursor-pointer" onclick={() => goto('/admin/god-mode')}>
 						<Shield class="mr-2 h-4 w-4" />
 						<span>God Mode</span>
 					</DropdownMenuItem>

@@ -13,6 +13,12 @@
  * contract change shows up in the spec without anyone editing this file.
  */
 import type { ZodType } from 'zod';
+import { createApiKeyRequest } from '../../../api/schemas/api-keys';
+import { chooseOAuthSiteRequest, oauthConsentRequest } from '../../../api/schemas/oauth';
+import {
+	deleteInstanceUserRequest,
+	updateInstanceSettingsRequest
+} from '../../../api/schemas/instance';
 
 import {
 	listDocumentsQuery,
@@ -59,14 +65,16 @@ import {
 	inviteMemberRequest,
 	cancelInvitationRequest,
 	removeMemberRequest,
-	updateMemberRoleRequest
+	updateMemberRoleRequest,
+	setOrganizationCapabilitiesRequest
 } from '../../../api/schemas/organizations';
 import { createRoleRequest, updateRoleRequest } from '../../../api/schemas/roles';
 import {
 	updateUserRequest,
 	updateUserPreferencesRequest,
 	requestPasswordResetRequest,
-	resetPasswordRequest
+	resetPasswordRequest,
+	secureAccountRequest
 } from '../../../api/schemas/user';
 import { jobActionRequestSchema } from '../../../api/schemas/jobs';
 import { savePluginSettingsRequest } from '../../../api/schemas/plugin-settings';
@@ -514,6 +522,130 @@ export const ROUTE_REGISTRY: RouteMeta[] = [
 		request: cancelInvitationRequest
 	},
 	{
+		path: '/api/invitations',
+		method: 'GET',
+		summary: "List the signed-in user's pending invitations",
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/invitations/:id/accept',
+		method: 'POST',
+		summary: 'Accept an invitation',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/invitations/:id/reject',
+		method: 'POST',
+		summary: 'Decline an invitation',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/settings/api-keys',
+		method: 'GET',
+		summary: "List the signed-in user's API keys",
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/settings/api-keys',
+		method: 'POST',
+		summary: 'Create an API key',
+		description: 'Session only, and needs `apiKey.manage`. The key itself is only returned here.',
+		tag: 'Organizations',
+		auth: 'session',
+		request: createApiKeyRequest
+	},
+	{
+		path: '/api/settings/api-keys/:id',
+		method: 'DELETE',
+		summary: 'Revoke an API key',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/settings/connected-apps',
+		method: 'GET',
+		summary: 'List the apps the signed-in user has connected to this organization',
+		description: 'Apps such as Claude and ChatGPT, connected to `/mcp` with OAuth.',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/settings/connected-apps/:clientId',
+		method: 'PATCH',
+		summary: 'Choose what a connected app may do beyond drafts',
+		description:
+			'Switches publishing or deleting on or off for one connected app. It can never administer.',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/settings/connected-apps/:clientId',
+		method: 'DELETE',
+		summary: 'Disconnect an app',
+		description: 'Removes the grant and every token issued under it, effective at once.',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/oauth/site',
+		method: 'POST',
+		summary: 'Choose the site an app being connected may use',
+		description:
+			'A step of connecting an app with OAuth, driven by the admin. Answers with the URL the browser goes to next.',
+		tag: 'Organizations',
+		auth: 'session',
+		request: chooseOAuthSiteRequest
+	},
+	{
+		path: '/api/oauth/consent',
+		method: 'POST',
+		summary: 'Allow or deny an app being connected',
+		description: 'Answers with the URL the browser goes to next: back to the app.',
+		tag: 'Organizations',
+		auth: 'session',
+		request: oauthConsentRequest
+	},
+	{
+		path: '/api/instance-settings',
+		method: 'GET',
+		summary: 'Get the settings for this instance',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/instance-settings',
+		method: 'PATCH',
+		summary: 'Update the settings for this instance',
+		description: 'Super admins only.',
+		tag: 'Organizations',
+		auth: 'session',
+		request: updateInstanceSettingsRequest
+	},
+	{
+		path: '/api/instance-users/:id',
+		method: 'DELETE',
+		summary: 'Delete an account',
+		description:
+			'Super admins only. Also deletes the organizations only this account belongs to. `email` must be the account’s. 409 when it would leave an organization others use without an owner.',
+		tag: 'Organizations',
+		auth: 'session',
+		request: deleteInstanceUserRequest
+	},
+	{
+		path: '/api/organizations/:id/capabilities',
+		method: 'PUT',
+		summary: "Set an organization's features",
+		description:
+			'Super admins only. Replaces the organization capabilities it has; each must be in `organizationCapabilities.ids`. 404 unless the config has `organizationCapabilities.set`.',
+		tag: 'Organizations',
+		auth: 'session',
+		request: setOrganizationCapabilitiesRequest
+	},
+	{
 		path: '/api/organizations/:id',
 		method: 'GET',
 		summary: 'Get an organization',
@@ -626,6 +758,14 @@ export const ROUTE_REGISTRY: RouteMeta[] = [
 		tag: 'User',
 		auth: 'public',
 		request: resetPasswordRequest
+	},
+	{
+		path: '/api/user/secure-account',
+		method: 'POST',
+		summary: 'Sign out everywhere and reset the password, from a security email',
+		tag: 'User',
+		auth: 'public',
+		request: secureAccountRequest
 	},
 
 	// ---------------- Jobs & events ----------------

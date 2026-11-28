@@ -31,6 +31,7 @@ import type { ReferenceField } from '@aphexcms/cms-core';
 | `description`  | `string`                           | No       | Help text shown below the label.                                                                                  |
 | `to`           | `Array<{ type: string }>`          | Yes      | Document types this field can reference. Currently only the **first** type in the array is used by the component. |
 | `initialValue` | `any \| () => any \| Promise<any>` | No       | Default value.                                                                                                    |
+| `weak`         | `boolean`                          | No       | May point at a draft: see [Weak references](#weak-references).                                                    |
 | `validation`   | `(Rule) => Rule`                   | No       | Validation rules.                                                                                                 |
 
 ## Examples
@@ -67,6 +68,22 @@ const post = defineType({
 	]
 });
 ```
+
+## Weak references
+
+A document can't be published while a reference in it points at a document that isn't published, so the live site never points at nothing. For links that's too strict: two pages that link to each other could never go live, each waiting for the other. Mark such a field `weak: true`, as in Sanity, and it may point at a draft; the site shows the link once its target is live.
+
+```typescript
+{
+  name: 'page',
+  type: 'reference',
+  title: 'Page',
+  to: [{ type: 'page' }],
+  weak: true
+}
+```
+
+In an array, put `weak: true` on the reference item: `of: [{ type: 'reference', to: [{ type: 'page' }], weak: true }]`. It's read from the schema when publishing, so references saved before a field was made weak count as weak too.
 
 ## UI Features
 

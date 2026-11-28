@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { CMSInstances } from '../../hooks';
 import type { Auth } from '../../types/auth';
+import { apiCallKind, callerLimits, tooManyCallsMessage } from './caller-limits';
+import type { Organization } from '../../types/organization';
 import type { StorageAdapter } from '../../storage/interfaces/storage';
 import { formatMegabytes, resolveMaxUploadBytes } from '../../api/limits';
 import { schemasRouter } from './routes/schemas';
@@ -19,6 +21,11 @@ import { assetsReferencesRouter } from './routes/assets-references';
 import { organizationsRouter } from './routes/organizations';
 import { organizationsByIdRouter } from './routes/organizations-by-id';
 import { organizationsInvitationsRouter } from './routes/organizations-invitations';
+import { invitationsRouter } from './routes/invitations';
+import { apiKeysRouter } from './routes/api-keys';
+import { connectedAppsRouter, oauthRouter } from './routes/oauth';
+import { instanceUsersRouter } from './routes/instance-users';
+import { instanceSettingsRouter } from './routes/instance-settings';
 import { organizationsMembersRouter } from './routes/organizations-members';
 import { organizationsSwitchRouter } from './routes/organizations-switch';
 import { organizationsTeamRouter } from './routes/organizations-team';
@@ -38,6 +45,10 @@ import { openapiRouter, openapiDocsRouter } from './routes/openapi';
  * Variables on `c.var`:
  * - `aphexCMS` — the singleton CMS service container (db, storage, services).
  * - `auth` — the resolved auth principal for this request, or null if anonymous.
+ * - `tenant` — the organization the request's URL names (`locals.aphexTenantOrganization`),
+ *   or null when the host names none. A public route an anonymous visitor writes
+ *   through (a form submission) checks what it writes to against this, so one
+ *   tenant's address can't be used to write into another's.
  *
  * These are populated by the SvelteKit catch-all, which invokes
  * `app.fetch(request, { aphexCMS, auth })` and the bridge middleware below
@@ -47,10 +58,13 @@ export type AphexEnv = {
 	Variables: {
 		aphexCMS: CMSInstances;
 		auth: Auth | null;
+		tenant: Organization | null;
 	};
 	Bindings: {
 		aphexCMS: CMSInstances;
 		auth: Auth | null;
+		/** Omitted by callers that predate tenants; read as no tenant. */
+		tenant?: Organization | null;
 		/** Set by the framework bridge from its trusted connection metadata. */
 		clientAddress?: string;
 	};
@@ -97,7 +111,29 @@ export function createAphexApi() {
 	app.use('*', async (c, next) => {
 		c.set('aphexCMS', c.env.aphexCMS);
 		c.set('auth', c.env.auth);
+		c.set('tenant', c.env.tenant ?? null);
 		await next();
+	});
+
+	// Each caller's fair share (`config.rateLimit`, ./caller-limits.ts). Anonymous calls
+	// (sign-in, a form post) have limits of their own, and the worker endpoint is the
+	// instance's cron, not a caller.
+	app.use('*', async (c, next) => {
+		const auth = c.var.auth;
+		// A test or tool driving the app with a bare stand-in has no config to read.
+		const config = c.var.aphexCMS?.config;
+		if (!auth || !config || c.req.path.startsWith('/api/internal/')) return next();
+		const result = callerLimits.check(
+			auth,
+			apiCallKind(c.req.method, c.req.path),
+			config.rateLimit
+		);
+		if (result.allowed) return next();
+		c.header('Retry-After', String(result.retryAfterSeconds));
+		return c.json(
+			{ success: false, error: 'Too many requests', message: tooManyCallsMessage(result) },
+			429
+		);
 	});
 
 	return app;
@@ -107,8 +143,7 @@ export function createAphexApi() {
  * Mount cms-core's built-in resource routes onto an Aphex API app.
  *
  * Called by `createCMSHook` after `config.api?.(app)` runs, so user-provided
- * middleware (e.g. an email-sending wrap on `/organizations/invitations`)
- * registers ahead of the built-in handler and gets the chance to wrap it.
+ * middleware registers ahead of the built-in handler and gets the chance to wrap it.
  */
 export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	// Order matters: more-specific paths (`/documents/query`,
@@ -143,6 +178,17 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	app.route('/organizations', organizationsTeamRouter);
 	app.route('/organizations', organizationsByIdRouter);
 	app.route('/organizations', organizationsRouter);
+
+	// The signed-in user's own invitations.
+	app.route('/invitations', invitationsRouter);
+
+	// API keys, and the settings that apply to the whole instance.
+	app.route('/settings/api-keys', apiKeysRouter);
+	// Apps connected over OAuth (Claude, ChatGPT), and the steps of connecting one.
+	app.route('/settings/connected-apps', connectedAppsRouter);
+	app.route('/oauth', oauthRouter);
+	app.route('/instance-settings', instanceSettingsRouter);
+	app.route('/instance-users', instanceUsersRouter);
 
 	// Roles — combined router covers /, /:name, no precedence concern.
 	app.route('/roles', rolesRouter);
@@ -280,7 +326,8 @@ export function toHonoHandler(skHandler: (event: any) => Promise<Response> | Res
 			params: c.req.param() as Record<string, string>,
 			locals: {
 				aphexCMS: c.var.aphexCMS,
-				auth: c.var.auth
+				aphexAuth: c.var.auth,
+				aphexTenantOrganization: c.var.tenant
 			},
 			// No-op fallbacks — only used if a wrapped SK handler probes for them.
 			setHeaders: () => undefined,

@@ -184,7 +184,8 @@ export const archiveBlock: TypeReference = {
 			name: 'selectedDocs',
 			type: 'array',
 			title: 'Selection',
-			of: [{ type: 'reference', to: [{ type: 'post' }] }],
+			// Weak: a picked post that isn't live yet is left out, and doesn't hold the page back.
+			of: [{ type: 'reference', to: [{ type: 'post' }], weak: true }],
 			hidden: ({ siblingData }) => siblingData.populateBy !== 'selection'
 		}
 	],

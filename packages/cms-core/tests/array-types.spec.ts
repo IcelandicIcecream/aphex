@@ -21,4 +21,36 @@ describe('getArrayTypes', () => {
 
 		expect(type).toMatchObject({ name: 'formEmail', title: 'Email', icon, preview });
 	});
+
+	it('carries descriptions for the insert menu, a reference overriding its schema', () => {
+		const schemas = [
+			{
+				type: 'object' as const,
+				name: 'hero',
+				title: 'Hero',
+				description: 'From the schema',
+				fields: []
+			},
+			{
+				type: 'object' as const,
+				name: 'faq',
+				title: 'FAQ',
+				description: 'From the schema',
+				fields: []
+			}
+		];
+		const types = getArrayTypes(schemas, {
+			of: [
+				{ type: 'hero', description: 'For this array' },
+				{ type: 'faq' },
+				{ type: 'note', name: 'note', description: 'Inline', fields: [] }
+			]
+		});
+		expect(types.map((t) => t.description)).toEqual([
+			'For this array',
+			'From the schema',
+			'Inline'
+		]);
+		expect(schemas[0]!.description).toBe('From the schema');
+	});
 });

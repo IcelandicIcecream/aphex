@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createClient } from '@libsql/client';
 import { afterEach, describe, expect, it } from 'vitest';
-import { sqliteAdapter } from '../src/lib/server/db/adapters/sqlite';
+import { sqliteAdapter } from '@aphexcms/sqlite-adapter';
+import * as authSchema from '../src/lib/server/db/auth-schema/sqlite';
 
 const directories: string[] = [];
 
@@ -20,7 +21,7 @@ describe('SQLite boot migration', () => {
 		await legacy.execute('CREATE TABLE `user` (`id` text PRIMARY KEY NOT NULL)');
 		legacy.close();
 
-		const database = await sqliteAdapter({ url, building: false });
+		const database = await sqliteAdapter({ url, schema: authSchema }).connect();
 		try {
 			const result = await database.client.execute(
 				"select name from sqlite_master where type = 'table' and name in ('user', 'two_factor') order by name"
@@ -35,12 +36,12 @@ describe('SQLite boot migration', () => {
 		const directory = await mkdtemp(join(tmpdir(), 'aphex-sqlite-migration-'));
 		directories.push(directory);
 		const url = `file:${join(directory, 'aphex.db')}`;
-		let databases: Awaited<ReturnType<typeof sqliteAdapter>>[] = [];
+		let databases: Awaited<ReturnType<ReturnType<typeof sqliteAdapter>['connect']>>[] = [];
 
 		try {
 			databases = await Promise.all([
-				sqliteAdapter({ url, building: false }),
-				sqliteAdapter({ url, building: false })
+				sqliteAdapter({ url, schema: authSchema }).connect(),
+				sqliteAdapter({ url, schema: authSchema }).connect()
 			]);
 
 			const result = await databases[0].client.execute(

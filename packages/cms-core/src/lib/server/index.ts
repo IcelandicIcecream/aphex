@@ -9,6 +9,7 @@ export * from '../auth/provider';
 export * from '../cache/index';
 
 export * from '../email/index';
+export { authPagesBase } from '../auth/pages';
 
 export * from '../ai/index';
 
@@ -18,9 +19,11 @@ export { isInstanceEmpty, canDetermineInstanceEmptiness } from '../auth/instance
 export * from '../auth/bootstrap';
 export * from '../auth/sign-up-policy';
 export * from '../auth/account-deletion';
+export * from '../auth/erase';
 
 // Configuration system
 export { createCMSConfig } from '../config';
+export { getAphex, resolveCMSConfig, type ResolvedAphex } from '../resolve-config';
 
 // Adapter health, for the app's own `/healthz` probe route
 export { checkHealth, type HealthResult, type HealthOptions } from './health';
@@ -72,6 +75,12 @@ export {
 	type RateLimitRule,
 	type RateLimitResult
 } from './api/rate-limit';
+export {
+	DEFAULT_CALLER_LIMITS,
+	type CallKind,
+	type CallLimits,
+	type CallerLimitsConfig
+} from './api/caller-limits';
 
 // Job execution — the DB-backed job runner (claim → run handler → complete/retry/fail).
 export * from '../jobs/index';
@@ -96,6 +105,12 @@ export {
 // Preview utilities
 export { getPreviewPerspective, type PreviewPerspective } from '../preview/perspective';
 
+// Embedded admin — the SSR load behind the `/admin/[...path]` catch-all. A host
+// wires it in one line and every admin view a release adds is served without a
+// host file change. Mount the matching UI with `<AphexStudio>` from `/client`.
+export { createAdminLoad } from './pages/admin';
+export type { AdminViewData, AdminStudioData, AdminActivityData } from '../admin/view-data';
+
 // GraphQL (built-in, enabled by default)
 export {
 	createGraphQLHandler,
@@ -112,8 +127,14 @@ export {
 	CollectionAPI,
 	SingletonOperationError,
 	DocumentValidationError,
+	PublishValidationError,
+	ReferencedDocumentError,
 	PermissionChecker,
 	PermissionError,
+	DocumentLimitError,
+	StorageLimitError,
+	MemberLimitError,
+	isLimitError,
 	authToContext,
 	requireAuth,
 	systemContext,
@@ -123,6 +144,8 @@ export {
 	type CreateOptions,
 	type UpdateOptions
 } from '../local-api/index';
+// The organization and context a site page reads its content with
+export { siteContext, type SiteContext, type SiteContextOptions } from './site-context';
 
 // MCP — transport-agnostic tool registry (the MCP route + a future AI panel
 // both consume these). The SvelteKit route handler is at ./routes/mcp.
@@ -132,3 +155,17 @@ export {
 	type McpToolResult,
 	type McpToolDeps
 } from '../mcp/tools';
+export {
+	coreMcpInstructions,
+	type McpInstructions,
+	type McpInstructionsContext
+} from '../mcp/instructions';
+export type { McpGuide } from '../mcp/guides';
+export { validateMcpPrompts, type McpPrompt, type McpPromptArgument } from '../mcp/prompts';
+/**
+ * Core's own zod, for a plugin's `aphex/agent/tool` input schemas. A tool's schema is
+ * turned into JSON Schema for MCP clients by core, so it must come from the same zod
+ * copy core uses; an app needn't depend on zod itself.
+ */
+export { z } from 'zod';
+export { fetchRemoteFile, type RemoteFile } from '../utils/fetch-remote-file';

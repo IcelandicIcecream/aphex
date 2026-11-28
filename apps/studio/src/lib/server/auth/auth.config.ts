@@ -1,10 +1,8 @@
 // apps/studio/src/lib/server/auth/auth.config.ts
 //
-// App-owned auth options. Auth-provider specifics live here rather than in
-// cms-core's provider-agnostic CMSConfig — the app owns the auth provider
-// instance (see ./instance.ts), so this is where email/password behaviour is
-// configured. Kept in a standalone module (no imports from ./auth or
-// aphex.config.ts) to avoid a circular import at instance construction time.
+// App-owned auth options, passed to `aphexAuth()` in aphex.config.ts. Kept separate
+// because hooks.server.ts reads the bootstrap policy, and that shouldn't evaluate the
+// whole CMS config.
 
 import { env } from '$env/dynamic/private';
 import {
@@ -70,6 +68,14 @@ export interface AuthOptions {
 	 * @default true
 	 */
 	allowAccountDeletion: boolean;
+
+	/**
+	 * Email people about sign-ins from new devices, password and two-factor changes, and
+	 * more. Opt in with AUTH_SECURITY_EMAILS=true; needs an email adapter.
+	 *
+	 * @default false
+	 */
+	securityEmails: boolean;
 }
 
 export type TwoFactorMethod = 'totp' | 'email';
@@ -98,7 +104,8 @@ export const authOptions: AuthOptions = {
 	requireEmailVerification: env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'true',
 	inviteOnly: env.AUTH_INVITE_ONLY !== 'false',
 	twoFactorMethods: parseTwoFactorMethods(env.AUTH_TWO_FACTOR_METHODS),
-	allowAccountDeletion: true
+	allowAccountDeletion: true,
+	securityEmails: env.AUTH_SECURITY_EMAILS === 'true'
 };
 
 /**

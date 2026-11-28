@@ -20,6 +20,12 @@ export class ApiError extends Error {
 	}
 }
 
+/**
+ * Extra fetch options a caller may set. `keepalive` lets a request finish after the
+ * page that sent it has closed (the browser caps such bodies at about 64 KB).
+ */
+export type SendOptions = Pick<RequestInit, 'keepalive'>;
+
 export class ApiClient {
 	private baseUrl: string;
 	private timeout: number;
@@ -145,13 +151,15 @@ export class ApiClient {
 	async post<T>(
 		endpoint: string,
 		body?: any,
-		headers?: Record<string, string>
+		headers?: Record<string, string>,
+		init?: SendOptions
 	): Promise<ApiResponse<T>> {
 		const isUpload = body instanceof FormData;
 		return this.request<T>(
 			endpoint,
 			{
 				method: 'POST',
+				...init,
 				...(headers ? { headers } : {}),
 				// Don't stringify FormData - pass it directly
 				body: isUpload ? body : body ? JSON.stringify(body) : undefined
@@ -167,9 +175,10 @@ export class ApiClient {
 	/**
 	 * PUT request
 	 */
-	async put<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+	async put<T>(endpoint: string, body?: any, init?: SendOptions): Promise<ApiResponse<T>> {
 		return this.request<T>(endpoint, {
 			method: 'PUT',
+			...init,
 			// Don't stringify FormData - pass it directly
 			body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined
 		});

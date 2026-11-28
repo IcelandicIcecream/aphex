@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { buildContentTools, type McpTool, type McpToolResult } from '@aphexcms/cms-core/mcp/tools';
-import { db } from '../src/lib/server/db';
+import { db } from './helpers/db';
 import cmsConfig from './fixtures/config';
 import { TEST_ORG_ID } from './helpers/test-constants';
 
@@ -179,5 +179,177 @@ describe('MCP writes go through the same validation as the admin UI', () => {
 		);
 		expect((after as Record<string, unknown>).title).toBe('Untouched');
 		expect(Object.keys(after ?? {})).not.toContain('totallyMadeUp');
+	});
+});
+
+describe('MCP writes to a registered block', () => {
+	const owner = { organizationId: TEST_ORG_ID, overrideAccess: true };
+	const block = (extra: object, key = 'a') => ({ _type: 'strictBlock', _key: key, ...extra });
+
+	/** A page saved by something other than an agent, holding a leftover and a retired field. */
+	async function pageWithLeftovers() {
+		const { document } = await localAPI.collections.strictDoc.create(owner, {
+			title: 'Blocks',
+			blocks: [block({ legacy: 'red', emoji: 'pin' })]
+		} as never);
+		created.push(document.id);
+		return document.id;
+	}
+
+	it('refuses a field the block does not have, naming the ones it does', async () => {
+		const result = await call('create_document', {
+			collection: 'strictDoc',
+			data: { title: 'Agent write', blocks: [block({ icon: 'calendar' })] }
+		});
+		expectRejected(result, /blocks\[0\]\.icon isn't a field of Strict Block\. Its fields: symbol/);
+	});
+
+	it('refuses it through patch_document too, and saves nothing', async () => {
+		const id = await pageWithLeftovers();
+		const result = await call('patch_document', {
+			collection: 'strictDoc',
+			id,
+			operations: [{ op: 'set', path: 'blocks[_key=="a"].icon', value: 'calendar' }]
+		});
+		expectRejected(result, /icon isn't a field/);
+		const after = await localAPI.collections.strictDoc.findByID(owner, id);
+		expect(JSON.stringify(after)).not.toContain('calendar');
+	});
+
+	it('still edits a page that holds leftovers', async () => {
+		const id = await pageWithLeftovers();
+		const result = await call('patch_document', {
+			collection: 'strictDoc',
+			id,
+			operations: [{ op: 'set', path: 'blocks[_key=="a"].symbol', value: 'calendar' }]
+		});
+		expect(result.isError).toBeFalsy();
+	});
+
+	it('refuses a new value in a retired field and lets the old one be cleared', async () => {
+		const id = await pageWithLeftovers();
+		const patch = (operation: object) =>
+			call('patch_document', { collection: 'strictDoc', id, operations: [operation] });
+		const path = 'blocks[_key=="a"].emoji';
+		expectRejected(
+			await patch({ op: 'set', path, value: 'star' }),
+			/no longer used\. Use "symbol"/
+		);
+		expect((await patch({ op: 'unset', path })).isError).toBeFalsy();
+	});
+
+	it('validate_document says what a save would', async () => {
+		const id = await pageWithLeftovers();
+		const check = async (data: object, extra: object = {}) =>
+			resultText(await call('validate_document', { collection: 'strictDoc', data, ...extra }));
+		const leftovers = { title: 'x', blocks: [block({ legacy: 'red' })] };
+		expect(await check(leftovers)).toMatch(/legacy/);
+		expect(await check(leftovers, { id })).not.toMatch(/legacy/);
+	});
+
+	it('get_schema leaves the retired field out', async () => {
+		const text = resultText(await call('get_schema', { collection: 'strictDoc' }));
+		expect(text).toContain('symbol');
+		expect(text).not.toContain('emoji');
+	});
+});
+
+describe('leftovers of a removed field, and fields that never existed', () => {
+	const owner = { organizationId: TEST_ORG_ID, overrideAccess: true };
+	const apiKey = {
+		organizationId: TEST_ORG_ID,
+		auth: {
+			type: 'api_key',
+			keyId: 'test-key',
+			name: 'n8n',
+			permissions: [],
+			capabilities: CAPABILITIES
+		}
+	} as never;
+	const gone = { name: 'gone', type: 'string', title: 'Gone' };
+	const leftovers: Record<string, object> = {
+		'a block': { blocks: [{ _type: 'strictBlock', _key: 'a', gone: 'x' }] },
+		'an inline item': { tags: [{ _type: 'tagEntry', _key: 'a', value: 'v', gone: 'x' }] },
+		'an object': { meta: { label: 'l', gone: 'x' } },
+		'the document': { gone: 'x' }
+	};
+
+	/** The same site from before `gone` was removed from its schemas. */
+	function beforeRemoval() {
+		const schemaTypes = cmsConfig.schemaTypes.map((schema) => {
+			if (schema.name !== 'strictDoc' && schema.name !== 'strictBlock') return schema;
+			const fields = schema.fields.map((field) => {
+				if (field.type === 'object') return { ...field, fields: [...field.fields, gone] };
+				if (field.name !== 'tags' || field.type !== 'array') return field;
+				return {
+					...field,
+					of: field.of.map((item) => ({ ...item, fields: [...(item.fields ?? []), gone] }))
+				};
+			});
+			return { ...schema, fields: [...fields, gone] };
+		});
+		return createLocalAPI({ ...cmsConfig, schemaTypes } as typeof cmsConfig, db);
+	}
+
+	for (const [where, data] of Object.entries(leftovers)) {
+		it(`saves and publishes with one in ${where}`, async () => {
+			const { document } = await beforeRemoval().collections.strictDoc.create(owner, {
+				title: 'Leftover',
+				...data
+			} as never);
+			created.push(document.id);
+			const api = localAPI.collections.strictDoc;
+			expect(await api.publish(owner, document.id)).toBeTruthy();
+			const saved = await api.update(owner, document.id, { ...data, title: 'Edited' } as never, {
+				publish: true
+			});
+			expect(saved?.validation.isValid).toBe(true);
+		});
+
+		it(`refuses an API key adding one to ${where}`, async () => {
+			const { document } = await localAPI.collections.strictDoc.create(owner, {
+				title: 'Clean'
+			} as never);
+			created.push(document.id);
+			await expect(
+				localAPI.collections.strictDoc.update(apiKey, document.id, data as never)
+			).rejects.toThrow(/gone isn't a field of .* Its fields: /);
+		});
+	}
+
+	it('still refuses the admin a new one outside a block', async () => {
+		const { document } = await localAPI.collections.strictDoc.create(owner, {
+			title: 'Clean'
+		} as never);
+		created.push(document.id);
+		await expect(
+			localAPI.collections.strictDoc.update(owner, document.id, {
+				meta: { label: 'l', gone: 'x' }
+			} as never)
+		).rejects.toThrow(/Unknown field "gone"/);
+	});
+
+	it('still refuses to publish what is actually wrong', async () => {
+		const { document } = await beforeRemoval().collections.strictDoc.create(owner, {
+			title: '',
+			meta: { label: 'l', gone: 'x' }
+		} as never);
+		created.push(document.id);
+		const problem = localAPI.collections.strictDoc.publish(owner, document.id);
+		await expect(problem).rejects.toThrow(/title/);
+		await expect(problem).rejects.not.toThrow(/gone/);
+	});
+
+	it('warns an API key writing a retired field, and saves it', async () => {
+		const blocks = [{ _type: 'strictBlock', _key: 'a', emoji: 'pin' }];
+		const { document, validation } = await localAPI.collections.strictDoc.create(apiKey, {
+			title: 'Retired',
+			blocks
+		} as never);
+		created.push(document.id);
+		expect(validation.isValid).toBe(true);
+		expect(validation.warnings).toMatchObject([
+			{ field: 'blocks[0].emoji', errors: ['is no longer used. Use "symbol".'] }
+		]);
 	});
 });

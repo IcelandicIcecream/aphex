@@ -46,6 +46,7 @@ function buildFakeCMS(
 	let userSession: { activeOrganizationId: string } | null = { activeOrganizationId: TEST_ORG };
 
 	return {
+		config: { auth: { loginUrl: '/admin/login' } },
 		databaseAdapter: {
 			findUserOrganizations: async (_uid: string) =>
 				memberships.map((m) => ({
@@ -201,8 +202,9 @@ describe('GET /organizations', () => {
 });
 
 describe('POST /organizations', () => {
-	it('403 when user is not super_admin', async () => {
+	it('403 when the instance only lets super admins create', async () => {
 		const cms = buildFakeCMS();
+		cms.databaseAdapter.getInstanceSettings = vi.fn(async () => ({ allowUserOrgCreation: false }));
 		const res = await makeApp().fetch(
 			new Request('http://localhost/organizations', {
 				method: 'POST',
@@ -227,6 +229,25 @@ describe('POST /organizations', () => {
 		expect(res.status).toBe(409);
 	});
 
+	it("400 with the app's reason when its slug rule refuses the slug", async () => {
+		const cms = buildFakeCMS({ orgs: [] }) as any;
+		cms.config = {
+			...cms.config,
+			checkOrganizationSlug: (slug: string) =>
+				slug === 'support' ? "That address isn't available." : null
+		};
+		const res = await makeApp().fetch(
+			new Request('http://localhost/organizations', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ name: 'Support', slug: 'support' })
+			}),
+			buildEnv(cms) as any
+		);
+		expect(res.status).toBe(400);
+		expect((await res.json()).message).toBe("That address isn't available.");
+	});
+
 	it('201 on successful create', async () => {
 		const cms = buildFakeCMS({ orgs: [] });
 		const res = await makeApp().fetch(
@@ -240,6 +261,36 @@ describe('POST /organizations', () => {
 		expect(res.status).toBe(201);
 		const body = await res.json();
 		expect(body.data.id).toBe('new-org');
+	});
+
+	it('creates a top-level organization when no parent is named, even for a super admin', async () => {
+		const cms = buildFakeCMS({ orgs: [] });
+		const res = await makeApp().fetch(
+			new Request('http://localhost/organizations', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ name: 'Top', slug: 'top' })
+			}),
+			buildEnv(cms, { role: 'super_admin' }) as any
+		);
+		expect(res.status).toBe(201);
+		const body = await res.json();
+		expect(body.data.parentOrganizationId).toBeNull();
+	});
+
+	it('creates a child organization when a parent is named', async () => {
+		const cms = buildFakeCMS();
+		const res = await makeApp().fetch(
+			new Request('http://localhost/organizations', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ name: 'Child', slug: 'child', parentOrganizationId: TEST_ORG })
+			}),
+			buildEnv(cms, { role: 'super_admin' }) as any
+		);
+		expect(res.status).toBe(201);
+		const body = await res.json();
+		expect(body.data.parentOrganizationId).toBe(TEST_ORG);
 	});
 
 	it('400 with issues[] when zod fails', async () => {
@@ -297,6 +348,53 @@ describe('PATCH /organizations/:id', () => {
 		);
 		expect(res.status).toBe(403);
 	});
+
+	/** A fake CMS whose app refuses `support` as a slug, recording what it was asked. */
+	function withSlugRule() {
+		const asked: Array<[string, { organizationId?: string }]> = [];
+		const cms = buildFakeCMS({ orgs: [] }) as any;
+		const orgs = [{ id: TEST_ORG, name: 'Test Org', slug: 'test', metadata: null }];
+		cms.databaseAdapter.findOrganizationById = async (id: string) =>
+			orgs.find((o) => o.id === id) ?? null;
+		cms.databaseAdapter.updateOrganization = async (id: string, patch: any) => ({
+			...orgs[0],
+			id,
+			...patch
+		});
+		cms.config = {
+			...cms.config,
+			checkOrganizationSlug: (slug: string, context: { organizationId?: string }) => {
+				asked.push([slug, context]);
+				return slug === 'support' ? "That address isn't available." : null;
+			}
+		};
+		return { cms, asked };
+	}
+	const patch = (cms: any, body: unknown) =>
+		makeApp().fetch(
+			new Request(`http://localhost/organizations/${TEST_ORG}`, {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			}),
+			buildEnv(cms) as any
+		);
+
+	it("refuses a rename to a slug the app's rule refuses, with its reason", async () => {
+		const { cms, asked } = withSlugRule();
+		const res = await patch(cms, { slug: 'support' });
+		expect(res.status).toBe(400);
+		expect((await res.json()).message).toBe("That address isn't available.");
+		expect(asked).toEqual([['support', { organizationId: TEST_ORG }]]);
+	});
+
+	it('allows one it accepts, and never asks about a slug that stays the same', async () => {
+		const { cms, asked } = withSlugRule();
+		expect((await patch(cms, { slug: 'bluebird' })).status).toBe(200);
+		expect((await patch(cms, { name: 'Renamed', slug: 'test' })).status).toBe(200);
+		expect((await patch(cms, { name: 'Renamed again' })).status).toBe(200);
+		expect(asked).toEqual([['bluebird', { organizationId: TEST_ORG }]]);
+	});
 });
 
 describe('DELETE /organizations/:id', () => {
@@ -304,9 +402,63 @@ describe('DELETE /organizations/:id', () => {
 		const cms = buildFakeCMS({ memberships: [{ orgId: TEST_ORG, role: 'admin' }] });
 		const res = await makeApp().fetch(
 			new Request(`http://localhost/organizations/${TEST_ORG}`, { method: 'DELETE' }),
-			buildEnv(cms) as any
+			buildEnv(cms, { role: 'editor' }) as any
 		);
 		expect(res.status).toBe(403);
+	});
+
+	/** A fake CMS that records what the delete did, in order. */
+	function deletable(
+		beforeOrganizationDelete?: (args: { organizationId: string; userId: string }) => void
+	) {
+		const steps: string[] = [];
+		const cms = buildFakeCMS() as any;
+		cms.config = { ...cms.config, beforeOrganizationDelete };
+		cms.assetService = {
+			findAssets: async () => {
+				steps.push('erase files');
+				return [];
+			},
+			deleteAsset: async () => true
+		};
+		const db = cms.databaseAdapter;
+		db.withTransaction = async (fn: (tx: unknown) => Promise<unknown>) => fn(db);
+		cms.auth.getUserById = async () => null;
+		db.deleteOrganization = async () => {
+			steps.push('delete organization');
+			return true;
+		};
+		return { cms, steps };
+	}
+
+	it("runs the app's beforeOrganizationDelete first, with the organization and the owner", async () => {
+		const calls: Array<{ organizationId: string; userId: string }> = [];
+		const { cms, steps } = deletable((args) => {
+			calls.push(args);
+			steps.push('app cleanup');
+		});
+		const res = await makeApp().fetch(
+			new Request(`http://localhost/organizations/${TEST_ORG}`, { method: 'DELETE' }),
+			buildEnv(cms) as any
+		);
+		expect(res.status).toBe(200);
+		expect(calls).toEqual([{ organizationId: TEST_ORG, userId: TEST_USER }]);
+		expect(steps).toEqual(['app cleanup', 'erase files', 'delete organization']);
+	});
+
+	it('changes nothing and says why when beforeOrganizationDelete throws', async () => {
+		const { cms, steps } = deletable(() => {
+			throw new Error("We couldn't cancel this site's subscription, so it wasn't deleted.");
+		});
+		const res = await makeApp().fetch(
+			new Request(`http://localhost/organizations/${TEST_ORG}`, { method: 'DELETE' }),
+			buildEnv(cms) as any
+		);
+		expect(res.status).toBe(409);
+		expect((await res.json()).message).toBe(
+			"We couldn't cancel this site's subscription, so it wasn't deleted."
+		);
+		expect(steps).toEqual([]);
 	});
 });
 
@@ -411,6 +563,8 @@ describe('POST /organizations/invitations', () => {
 			buildEnv(cms, { capabilities: ['member.invite'] }) as any
 		);
 		expect(res.status).toBe(201);
+		const body = await res.json();
+		expect(body.data.inviteUrl).toBe(`http://localhost/admin/invite/${body.data.token}`);
 	});
 });
 
@@ -458,9 +612,9 @@ describe('DELETE /organizations/members', () => {
 		expect(res.status).toBe(400);
 	});
 
-	it('403 when admin tries to remove owner', async () => {
+	it.each(['admin', 'people-manager'])('403 when %s tries to remove owner', async (role) => {
 		const cms = buildFakeCMS({
-			memberships: [{ orgId: TEST_ORG, role: 'admin' }],
+			memberships: [{ orgId: TEST_ORG, role }],
 			members: [{ userId: 'other-user', role: 'owner' }]
 		});
 		const res = await makeApp().fetch(
@@ -471,7 +625,7 @@ describe('DELETE /organizations/members', () => {
 			}),
 			buildEnv(cms, {
 				capabilities: ['member.remove'],
-				organizationRole: 'admin'
+				organizationRole: role
 			}) as any
 		);
 		expect(res.status).toBe(403);
@@ -479,6 +633,25 @@ describe('DELETE /organizations/members', () => {
 });
 
 describe('PATCH /organizations/members', () => {
+	it("403 when a custom role changes an owner's role", async () => {
+		const cms = buildFakeCMS({
+			memberships: [{ orgId: TEST_ORG, role: 'people-manager' }],
+			members: [{ userId: 'other-user', role: 'owner' }]
+		});
+		const res = await makeApp().fetch(
+			new Request('http://localhost/organizations/members', {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ userId: 'other-user', role: 'admin' })
+			}),
+			buildEnv(cms, {
+				capabilities: ['member.changeRole'],
+				organizationRole: 'people-manager'
+			}) as any
+		);
+		expect(res.status).toBe(403);
+	});
+
 	it('400 when changing own role', async () => {
 		const cms = buildFakeCMS();
 		const res = await makeApp().fetch(
@@ -591,5 +764,44 @@ describe('user preferences', () => {
 			buildEnv(cms, { missing: true }) as any
 		);
 		expect(res.status).toBe(401);
+	});
+});
+
+describe('nobody hands out more than they hold', () => {
+	const roles = [
+		{ name: 'people-manager', capabilities: ['member.invite', 'member.changeRole', 'role.manage'] },
+		{ name: 'admin', capabilities: ['member.invite', 'org.settings'] },
+		{ name: 'recruiter', capabilities: ['member.invite'] }
+	];
+	const request = (path: string, method: string, body: unknown) => {
+		const cms = buildFakeCMS({
+			roles,
+			memberships: [{ orgId: TEST_ORG, role: 'people-manager' }],
+			members: [{ userId: 'other-user', role: 'recruiter' }]
+		});
+		return makeApp().fetch(
+			new Request(`http://localhost${path}`, {
+				method,
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			}),
+			buildEnv(cms, {
+				role: 'editor',
+				organizationRole: 'people-manager',
+				capabilities: roles[0]?.capabilities
+			}) as any
+		);
+	};
+	const members = (role: string) => ({ userId: 'other-user', role });
+
+	it.each([
+		['changing a role', '/organizations/members', 'PATCH', members('admin'), 403],
+		['changing a role within theirs', '/organizations/members', 'PATCH', members('recruiter'), 200],
+		['inviting', '/organizations/invitations', 'POST', { email: 'a@b.co', role: 'admin' }, 403],
+		['creating a role', '/roles', 'POST', { name: 'boss', capabilities: ['org.settings'] }, 403],
+		['widening a role', '/roles/recruiter', 'PATCH', { capabilities: ['org.settings'] }, 403],
+		['keeping what a role had', '/roles/admin', 'PATCH', { capabilities: ['org.settings'] }, 200]
+	])('%s', async (_name, path, method, body, status) => {
+		expect((await request(path, method, body)).status).toBe(status);
 	});
 });

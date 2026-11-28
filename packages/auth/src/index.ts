@@ -1,11 +1,28 @@
-import type { AuthProvider } from '@aphexcms/cms-core/server';
-import { createAuthInstance, type AphexAuthInstance } from './instance.js';
+import {
+	authPagesBase,
+	eraseAccountRows,
+	type AccountToErase,
+	type AuthProvider,
+	type CMSConfigInput
+} from '@aphexcms/cms-core/server';
+import { createAuthInstance, securityEmailsOf, type AphexAuthInstance } from './instance.js';
 import { createAuthService, type AuthService } from './service.js';
+import { svelteKitHandler } from 'better-auth/svelte-kit';
 import * as pgSchema from './schema/pg.js';
 import * as sqliteSchema from './schema/sqlite.js';
 import type { AphexAuthConfig } from './types.js';
+import { createOAuthServer } from './oauth.js';
 
-export type { AphexAuthConfig, AuthOptions, AuthEmailConfig, AuthEmailTemplate } from './types.js';
+export type {
+	AphexAuthConfig,
+	AuthOptions,
+	AuthEmailConfig,
+	AuthEmailTemplate,
+	SecurityEmailKind,
+	SecurityEmailNotice,
+	SecurityEmailTemplate
+} from './types.js';
+export type { AphexAuthOptions };
 // Bootstrap recipes are NOT re-exported here on purpose. They're CMS policy, not
 // Better Auth wiring — an app using Keycloak or Supabase needs them just as much
 // as one using this package, so they live in `@aphexcms/cms-core/server`.
@@ -15,11 +32,19 @@ export type { AuthService, ApiKey, ApiKeyWithSecret, CreateApiKeyData } from './
 // (row gone, cache copy still live) from an ordinary delete failure.
 export { ApiKeyRevocationError } from './service.js';
 
+/**
+ * better-auth keeps a pending challenge in a cookie named `<prefix>.two_factor`. The
+ * prefix is configurable and gains `__Secure-` over HTTPS, so this matches the suffix.
+ */
+function hasPendingTwoFactor(request: Request): boolean {
+	const cookies = request.headers.get('cookie')?.split(';') ?? [];
+	return cookies.some((cookie) => (cookie.split('=')[0] ?? '').trim().endsWith('two_factor'));
+}
+
 export interface AphexAuth {
 	/**
-	 * The underlying better-auth instance. Exposed deliberately — better-auth is a
-	 * peer dependency, so anything it can do is reachable here without this
-	 * package needing to grow an option for it.
+	 * The underlying better-auth instance. Exposed deliberately, so anything it can do
+	 * is reachable here without this package needing to grow an option for it.
 	 */
 	auth: AphexAuthInstance;
 	/** Server-side operations: sessions, API keys, user lookups, password reset. */
@@ -48,12 +73,21 @@ export interface AphexAuth {
  * });
  * ```
  *
- * The app still owns its `/login`, `/reset-password/[token]` and `/verify-email`
- * pages — those are the parts worth customising, and baking them in would mean
- * every site looked the same.
+ * This is the lower-level form, for an app with its own login and reset pages. For
+ * the pages core serves under `/admin`, use `aphexAuth()`.
  */
 export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
-	const auth = createAuthInstance(config);
+	// Core hands over its eraser once it has started; until then, only what the
+	// database adapter can do. Either way the account's API keys go too: they're held
+	// against the user's id without a foreign key, so deleting the user leaves them.
+	const erasing: { erase?: (user: AccountToErase) => Promise<void> } = {};
+	const eraseAccount = async (user: AccountToErase & { email: string }) => {
+		if (erasing.erase) await erasing.erase(user);
+		else if (config.eraseAccount) await config.eraseAccount(user);
+		else await eraseAccountRows(config.database, user);
+		await service.forgetApiKeys({ userId: user.id });
+	};
+	const auth = createAuthInstance({ ...config, eraseAccount });
 
 	// Match the tables to the dialect the caller's Drizzle client actually speaks;
 	// mixing them produces queries that compile but fail at runtime.
@@ -68,20 +102,140 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 		bootstrap: config.bootstrap
 	});
 
+	const security = securityEmailsOf(auth);
+
 	// cms-core talks to auth exclusively through this port, so an app that swaps
 	// this package for its own implementation needs nothing else to change.
 	const provider: AuthProvider = {
+		handle: ({ event, resolve }) =>
+			svelteKitHandler({ event, resolve, auth, building: config.building ?? false }),
 		getSession: (request, db) => service.getSession(request, db),
 		requireSession: (request, db) => service.requireSession(request, db),
 		validateApiKey: (request, db) => service.validateApiKey(request, db),
 		requireApiKey: (request, db, permission) => service.requireApiKey(request, db, permission),
+		// `listApiKeys` queries the apikey table directly, so the adapter it takes is
+		// unused today; pass the config's adapter so the port stays honest if that changes.
+		listApiKeys: (userId) => service.listApiKeys(config.database, userId),
+		createApiKey: async (userId, organizationId, data) => {
+			const key = await service.createApiKey(userId, organizationId, data);
+			const user = await service.getUserById(userId);
+			if (user) security?.notify(user, 'api-key-created', { name: key.name });
+			return key;
+		},
+		deleteApiKey: (userId, keyId) => service.deleteApiKey(userId, keyId),
 		getUserById: (userId) => service.getUserById(userId),
 		getUserByEmail: (email) => service.getUserByEmail(email),
 		changeUserName: (userId, name) => service.changeUserName(userId, name),
 		changeUserImage: (userId, image) => service.changeUserImage(userId, image),
+		listUsers: (options) => service.listUsers(options),
+		deleteUser: async (userId) => {
+			await service.forgetApiKeys({ userId });
+			const { internalAdapter } = await auth.$context;
+			await internalAdapter.deleteUserSessions(userId);
+			await internalAdapter.deleteUser(userId);
+		},
+		onAccountDelete: (erase) => {
+			erasing.erase = erase;
+		},
+		forgetOrganization: async (organizationId) => {
+			await service.forgetApiKeys({ organizationId });
+			const { adapter } = await auth.$context;
+			const where = [{ field: 'referenceId', value: organizationId }];
+			// Access tokens first: they point at refresh tokens.
+			for (const model of ['oauthAccessToken', 'oauthRefreshToken', 'oauthConsent']) {
+				await adapter.deleteMany({ model, where });
+			}
+		},
 		requestPasswordReset: (email, redirectTo) => service.requestPasswordReset(email, redirectTo),
-		resetPassword: (token, newPassword) => service.resetPassword(token, newPassword)
+		signInMethods: async (userId) => {
+			const context = await auth.$context;
+			const accounts = await context.internalAdapter.findAccounts(userId);
+			return [...new Set(accounts.map((account) => account.providerId))];
+		},
+		resetPassword: (token, newPassword) => service.resetPassword(token, newPassword),
+		hasPendingTwoFactor,
+		// Only when switched on: core takes its absence to mean there's no such page.
+		...(config.options?.securityEmails && security
+			? {
+					secureAccount: async (token: string) => {
+						const secured = await security.secureAccount(token);
+						if (!secured) return null;
+						if (secured.hasPassword) await service.requestPasswordReset(secured.user.email);
+						return { passwordReset: secured.hasPassword };
+					}
+				}
+			: {}),
+		// Only when switched on: core takes its absence to mean "API keys only".
+		...(config.oauth?.enabled ? { oauth: createOAuthServer(auth, config.database) } : {})
 	};
 
 	return { auth, service, provider };
+}
+
+type AuthConfigInput = NonNullable<CMSConfigInput['auth']>;
+
+/** `createAphexAuth`'s options, minus what core supplies once the adapters exist. */
+type AphexAuthOptions = Omit<
+	AphexAuthConfig,
+	'database' | 'drizzleDb' | 'dialect' | 'cache' | 'emailAdapter' | 'building' | 'authPagesPath'
+> &
+	Pick<AuthConfigInput, 'loginBranding'> & {
+		/** Where a signed-out visitor to `/admin` is sent. Defaults to the built-in `/admin/login`. */
+		loginUrl?: string;
+	};
+
+/**
+ * The providers the login view should offer a button for: every one configured,
+ * minus any switched off with `enabled: false` (a provider given as a function
+ * can't be read without calling it, so it counts as on).
+ */
+function enabledSocialProviders(providers: AphexAuthConfig['socialProviders']): string[] {
+	return Object.entries(providers ?? {})
+		.filter(([, options]) => {
+			if (!options) return false;
+			if (typeof options === 'function') return true;
+			return options.enabled !== false;
+		})
+		.map(([name]) => name);
+}
+
+/**
+ * Better Auth for `aphex.config.ts`:
+ *
+ * ```ts
+ * auth: aphexAuth({ secret: env.AUTH_SECRET, baseURL: env.AUTH_URL })
+ * ```
+ *
+ * The database, cache and email adapters come from the rest of the config, and the
+ * auth tables are created with the CMS's. Nothing is built until the first request.
+ *
+ * To use something else, such as SSO, put your own object in `auth` instead:
+ * `{ provider: ({ database }) => myProvider, loginUrl: '/sso/login' }`.
+ */
+export function aphexAuth(options: AphexAuthOptions = {}): AuthConfigInput {
+	const { loginUrl = '/admin/login', loginBranding, ...config } = options;
+	return {
+		provider: ({ database, drizzleDb, dialect, cache, email, building }) =>
+			createAphexAuth({
+				...config,
+				database,
+				drizzleDb,
+				dialect,
+				cache,
+				emailAdapter: email,
+				building,
+				authPagesPath: authPagesBase(loginUrl)
+			}).provider,
+		tables: { pg: pgSchema, sqlite: sqliteSchema },
+		loginUrl,
+		loginBranding,
+		// The admin UI branches on these, so they mirror createAuthInstance's defaults.
+		features: {
+			twoFactorMethods: config.options?.twoFactorMethods ?? ['totp', 'email'],
+			allowAccountDeletion: config.options?.allowAccountDeletion ?? false,
+			requireEmailVerification: config.options?.requireEmailVerification ?? false,
+			securityEmails: config.options?.securityEmails ?? false,
+			socialProviders: enabledSocialProviders(config.socialProviders)
+		}
+	};
 }

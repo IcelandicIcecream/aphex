@@ -70,20 +70,7 @@
 			disabled={!sourceValue || readonly}
 			class="shrink-0"
 		>
-			Generate
+			From {sourceField}
 		</Button>
 	</div>
-	{#if readonly}
-		<!-- No hint: the Generate button above is disabled, so there is nothing to click. -->
-	{:else if sourceValue}
-		<p class="text-muted-foreground text-xs">
-			Click "Generate" to create slug from {sourceField}: "{sourceValue}"
-		</p>
-	{:else if field.source}
-		<p class="text-muted-foreground text-xs">
-			Enter a {sourceField} first to generate a slug automatically
-		</p>
-	{:else}
-		<p class="text-muted-foreground text-xs">Click "Generate" or enter a custom slug</p>
-	{/if}
 </div>

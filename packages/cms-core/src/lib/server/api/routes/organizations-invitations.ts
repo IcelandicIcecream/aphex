@@ -1,3 +1,4 @@
+import { assertMemberLimit, isLimitError } from '../../../local-api/limits';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
@@ -8,14 +9,11 @@ import {
 	isStaleInvitation,
 	invitationExpiryFrom
 } from '../../../auth/invitation-status';
+import { sendInvitationEmail } from '../../../auth/invitation-email';
+import { invitationUrl } from '../../../auth/pages';
+import { canGrantCapabilities, CANNOT_GRANT } from '../../../auth/grants';
 import type { AphexEnv } from '../index';
 
-/**
- * Note: in studio, invitations are wrapped by a SvelteKit `+server.ts`
- * that adds email sending after the invite row is created. While that
- * shim exists, this Hono router sits dormant (specific SK routes win
- * over the catch-all). Phase 5 moves the wrapper into `config.api`.
- */
 export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	.post(
 		'/invitations',
@@ -89,6 +87,8 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 					);
 				}
 
+				if (!canGrantCapabilities(auth, roleRow.capabilities)) return c.json(CANNOT_GRANT, 403);
+
 				if (body.email.toLowerCase() === auth.user.email.toLowerCase()) {
 					return c.json(
 						{
@@ -154,6 +154,29 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 					}
 				}
 
+				// `config.memberLimits`: a seat for everyone already in, and everyone invited.
+				try {
+					await assertMemberLimit(
+						c.var.aphexCMS.config.memberLimits,
+						auth.organizationId,
+						databaseAdapter,
+						existingInvitations.filter((inv) => isPendingInvitation(inv)).length
+					);
+				} catch (error) {
+					if (isLimitError(error)) {
+						return c.json(
+							{
+								success: false,
+								error: error.message,
+								message: error.message,
+								code: 'limit_reached'
+							},
+							402
+						);
+					}
+					throw error;
+				}
+
 				const token = crypto.randomUUID();
 
 				const invitation = await databaseAdapter.createInvitation({
@@ -165,10 +188,14 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 					expiresAt: invitationExpiryFrom()
 				});
 
+				const { origin } = new URL(c.req.url);
+				// Not awaited: mail is slow, and a failed send doesn't undo the invitation.
+				void sendInvitationEmail(c.var.aphexCMS, invitation, origin);
+
 				return c.json(
 					{
 						success: true,
-						data: invitation,
+						data: { ...invitation, inviteUrl: invitationUrl(c.var.aphexCMS.config, origin, token) },
 						message: 'Invitation created successfully.'
 					},
 					201

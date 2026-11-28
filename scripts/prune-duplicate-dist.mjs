@@ -50,11 +50,13 @@ if (!existsSync(cliDir)) {
 	process.exit(1);
 }
 
+// Not `.map` files: they embed the source (`inlineSources`), where an import is quoted
+// text as it was written, not a path anything resolves.
 async function walk(dir, out = []) {
 	for (const entry of await readdir(dir, { withFileTypes: true })) {
 		const p = join(dir, entry.name);
 		if (entry.isDirectory()) await walk(p, out);
-		else if (/\.(js|d\.ts|map)$/.test(entry.name)) out.push(p);
+		else if (/\.(js|d\.ts)$/.test(entry.name)) out.push(p);
 	}
 	return out;
 }

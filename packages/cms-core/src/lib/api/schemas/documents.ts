@@ -12,6 +12,8 @@ export const documentMetaSchema = z
 		createdAt: z.string().optional(),
 		publishedHash: z.string().nullable().optional(),
 		draftHash: z.string().nullable().optional(),
+		/** Draft reads of a published document: the draft differs from what's live. */
+		hasUnpublishedChanges: z.boolean().optional(),
 		// CAS guard — echo back as `expectedRevision` on the next write so a stale
 		// save (second tab, an agent) surfaces as a conflict instead of silently
 		// overwriting a change made after this read.

@@ -1,4 +1,4 @@
-import type { RequestHandler } from '@sveltejs/kit';
+import type { RequestEvent } from '@sveltejs/kit';
 import { verifyAssetSignature } from '../utils/asset-url-signing';
 import { isAssetPrivate, resolveFieldPrivacy } from '../utils/asset-privacy';
 import { cmsLogger } from '../utils/logger';
@@ -83,6 +83,14 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
 }
 
 /**
+ * A stored type can carry parameters or capitals ("image/svg+xml; charset=utf-8"),
+ * which a browser renders as SVG all the same.
+ */
+function isSvg(mimeType: string | null | undefined): boolean {
+	return mimeType?.split(';', 1)[0]?.trim().toLowerCase() === 'image/svg+xml';
+}
+
+/**
  * Extra headers for a response whose body is the asset's own bytes at its own
  * declared type.
  *
@@ -98,7 +106,7 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
  * not reach it and this is what covers it.
  */
 function assetSecurityHeaders(mimeType: string | null | undefined): Record<string, string> {
-	if (mimeType !== 'image/svg+xml') return {};
+	if (!isSvg(mimeType)) return {};
 	return { 'Content-Security-Policy': "default-src 'none'; sandbox" };
 }
 
@@ -111,10 +119,17 @@ function assetSecurityHeaders(mimeType: string | null | undefined): Record<strin
  */
 const DEFAULT_SIGNED_URL_TTL_SECONDS = 900;
 
-export const GET: RequestHandler = async ({ params, locals, setHeaders, request }) => {
+export const GET = async ({
+	params,
+	locals,
+	setHeaders,
+	request
+}: Pick<RequestEvent, 'locals' | 'setHeaders' | 'request'> & {
+	params: { id: string; filename: string };
+}): Promise<Response> => {
 	try {
 		const { assetService, databaseAdapter, storageAdapter, cmsEngine, config } = locals.aphexCMS;
-		let auth = locals.auth;
+		let auth = locals.aphexAuth;
 		const { id, filename } = params;
 
 		cmsLogger.debug('[Asset CDN]', 'Request for asset:', id, filename);
@@ -145,6 +160,20 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 		if (!asset) {
 			cmsLogger.warn('[Asset CDN]', 'Asset not found:', id);
 			return new Response('Asset not found', { status: 404 });
+		}
+
+		// On a tenant's address, only that tenant's files, and its child organizations'
+		// (the same reach its documents have). Otherwise any tenant's address would serve
+		// every other tenant's public files under its own name. Answered as not found,
+		// so an address can't be used to probe for ids elsewhere.
+		const tenant = locals.aphexTenantOrganization;
+		if (tenant && tenant.id !== asset.organizationId) {
+			const children = databaseAdapter.getChildOrganizations
+				? await databaseAdapter.getChildOrganizations(tenant.id)
+				: [];
+			if (!children.includes(asset.organizationId)) {
+				return new Response('Asset not found', { status: 404 });
+			}
 		}
 
 		const organizationId =
@@ -470,7 +499,7 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 		const safeInlineTypes = ['image/', 'application/pdf', 'video/', 'audio/'];
 		const canInline =
 			asset.mimeType &&
-			asset.mimeType !== 'image/svg+xml' &&
+			!isSvg(asset.mimeType) &&
 			safeInlineTypes.some((t) => asset.mimeType!.startsWith(t));
 		const disposition = canInline ? 'inline' : 'attachment';
 

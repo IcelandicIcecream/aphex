@@ -2,6 +2,7 @@
 import type { Hono } from 'hono';
 import type { AuthProvider } from '../auth/provider';
 import type { CacheAdapter } from '../cache/index';
+import type { CallerLimitsConfig } from '../server/api/caller-limits';
 import type { DatabaseAdapter } from '../db/index';
 import type { StorageAdapter } from '../storage/interfaces/index';
 import type { EmailAdapter } from '../email/index';
@@ -9,14 +10,225 @@ import type { AIProviderAdapter } from '../ai/index';
 import type { GraphQLConfig } from '../graphql/index';
 import type { AphexEnv } from '../server/api/index';
 import type { Asset } from './asset';
+import type { Organization } from './organization';
 import type { SchemaType } from './schemas';
 import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
-import type { Auth } from './auth';
+import type { Auth, AuthFeatures, LoginBranding, SessionAuth } from './auth';
+import type { CMSInstances } from '../hooks';
 import type { PreviewPerspective } from '../preview/perspective';
 import type { JobHandlerMap } from '../jobs/types';
+import type { McpInstructions } from '../mcp/instructions';
+import type { McpGuide } from '../mcp/guides';
+import type { McpPrompt } from '../mcp/prompts';
 
 export type { GraphQLConfig };
+
+/**
+ * What a `loginBranding` resolver gets. Pre-auth, so there is no session — the
+ * host derives the tenant from `url` (a subdomain, a path prefix) and reads its
+ * branding via `databaseAdapter`.
+ */
+export interface LoginBrandingContext {
+	/** The full request URL (host, path, query). */
+	url: URL;
+	/** Convenience: `url.host`. */
+	host: string;
+	/** For looking the tenant up (e.g. `findOrganizationBySlug`). */
+	databaseAdapter: DatabaseAdapter;
+	/**
+	 * The organization `locals.aphexTenant` named, or `null` with no tenant. With one,
+	 * there's nothing left to look up.
+	 */
+	organization: Organization | null;
+}
+
+/**
+ * Capabilities an organization has, rather than a role: a plan's features, an add-on.
+ * They gate the same things a role's capabilities do (plugin tools, document actions,
+ * plugin routes, `usePermissions().can()`), but only `resolve` grants them.
+ */
+export interface OrganizationCapabilities {
+	/**
+	 * Every capability `resolve` can grant. No role, API key or admin bypass reaches
+	 * these, so an organization's own admin can't give it a feature it doesn't have.
+	 */
+	ids: readonly string[];
+	/**
+	 * The ones this organization has. Runs on every authenticated request, so cache it
+	 * if it's slow. Throwing grants none.
+	 */
+	resolve: (ctx: {
+		organizationId: string;
+		databaseAdapter: DatabaseAdapter;
+	}) => readonly string[] | Promise<readonly string[]>;
+	/**
+	 * What each id is called in God Mode, e.g. `{ 'site.shop': { title: 'Shop' } }`.
+	 * An id without a label shows as itself.
+	 */
+	labels?: Readonly<Record<string, OrganizationCapabilityLabel>>;
+	/**
+	 * Give an organization exactly these capabilities (each one of `ids`). With it,
+	 * God Mode's organization list gets a switch per capability, so a super admin
+	 * can turn a feature on or off for one organization. Leave it out when something
+	 * else decides them, such as a billing webhook. Clear any cache `resolve` reads
+	 * from, so the change shows on the next request.
+	 */
+	set?: (ctx: {
+		organizationId: string;
+		ids: string[];
+		databaseAdapter: DatabaseAdapter;
+	}) => void | Promise<void>;
+}
+
+/** How God Mode names one organization capability. */
+export interface OrganizationCapabilityLabel {
+	title: string;
+	description?: string;
+}
+
+/** Finds the admin's favicon. The `null` and thrown cases both mean no favicon. */
+export type AdminFaviconResolver = (ctx: {
+	aphex: CMSInstances;
+	auth: SessionAuth;
+}) => string | null | undefined | Promise<string | null | undefined>;
+
+/** A connected database: the CMS adapter plus the raw handle auth needs. */
+export interface ResolvedDatabase<TDrizzle = unknown, TClient = unknown> {
+	adapter: DatabaseAdapter;
+	/** Raw Drizzle instance. Postgres and libsql share no base type, so each driver supplies its own. */
+	drizzleDb: TDrizzle;
+	/** Raw driver client, for lifecycle control. */
+	client: TClient;
+	dialect: 'pg' | 'sqlite';
+}
+
+/** What core hands a database descriptor when it connects it. */
+export interface DatabaseConnectOptions {
+	/** Tables another adapter needs alongside the CMS's own, such as auth's. */
+	tables?: Record<string, unknown>;
+	/** SvelteKit's build pass: no migrations, and a missing URL isn't an error. */
+	building?: boolean;
+}
+
+/**
+ * A database declared but not yet connected, so it can sit inline in
+ * `aphex.config.ts`. Core connects it on the first request, never during
+ * SvelteKit's build analysis.
+ */
+export interface DatabaseDescriptor<TDrizzle = unknown, TClient = unknown> {
+	readonly kind: 'aphex/database';
+	/**
+	 * Identifies the connection. Descriptors with the same key share one, which is
+	 * what stops schema hot reload opening a new pool per edit. Include whatever
+	 * selects the database, such as its URL.
+	 */
+	readonly key: string;
+	readonly dialect: 'pg' | 'sqlite';
+	connect(options?: DatabaseConnectOptions): Promise<ResolvedDatabase<TDrizzle, TClient>>;
+}
+
+/** The resolved adapters an auth factory receives. */
+export interface AuthFactoryContext {
+	database: DatabaseAdapter;
+	drizzleDb: unknown;
+	dialect: 'pg' | 'sqlite';
+	cache: CacheAdapter | null;
+	email: EmailAdapter | null;
+	/** SvelteKit's build pass, when secrets may legitimately be missing. */
+	building: boolean;
+}
+
+/**
+ * Builds the auth provider once the adapters exist. This is still the swap point
+ * for a custom implementation such as SSO: core calls the function and never knows
+ * what it returns beyond the `AuthProvider` port.
+ */
+export type AuthProviderFactory = (
+	context: AuthFactoryContext
+) => AuthProvider | Promise<AuthProvider>;
+
+/**
+ * What `aphex.config.ts` may declare: `CMSConfig`, except that `database` and
+ * `auth.provider` can be deferred. `resolveCMSConfig` turns this into a `CMSConfig`.
+ */
+export type CMSConfigInput = Omit<CMSConfig, 'database' | 'auth'> & {
+	database: DatabaseAdapter | DatabaseDescriptor;
+	auth?: Omit<NonNullable<CMSConfig['auth']>, 'provider'> & {
+		provider: AuthProvider | AuthProviderFactory;
+		/** Tables this provider needs, per dialect. Core gives the matching set to the database. */
+		tables?: Partial<Record<'pg' | 'sqlite', Record<string, unknown>>>;
+	};
+};
+
+/** Any part left out uses the built-in plain template. */
+/** A cap on how many documents of one type an organization may create. */
+export interface DocumentLimit {
+	/** Creates allowed. With `since`, counted from then; without, in total. */
+	max: number;
+	/** Count only documents created from this moment, for a per-month (or per-period) limit. */
+	since?: Date;
+	/** What the person sees when they reach it. Defaults to a plain sentence naming the limit. */
+	message?: string;
+}
+
+/** Decides the limit for one organization and type; `null` for none. See `CMSConfig.documentLimits`. */
+export type DocumentLimitResolver = (context: {
+	organizationId: string;
+	type: string;
+}) => DocumentLimit | null | undefined | Promise<DocumentLimit | null | undefined>;
+
+/** A cap on the bytes of media an organization may keep. See `CMSConfig.storageLimits`. */
+export interface StorageLimit {
+	/** Total size of every asset the organization keeps, in bytes. */
+	maxBytes: number;
+	/** What the person sees when an upload would go over it. */
+	message?: string;
+}
+
+/** Decides the storage limit for one organization; `null` for none. */
+export type StorageLimitResolver = (context: {
+	organizationId: string;
+}) => StorageLimit | null | undefined | Promise<StorageLimit | null | undefined>;
+
+/** A cap on an organization's members, pending invitations included. See `CMSConfig.memberLimits`. */
+export interface MemberLimit {
+	/** Members allowed, the owner included. */
+	max: number;
+	/** What the person sees when they reach it. */
+	message?: string;
+}
+
+/** Decides the member limit for one organization; `null` for none. */
+export type MemberLimitResolver = (context: {
+	organizationId: string;
+}) => MemberLimit | null | undefined | Promise<MemberLimit | null | undefined>;
+
+export interface InvitationEmailTemplate {
+	from?: string;
+	getSubject?: (organizationName: string) => string;
+	render?: (
+		organizationName: string,
+		role: string,
+		inviteUrl: string
+	) => Promise<{ html: string; text: string }>;
+}
+
+/** Branding for the email that tells owners about a new owner or admin. */
+export interface RoleNoticeEmailTemplate {
+	from?: string;
+	render: (notice: {
+		organizationName: string;
+		/** Who became it. */
+		email: string;
+		role: string;
+		/** The organization's team page. */
+		url: string;
+	}) => Promise<{ subject: string; html: string; text: string }>;
+}
+
+/** What to run once the organization is gone, if anything. */
+export type OrganizationDeleteCleanup = void | (() => Promise<void> | void);
 
 export interface CMSConfig {
 	schemaTypes: SchemaType[];
@@ -170,6 +382,13 @@ export interface CMSConfig {
 		direct?: boolean;
 	};
 	email?: EmailAdapter | null;
+	/**
+	 * Customizes the email sent when someone is invited. Invitations go out whenever
+	 * `email` is set; without this they use a plain template and the adapter's sender.
+	 */
+	invitationEmail?: InvitationEmailTemplate;
+	/** Customizes the email telling owners about a new owner or admin (`securityEmails`). */
+	roleNoticeEmail?: RoleNoticeEmailTemplate;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
 	aiProvider?: AIProviderAdapter | null;
 	/**
@@ -188,11 +407,18 @@ export interface CMSConfig {
 	 * own tone or house rules.
 	 */
 	agentSystemPrompt?: string;
+	/**
+	 * How many tool-calling round trips one agent chat turn may make before it's stopped
+	 * (default 8). Raise it for agents that do long jobs in one go, such as building a
+	 * whole site; each round trip is a model call you pay for.
+	 */
+	agentMaxToolRoundtrips?: number;
 	customization?: {
 		branding?: {
 			title?: string;
 			logo?: string;
-			favicon?: string;
+			/** A URL, or a function that finds one for the signed-in user's organization. */
+			favicon?: string | AdminFaviconResolver;
 		};
 		theme?: {
 			colors?: Record<string, string>;
@@ -240,7 +466,221 @@ export interface CMSConfig {
 	auth?: {
 		provider: AuthProvider;
 		loginUrl?: string;
+		/**
+		 * Auth feature flags the core admin UI branches on (which 2FA methods are
+		 * offered, whether self-deletion is allowed, …). The host fills these from
+		 * its own auth config; core reads them via `locals.aphexCMS.authFeatures` so
+		 * settings panels need no app-only imports. Optional — panels fall back to
+		 * safe defaults when absent.
+		 */
+		features?: AuthFeatures;
+		/**
+		 * Resolve per-tenant login branding before auth exists. The admin catch-all's
+		 * login view calls this with the request URL; return branding (logo, title,
+		 * accent) or `null` for the default. The host owns the policy — map a
+		 * subdomain or path to an organization and read its branding — because the
+		 * apex domain and tenant scheme are deployment-specific, not core's to assume.
+		 *
+		 * @example
+		 * ```ts
+		 * loginBranding: async ({ url, databaseAdapter }) => {
+		 *   const sub = url.hostname.split('.')[0];
+		 *   const org = await databaseAdapter.findOrganizationBySlug(sub);
+		 *   if (!org) return null;
+		 *   return { title: org.name, logoUrl: org.metadata?.theme?.logoUrl };
+		 * }
+		 * ```
+		 */
+		loginBranding?: (
+			ctx: LoginBrandingContext
+		) => LoginBranding | null | Promise<LoginBranding | null>;
 	};
+	/**
+	 * Capabilities that come from the organization instead of a role, such as what its
+	 * plan includes. A plugin tool or route that requires one is hidden from, and
+	 * refused to, organizations without it.
+	 *
+	 * @example
+	 * ```ts
+	 * organizationCapabilities: {
+	 *   ids: ['billing.reports'],
+	 *   resolve: async ({ organizationId }) =>
+	 *     (await planFor(organizationId)) === 'pro' ? ['billing.reports'] : []
+	 * }
+	 * ```
+	 */
+	organizationCapabilities?: OrganizationCapabilities;
+	/**
+	 * Cross-site form protection. Core runs SvelteKit's check itself, so the OAuth
+	 * endpoints clients call from their servers can be exempt; an app offering OAuth
+	 * turns SvelteKit's own off with `csrf: { trustedOrigins: ['*'] }` in
+	 * `svelte.config.js`. List here any origin you'd have trusted there (a payment
+	 * provider posting back), since this check now decides.
+	 */
+	csrf?: { trustedOrigins?: readonly string[] };
+	/** The MCP server at `/admin/mcp` (and `/mcp`). */
+	mcp?: {
+		/**
+		 * Serve the MCP server at all. On by default: it takes the same API keys as
+		 * `/api` and adds no access they don't have. `false` leaves `/admin/mcp` and `/mcp`
+		 * as ordinary paths (the admin's, and any page of your own) and drops their OAuth
+		 * protected-resource metadata. The SDK is then never loaded.
+		 */
+		enabled?: boolean;
+		/**
+		 * Capabilities a caller must hold to use `/mcp` at all, usually a plan's from
+		 * `organizationCapabilities` (`['billing.pro']`). Checked on every request, with
+		 * an API key or a token from a connected app alike, so a downgrade cuts access
+		 * off on the next call. Leave it out to let anyone with a key in.
+		 */
+		requiredCapabilities?: readonly string[];
+		/**
+		 * Your section of what an MCP client is told when it connects (Claude, ChatGPT,
+		 * Cursor read it before calling a tool), after core's guide to drafts, schemas and
+		 * images. Say what's particular to your app: how a good page is put together here,
+		 * which blocks suit what, your domain's rules. A function gets the site and caller,
+		 * so it can tailor the text to the site's plan or features.
+		 */
+		instructions?: McpInstructions;
+		/**
+		 * Longer guides a client reads when it's on that job, like skills: how to write a
+		 * homepage, a restaurant's pages, SEO. The instructions list them a line each, and
+		 * the `get_guide` tool returns one in full, so they cost nothing until needed.
+		 * Keep `instructions` to the rules that apply every time and put the depth here.
+		 */
+		guides?: readonly McpGuide[];
+		/**
+		 * Ready-made requests a client offers its user, like "Make my site": Claude lists
+		 * them in its "+" menu and asks for their arguments. Each becomes a message the user
+		 * sends. Some clients never show prompts, so put what an agent must know in
+		 * `instructions` or a guide, never only in a prompt.
+		 */
+		prompts?: readonly McpPrompt[];
+	};
+	/**
+	 * How many calls a minute one caller may make to `/api` and the MCP server, counted
+	 * per API key, per connected app and per signed-in person, as reads, changes and
+	 * uploads. Over it, `/api` answers `429` with `Retry-After` and an MCP tool answers
+	 * an error saying how long to wait. The defaults (`DEFAULT_CALLER_LIMITS`) suit a
+	 * person or an agent at work; set any of them, or `false` to turn it off.
+	 *
+	 * Counted per process: behind several instances, put a limit in front of them too.
+	 *
+	 * @example
+	 * ```ts
+	 * rateLimit: { agent: { write: 30 } }
+	 * ```
+	 */
+	rateLimit?: CallerLimitsConfig | false;
+	/**
+	 * How many documents of a type an organization may create, such as a plan's
+	 * "5 invoices a month". Checked on every create, from the studio, the Local API,
+	 * REST, GraphQL and MCP alike, so a limit can't be stepped around. Return `null`
+	 * for no limit.
+	 *
+	 * System writes (`overrideAccess`, as in `systemContext`) aren't limited: seeds,
+	 * migrations and jobs act for the instance, not on a plan. Singletons aren't
+	 * limited either, as there's only ever one.
+	 *
+	 * @example
+	 * ```ts
+	 * documentLimits: async ({ organizationId, type }) =>
+	 *   type === 'invoice' && (await planFor(organizationId)) === 'free'
+	 *     ? { max: 5, since: startOfMonth(), message: 'The free plan includes 5 invoices a month.' }
+	 *     : null
+	 * ```
+	 */
+	documentLimits?: DocumentLimitResolver;
+	/**
+	 * How many bytes of media an organization may keep, such as a plan's "250 MB".
+	 * Checked on every upload (the studio, REST, direct uploads and MCP): one that
+	 * would take the organization's total over `maxBytes` is refused with a 413.
+	 * Return `null` for no limit.
+	 *
+	 * @example
+	 * ```ts
+	 * storageLimits: async ({ organizationId }) =>
+	 *   (await planFor(organizationId)) === 'free' ? { maxBytes: 250 * 1024 * 1024 } : null
+	 * ```
+	 */
+	storageLimits?: StorageLimitResolver;
+	/**
+	 * How many members an organization may have, such as a plan's "3 people".
+	 * Checked when an invitation is made (members plus invitations still pending)
+	 * and when one is accepted, so a full organization can't be joined. Return
+	 * `null` for no limit.
+	 */
+	memberLimits?: MemberLimitResolver;
+	/**
+	 * Says whether an organization may use a slug, when one is created and when it's
+	 * renamed through the API or the settings page: return a reason to refuse it (the
+	 * person sees it), or nothing to allow it. For an app that puts the slug in an
+	 * address (`<slug>.example.site`): its own format, reserved names, blocked words.
+	 * A rename that keeps the same slug isn't asked about.
+	 */
+	checkOrganizationSlug?: (
+		slug: string,
+		context: {
+			/** The organization being renamed; absent when one is being created. */
+			organizationId?: string;
+		}
+	) => string | null | undefined | Promise<string | null | undefined>;
+	/**
+	 * Says whether an organization may use a name, when one is created and when it's
+	 * renamed through the API or the settings page: return a reason to refuse it (the
+	 * person sees it), or nothing to allow it. The name arrives already cleaned (one
+	 * line, trimmed, no invisible characters; `cleanOrganizationName`), so this is
+	 * only the app's own rules: blocked words, names that pass for the app's staff, a
+	 * shorter limit. A rename that keeps the same name isn't asked about.
+	 */
+	checkOrganizationName?: (
+		name: string,
+		context: {
+			/** The organization being renamed; absent when one is being created. */
+			organizationId?: string;
+		}
+	) => string | null | undefined | Promise<string | null | undefined>;
+	/**
+	 * Runs when an owner deletes an organization, after the permission check and
+	 * before anything is erased. Throw to stop the delete: nothing is changed, and
+	 * the owner sees the error's message. For what the app keeps outside the CMS,
+	 * such as a billing subscription that would otherwise outlive its organization.
+	 * Also runs when a super admin deletes it, and when its only member deletes their
+	 * account. Return a function to run once it's gone (clearing a page cache).
+	 *
+	 * @example
+	 * ```ts
+	 * beforeOrganizationDelete: ({ organizationId }) => cancelSubscription(organizationId)
+	 * ```
+	 */
+	beforeOrganizationDelete?: (args: {
+		organizationId: string;
+		/** Who is deleting it. */
+		userId: string;
+	}) => OrganizationDeleteCleanup | Promise<OrganizationDeleteCleanup>;
+	/**
+	 * Runs when an account is deleted, after the workspaces only it belonged to are gone
+	 * and before its own rows are. For what the app's own tables hold about a person.
+	 * Throw to stop the delete.
+	 */
+	beforeAccountDelete?: (args: { userId: string }) => Promise<void> | void;
+	/**
+	 * Where an organization's public site lives, for an app that gives each one a
+	 * site. Opt-in: without it, nothing links out. With it, each row in the
+	 * organization lists (yours, and God Mode's) gets a "View site" link that opens
+	 * in a new tab, so a super admin can look at any site without being a member.
+	 * Return nothing for an organization with no site; a resolver that throws
+	 * leaves that row without a link rather than failing the list.
+	 *
+	 * @example
+	 * ```ts
+	 * organizationSiteUrl: ({ slug }) => `https://${slug}.example.site`
+	 * ```
+	 */
+	organizationSiteUrl?: (organization: {
+		id: string;
+		slug: string;
+	}) => string | null | undefined | Promise<string | null | undefined>;
 	/**
 	 * Cache adapter for published data queries.
 	 * - `undefined` or `null`: no caching (default)
@@ -344,9 +784,9 @@ export interface CMSConfig {
 	 *     app.post('/send-email', sendEmailHandler);
 	 *
 	 *     // Wrap a built-in endpoint with side effects
-	 *     app.use('/organizations/invitations', async (c, next) => {
+	 *     app.use('/organizations/members', async (c, next) => {
 	 *       await next();
-	 *       if (c.res.status === 201) sendInviteEmail(...);
+	 *       if (c.req.method === 'DELETE' && c.res.ok) notifyRemoval(...);
 	 *     });
 	 *   }
 	 * });

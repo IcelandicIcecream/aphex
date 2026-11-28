@@ -4,7 +4,8 @@ import { cmsLogger } from '../../../utils/logger';
 import {
 	updateUserRequest,
 	requestPasswordResetRequest,
-	resetPasswordRequest
+	resetPasswordRequest,
+	secureAccountRequest
 } from '../../../api/schemas/user';
 import { RateLimiter, clientAddress } from '../rate-limit';
 import type { AphexEnv } from '../index';
@@ -295,7 +296,10 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				// Keyed on the normalized address so casing/whitespace can't mint a fresh bucket.
 				const limited = enforceRateLimits(c, [
-					{ limiter: resetRequestByAddress, key: clientAddress(c.req.raw.headers) },
+					{
+						limiter: resetRequestByAddress,
+						key: c.env.clientAddress ?? clientAddress(c.req.raw.headers)
+					},
 					{ limiter: resetRequestByEmail, key: email.trim().toLowerCase() }
 				]);
 				if (limited) return limited;
@@ -346,7 +350,10 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				const { token, newPassword } = c.req.valid('json');
 
 				const limited = enforceRateLimits(c, [
-					{ limiter: resetSubmitByAddress, key: clientAddress(c.req.raw.headers) },
+					{
+						limiter: resetSubmitByAddress,
+						key: c.env.clientAddress ?? clientAddress(c.req.raw.headers)
+					},
 					{ limiter: resetSubmitByToken, key: token }
 				]);
 				if (limited) return limited;
@@ -364,6 +371,48 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					},
 					500
 				);
+			}
+		}
+	)
+	.post(
+		'/secure-account',
+		zValidator('json', secureAccountRequest, (result, c) => {
+			if (!result.success) {
+				return c.json(
+					{ success: false, error: 'token is required', issues: result.error.issues },
+					400
+				);
+			}
+		}),
+		async (c) => {
+			try {
+				const provider = c.var.aphexCMS.auth;
+				if (!provider?.secureAccount) return c.json({ success: false, error: 'Not found' }, 404);
+
+				const { token } = c.req.valid('json');
+				const limited = enforceRateLimits(c, [
+					{
+						limiter: resetSubmitByAddress,
+						key: c.env.clientAddress ?? clientAddress(c.req.raw.headers)
+					}
+				]);
+				if (limited) return limited;
+
+				const secured = await provider.secureAccount(token);
+				if (!secured) {
+					return c.json(
+						{
+							success: false,
+							error: 'This link has been used or has expired.',
+							code: 'link_invalid'
+						},
+						400
+					);
+				}
+				return c.json({ success: true, data: secured });
+			} catch (error) {
+				cmsLogger.error('Failed to secure account:', error);
+				return c.json({ success: false, error: 'Failed to secure the account' }, 500);
 			}
 		}
 	);

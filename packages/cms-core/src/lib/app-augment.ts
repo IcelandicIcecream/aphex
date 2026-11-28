@@ -17,25 +17,36 @@
  */
 
 import type { RbacPayload } from './types/capabilities';
+import type { Organization } from './types/organization';
 import type { PreviewPerspective } from './preview/perspective';
 
 declare global {
 	namespace App {
 		interface Locals {
 			/**
+			 * The slug of the organization this request's URL belongs to, such as the
+			 * subdomain. Set it in a hook that runs before Aphex's; `null` or unset means
+			 * no tenant, and the session's organization applies.
+			 */
+			aphexTenant?: string | null;
+			/**
+			 * The organization `aphexTenant` names, looked up by Aphex's hook on every
+			 * request, signed in or not. `null` with no tenant, or one no organization has.
+			 */
+			aphexTenantOrganization?: Organization | null;
+			/**
 			 * Read perspective resolved once per request by the CMS hook —
 			 * `'published'` normally, `'draft'` for an authenticated `?aphex-preview`
-			 * session. Site loads inherit it via a preview-aware context (see
-			 * `siteContext`). Override the policy with `preview.resolvePerspective`
+			 * session. Site loads inherit it through `siteContext` from
+			 * `@aphexcms/cms-core/server`. Override the policy with `preview.resolvePerspective`
 			 * in the CMS config.
 			 */
 			previewPerspective?: PreviewPerspective;
 		}
 		interface PageData {
 			/**
-			 * RBAC snapshot emitted by the admin layout's server load
-			 * (`/admin/+layout.server.ts`). Absent on public routes (login,
-			 * invitations) that don't pass through the admin layout.
+			 * RBAC snapshot from `createAdminLoad`. Absent on public routes, and on the
+			 * admin's full-page views (login, invitations).
 			 */
 			rbac?: RbacPayload;
 		}

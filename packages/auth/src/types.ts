@@ -29,20 +29,52 @@ export interface AuthCodeEmailTemplate {
 	render: (userName: string, code: string) => Promise<{ html: string; text: string }>;
 }
 
+/** What a security email is about. */
+export type SecurityEmailKind =
+	| 'new-device'
+	| 'password-changed'
+	| 'two-factor-disabled'
+	| 'api-key-created'
+	| 'app-connected'
+	| 'failed-sign-ins';
+
+export interface SecurityEmailNotice {
+	kind: SecurityEmailKind;
+	userName: string;
+	at: Date;
+	/** "Chrome on macOS", when the request said. */
+	device: string | null;
+	/** Only behind Cloudflare (`ipAddressHeaders` naming `cf-connecting-ip`). */
+	country: string | null;
+	/** The API key's or connected app's own name. An app can call itself anything. */
+	name: string | null;
+	/** The "This wasn't me" page. Works once. */
+	url: string;
+}
+
+export interface SecurityEmailTemplate {
+	render: (notice: SecurityEmailNotice) => Promise<{ subject: string; html: string; text: string }>;
+}
+
 /**
  * Sender identity plus the templates the auth flows use. Mirrors the shape apps
  * already export from `src/lib/server/email` — pass that object straight in.
  */
 export interface AuthEmailConfig {
-	from: string;
-	passwordReset: AuthEmailTemplate;
-	emailVerification: AuthEmailTemplate;
+	/** Defaults to the email adapter's `from`. */
+	from?: string;
+	/** Defaults to a plain built-in template. */
+	passwordReset?: AuthEmailTemplate;
+	/** Defaults to a plain built-in template. */
+	emailVerification?: AuthEmailTemplate;
 	/**
 	 * Branding for the second-factor code email. Optional — when omitted, a plain
 	 * built-in template is used instead, so email 2FA works without writing one.
 	 * Whether the feature is on at all is `options.twoFactorEmailOtp`, not this.
 	 */
 	twoFactorOtp?: AuthCodeEmailTemplate;
+	/** Branding for `options.securityEmails`. Defaults to a plain built-in template. */
+	security?: SecurityEmailTemplate;
 }
 
 /** Behavioural toggles an app owns, independent of the auth provider. */
@@ -102,6 +134,20 @@ export interface AuthOptions {
 	allowAccountDeletion?: boolean;
 
 	/**
+	 * Email people about their own account: a sign-in from a new device, a changed or
+	 * reset password, two-factor turned off, an API key created, an app connected, and
+	 * repeated failed sign-ins (once a day at most). Owners are also told when someone
+	 * becomes an owner or admin of their organization. Each account email carries a "This
+	 * wasn't me" link that signs out every device and has the password reset. Needs an
+	 * email adapter. People can't switch these off.
+	 *
+	 * Everyone gets one new-device email at their first sign-in after this is turned on.
+	 *
+	 * @default false
+	 */
+	securityEmails?: boolean;
+
+	/**
 	 * Restrict account creation to addresses holding a pending, unexpired
 	 * invitation. Gates the sign-up *endpoint*, so a direct POST is rejected the
 	 * same as a form submission.
@@ -141,6 +187,12 @@ export interface AphexAuthConfig {
 	 * instance have to be interchangeable, and they share no common base type.
 	 */
 	drizzleDb: unknown;
+
+	/**
+	 * Erases everything the CMS holds about an account, before its sign-in goes. Core
+	 * supplies it; `createAphexAuth` falls back to the rows in `database` without it.
+	 */
+	eraseAccount?: (user: { id: string; email: string; image?: string | null }) => Promise<void>;
 
 	/** Which Drizzle dialect `drizzleDb` is. postgres/pglite → 'pg', libsql → 'sqlite'. */
 	dialect: 'pg' | 'sqlite';
@@ -229,6 +281,15 @@ export interface AphexAuthConfig {
 	ipAddressHeaders?: string[];
 
 	/**
+	 * Share the session cookie across subdomains, e.g. `'example.com'` for
+	 * `acme.example.com` and `globex.example.com`, so signing in once works on every
+	 * tenant's subdomain. Each request still only acts in organizations the user is a
+	 * member of. Add the subdomains to `trustedOrigins` too (`'https://*.example.com'`).
+	 * Unset, each subdomain keeps its own sign-in.
+	 */
+	cookieDomain?: string;
+
+	/**
 	 * Two-factor authentication via an authenticator app (TOTP), plus backup codes.
 	 * Off unless set — `true` takes better-auth's defaults, an object configures it.
 	 *
@@ -253,17 +314,38 @@ export interface AphexAuthConfig {
 	appName?: string;
 
 	/**
+	 * Let apps such as Claude and ChatGPT connect to `/mcp` with OAuth: the user signs
+	 * in, picks one site, and allows the app to read and edit drafts there (never to
+	 * publish or delete). Off by default. Needs the auth tables' OAuth migration, and
+	 * `/mcp` served from `baseURL`'s origin, which is the one address tokens are for.
+	 *
+	 * ```ts
+	 * oauth: { enabled: true }
+	 * ```
+	 */
+	oauth?: { enabled?: boolean };
+
+	/**
 	 * Full escape hatch. Receives the assembled better-auth options and returns
 	 * what should actually be passed to `betterAuth()`.
 	 *
-	 * This exists so the wrapper never becomes a ceiling: better-auth is a peer
-	 * dependency, so you choose its version, and any option it gains — new
-	 * plugins, new providers — is reachable here without waiting on a release of
-	 * this package.
+	 * This exists so the wrapper never becomes a ceiling: any option better-auth has
+	 * (plugins, providers) is reachable here without a release of this package. To
+	 * import its plugins, add `better-auth` to your app at a version in this package's
+	 * range, so that you share one copy.
 	 *
 	 * ```ts
 	 * betterAuth: (base) => ({ ...base, plugins: [...base.plugins, twoFactor()] })
 	 * ```
 	 */
 	betterAuth?: (base: Record<string, unknown>) => Record<string, unknown>;
+
+	/**
+	 * Where the password reset and security pages are served, as a prefix of
+	 * `/reset-password/<token>` and `/secure-account/<token>`.
+	 * `aphexAuth()` sets this to `/admin`, where core serves the page.
+	 *
+	 * @default ''
+	 */
+	authPagesPath?: string;
 }

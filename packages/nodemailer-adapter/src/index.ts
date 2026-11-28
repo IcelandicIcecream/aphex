@@ -10,6 +10,8 @@ export interface NodemailerConfig extends EmailConfig {
 	host: string;
 	port: number;
 	secure?: boolean;
+	/** The default sender, such as `My App <hello@example.com>`. */
+	from?: string;
 	auth?: {
 		user: string;
 		pass: string;
@@ -18,12 +20,14 @@ export interface NodemailerConfig extends EmailConfig {
 
 export class NodemailerAdapter implements EmailAdapter {
 	readonly name = 'nodemailer';
+	readonly defaultFrom?: string;
 	private transporter: Transporter;
 
 	constructor(config: NodemailerConfig) {
 		if (!config.host) {
 			throw new Error('SMTP host is required');
 		}
+		this.defaultFrom = config.from;
 		this.transporter = createTransport({
 			host: config.host,
 			port: config.port,
@@ -96,6 +100,7 @@ export function createMailpitAdapter(overrides?: Partial<NodemailerConfig>): Ema
 		host: '127.0.0.1',
 		port: 1025,
 		secure: false,
+		from: 'Aphex <noreply@aphex.local>',
 		...overrides
 	});
 }

@@ -26,15 +26,17 @@ import type { ObjectField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property       | Type                                               | Required | Description                                                  |
-| -------------- | -------------------------------------------------- | -------- | ------------------------------------------------------------ |
-| `name`         | `string`                                           | Yes      | Field identifier.                                            |
-| `type`         | `'object'`                                         | Yes      | Must be `'object'`.                                          |
-| `title`        | `string`                                           | Yes      | Label shown in the admin UI.                                 |
-| `description`  | `string`                                           | No       | Help text shown below the label.                             |
-| `fields`       | `Field[]`                                          | Yes      | Array of nested field definitions. Supports all field types. |
-| `initialValue` | `Record<string, any> \| () => Record<string, any>` | No       | Default values for nested fields.                            |
-| `validation`   | `(Rule) => Rule`                                   | No       | Validation rules.                                            |
+| Property       | Type                                               | Required | Description                                                     |
+| -------------- | -------------------------------------------------- | -------- | --------------------------------------------------------------- |
+| `name`         | `string`                                           | Yes      | Field identifier.                                               |
+| `type`         | `'object'`                                         | Yes      | Must be `'object'`.                                             |
+| `title`        | `string`                                           | Yes      | Label shown in the admin UI.                                    |
+| `description`  | `string`                                           | No       | Help text shown below the label.                                |
+| `fields`       | `Field[]`                                          | Yes      | Array of nested field definitions. Supports all field types.    |
+| `initialValue` | `Record<string, any> \| () => Record<string, any>` | No       | Default values for nested fields.                               |
+| `validation`   | `(Rule) => Rule`                                   | No       | Validation rules.                                               |
+| `fieldsets`    | `Fieldset[]`                                       | No       | Sections to lay the fields out in. See [Fieldsets](#fieldsets). |
+| `options`      | `{ collapsible?: boolean; collapsed?: boolean }`   | No       | Let the whole object fold away, or start folded.                |
 
 ## Examples
 
@@ -132,6 +134,36 @@ Objects can contain other objects for deep nesting:
   ]
 }
 ```
+
+### Fieldsets
+
+A long object is easier to use when what most people change is in the open and the rest is a click away. `fieldsets` declares titled sections, and each field joins one with `fieldset`. A section with `collapsed: true` starts folded and shows how many of its fields are set; one holding a problem says "Needs attention" while folded.
+
+```ts
+{
+  name: 'look',
+  type: 'object',
+  title: 'Look',
+  fieldsets: [
+    { name: 'colour', title: 'More colours', options: { collapsed: true } },
+    { name: 'type', title: 'Type', options: { collapsed: true } }
+  ],
+  fields: [
+    { name: 'accent', type: 'string', title: 'Accent' },          // always in view
+    { name: 'background', type: 'string', title: 'Background' },
+    { name: 'inverse', type: 'string', title: 'Inverse', fieldset: 'colour' },
+    { name: 'headingFont', type: 'string', title: 'Heading font', fieldset: 'type' }
+  ]
+}
+```
+
+`columns` (1 to 4) lays a section's fields side by side, which suits short pairs like opening and closing times. On a phone they stack in one column:
+
+```ts
+fieldsets: [{ name: 'hours', title: 'Hours', options: { columns: 2 } }];
+```
+
+Fieldsets are layout only. A field in one is stored exactly where it would be without it (`look.inverse` above), so you can add, rename or remove fieldsets without touching any data. A section appears where its first field is declared. A document or object type takes `fieldsets` too, for its top-level fields, and they work inside groups. A field naming a fieldset that isn't declared fails at boot.
 
 ## Stored Data
 

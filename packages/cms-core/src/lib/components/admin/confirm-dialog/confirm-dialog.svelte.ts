@@ -1,9 +1,12 @@
+import { untrack } from 'svelte';
 export interface ConfirmDialogOptions {
 	title: string;
 	description?: string;
 	confirmText?: string;
 	cancelText?: string;
 	variant?: 'default' | 'destructive';
+	/** Shortcuts under the description (open the document it names): one closes the dialog as Cancel, then runs. */
+	links?: Array<{ label: string; onSelect: () => void }>;
 }
 
 interface ConfirmDialogState extends ConfirmDialogOptions {
@@ -18,6 +21,7 @@ export const confirmDialogState = $state<ConfirmDialogState>({
 	confirmText: 'Confirm',
 	cancelText: 'Cancel',
 	variant: 'default',
+	links: undefined,
 	resolve: null
 });
 
@@ -31,6 +35,7 @@ export function confirmDialog(options: ConfirmDialogOptions): Promise<boolean> {
 		confirmDialogState.confirmText = options.confirmText ?? 'Confirm';
 		confirmDialogState.cancelText = options.cancelText ?? 'Cancel';
 		confirmDialogState.variant = options.variant ?? 'default';
+		confirmDialogState.links = options.links;
 		confirmDialogState.resolve = resolve;
 		confirmDialogState.open = true;
 	});
@@ -41,4 +46,27 @@ export function resolveConfirmDialog(value: boolean) {
 	confirmDialogState.resolve = null;
 	confirmDialogState.open = false;
 	r?.(value);
+}
+
+/**
+ * The host that draws the dialog. More than one can be mounted (AphexStudio and
+ * AdminApp each mount one, and so does a host layout around AdminApp), and each
+ * drew the same dialog, so every confirmation showed twice. The first mounted
+ * draws; the others stand by in case it unmounts.
+ */
+const hosts = $state<symbol[]>([]);
+
+export function registerConfirmDialogHost(id: symbol): () => void {
+	// Untracked: called from an effect, and push/indexOf read the list, so a
+	// tracked call would re-run that effect on its own write, forever.
+	untrack(() => hosts.push(id));
+	return () =>
+		untrack(() => {
+			const index = hosts.indexOf(id);
+			if (index !== -1) hosts.splice(index, 1);
+		});
+}
+
+export function isDrawingConfirmDialogHost(id: symbol): boolean {
+	return hosts[0] === id;
 }

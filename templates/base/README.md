@@ -56,7 +56,7 @@ about email, backups and custom domains — are at
 
 **Two things to do the moment it goes live**, however you deployed:
 
-1. **Sign up at `/login`.** The first account to sign up becomes super admin. On a
+1. **Sign up at `/admin/login`.** The first account to sign up becomes super admin. On a
    public URL that is a race, so either do it immediately or set
    `APHEX_BOOTSTRAP_EMAIL` to your address before deploying, which restricts the
    claim to you.
@@ -104,9 +104,9 @@ shown by Vite. Use `pnpm dev --host` only when you intentionally want LAN or tun
 
 ### 4. First Login
 
-1. Go to `/login` at the URL Vite printed
+1. Go to `/admin/login` at the URL Vite printed
 2. Sign up with your email and password — the first user automatically becomes the super admin with a default organization
-3. Access God Mode at `/god-mode` for instance-level administration
+3. Access God Mode at `/admin/god-mode` for instance-level administration
 
 ## Defining Content Schemas
 
@@ -221,15 +221,15 @@ APHEX_DB_AUTO_MIGRATE=false
 │   │   │   ├── auth/         # Authentication (Better Auth)
 │   │   │   ├── db/           # Database connection and schema
 │   │   │   ├── email/        # Email templates and adapter
-│   │   │   ├── services/     # Business logic
+│   │   │   ├── seed/         # First-run example content
 │   │   │   └── storage/      # File storage adapter
 │   │   ├── schemaTypes/      # Your content type definitions
-│   │   └── utils/            # Utility functions
+│   │   ├── utils/            # Utility functions
+│   │   └── aphex.client.ts   # The admin's browser config: schemas, plugins, sidebar
 │   └── routes/
-│       ├── (protected)/admin/ # Admin panel
-│       ├── api/               # API endpoints
-│       ├── god-mode/          # Super admin panel
-│       └── login/             # Authentication
+│       ├── (site)/            # The public site
+│       └── admin/[...path]/   # The admin. Core draws it, and the sign-in pages, God Mode,
+│                              # /api, /media and /mcp; don't edit these two files
 ├── aphex.config.ts            # CMS configuration
 ├── drizzle/                   # Database migrations
 └── docker-compose.yml         # PostgreSQL setup

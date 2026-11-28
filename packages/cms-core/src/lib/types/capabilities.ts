@@ -424,6 +424,81 @@ export function coarseApiKeyCapabilities(permissions: readonly string[]): string
 }
 
 /**
+ * The scopes an app connected over OAuth (Claude, ChatGPT) can ask for, and what
+ * the user is told each one allows on the consent page.
+ */
+export const OAUTH_SCOPES = {
+	'aphex:read': 'Read your content and media',
+	'aphex:write': 'Create and edit drafts, upload media and use your apps’ tools',
+	offline_access: 'Stay connected until you disconnect it'
+} as const;
+
+export type OAuthScope = keyof typeof OAUTH_SCOPES;
+
+/**
+ * What a connected app may do only when the user has switched it on for that app
+ * (Connected apps in the admin): going live, taking down and deleting content. Off
+ * for every new connection; disconnecting the app removes them.
+ */
+export const OAUTH_OPT_IN_CAPABILITIES = {
+	'document.publish': 'Publish drafts, so its changes go live',
+	'document.unpublish': 'Take content off the live site',
+	'document.delete': 'Delete documents',
+	'asset.delete': 'Delete media'
+} as const;
+
+export type OAuthOptInCapability = keyof typeof OAUTH_OPT_IN_CAPABILITIES;
+
+export function isOAuthOptInCapability(id: string): id is OAuthOptInCapability {
+	return Object.hasOwn(OAUTH_OPT_IN_CAPABILITIES, id);
+}
+
+/**
+ * Never reachable by a connected app, whatever its scopes, opt-ins or the user's role:
+ * running the organization (members, keys, roles, settings) stays with a person in
+ * the admin, so an app can never widen its own access or lock the owner out.
+ */
+const OAUTH_EXCLUDED_CAPABILITIES = new Set<string>([
+	'member.invite',
+	'member.remove',
+	'member.changeRole',
+	'apiKey.manage',
+	'role.manage',
+	'org.settings',
+	'plugin.settings.manage'
+]);
+
+/**
+ * What a connected app's scopes allow, out of what the user holds (`grantable`, from
+ * their role). `aphex:read` reads; `aphex:write` adds drafts, uploads, and the
+ * capabilities plugins declare (an app's own tools). The organization's own
+ * capabilities (a plan) are applied afterwards, as for every caller.
+ */
+export function oauthScopeCapabilities(
+	scopes: readonly string[],
+	grantable: Iterable<string>,
+	/** What the user switched on for this app, out of {@link OAUTH_OPT_IN_CAPABILITIES}. */
+	optedIn: readonly string[] = []
+): string[] {
+	const allowed = new Set<string>();
+	if (scopes.includes('aphex:read') || scopes.includes('aphex:write')) {
+		for (const id of API_KEY_READ_CAPABILITIES) allowed.add(id);
+	}
+	const core = new Set<string>(ALL_CAPABILITIES);
+	const held = [...grantable];
+	if (scopes.includes('aphex:write')) {
+		for (const id of API_KEY_WRITE_CAPABILITIES) allowed.add(id);
+		for (const id of held) if (!core.has(id)) allowed.add(id);
+	}
+	return held.filter(
+		(id) =>
+			allowed.has(id) &&
+			!OAUTH_EXCLUDED_CAPABILITIES.has(id) &&
+			(!isOAuthOptInCapability(id) || optedIn.includes(id))
+	);
+}
+
+/**
  * Resolve the effective capability set for an Auth.
  *
  * Precedence:
@@ -492,8 +567,7 @@ export function effectiveOrganizationRole(auth: Auth): string | null {
 }
 
 /**
- * Shape of the RBAC payload exposed to the client by the admin layout's
- * server load. Mirror this in `App.PageData` so Svelte pages can read
+ * Shape of the RBAC payload exposed to the client by `createAdminLoad`. Mirror this in `App.PageData` so Svelte pages can read
  * `$page.data.rbac` without casting to `any`.
  */
 export interface RbacPayload {
@@ -501,4 +575,9 @@ export interface RbacPayload {
 	role: string | null;
 	/** Capabilities resolved for this session. Safe to treat as read-only. */
 	capabilities: Capability[];
+	/**
+	 * Every id in `organizationCapabilities.ids`, whether or not this organization has
+	 * it. Only the organization grants these, so an admin's bypass doesn't cover them.
+	 */
+	organizationCapabilities: string[];
 }

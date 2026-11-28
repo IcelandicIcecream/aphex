@@ -35,7 +35,25 @@ aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts
 - **Stored submissions** as ordinary documents, so they're searchable, exportable, and subject to the same access control as everything else.
 - **Validation** derived from the form definition and enforced server-side, not just in the browser.
 - **Spam handling** — a honeypot field plus rate limiting on the submission endpoint.
-- **Email notifications** via an event consumer, so a failed send retries with backoff instead of vanishing.
+- **Email notifications** via an event consumer, so a failed send retries with backoff instead of vanishing. Replying to one answers the visitor: an empty "Reply to" means the email address they gave.
+- **A confirmation for the visitor**, optional per form, in the owner's own words only. It can't carry the visitor's answers, so a stranger can't use the form to send their own text to someone else's address. It has its own consumer, so a retried notification never sends the visitor a second copy.
+
+## Several sites, one sending address
+
+An app that runs many sites sends from one address its mail provider has verified. Pass `site` and each site's emails carry its name in front of that address (`"Lily's Bakery" <forms@example.com>`), and a form that names nobody notifies the site's own address:
+
+```ts
+formsPlugin({
+	from: 'Acme <forms@example.com>',
+	// Server only. Read when a form is submitted and kept with the submission.
+	site: async ({ context, localAPI }) => {
+		const settings = await localAPI.collections.siteSettings.get(context);
+		return { name: settings?.name, email: settings?.email };
+	}
+});
+```
+
+The site's email also takes replies to a visitor's confirmation. If `site` throws, the message is still stored and sent as the app.
 
 ## Submissions carry personal data
 

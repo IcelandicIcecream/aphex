@@ -108,3 +108,58 @@ describe('array items of registered types', () => {
 		expect(result.isValid).toBe(true);
 	});
 });
+
+describe('array item keys', () => {
+	it('refuses two items with one _key, naming both, as a structural error', async () => {
+		const result = await validateDocumentData(
+			page,
+			{
+				title: 'Home',
+				layout: [
+					{ _type: 'cta', _key: 'a', label: 'One' },
+					{ _type: 'cta', _key: 'b', label: 'Two' },
+					{ _type: 'cta', _key: 'a', label: 'Three' }
+				]
+			},
+			{ schemas: [cta, page] }
+		);
+		expect(result.isValid).toBe(false);
+		expect(result.structuralErrors.flatMap((e) => e.errors)).toEqual([
+			'Field "layout[2]" has _key "a", already used by layout[0]: give each item its own _key'
+		]);
+	});
+
+	it('lets items with their own keys, or none yet, through', async () => {
+		const result = await validateDocumentData(
+			page,
+			{
+				title: 'Home',
+				layout: [
+					{ _type: 'cta', _key: 'a', label: 'One' },
+					{ _type: 'cta', label: 'Two' }
+				]
+			},
+			{ schemas: [cta, page] }
+		);
+		expect(result.structuralErrors).toEqual([]);
+	});
+});
+
+describe('skimmed copies', () => {
+	it('refuses a skimmed item written back, wherever it sits', async () => {
+		const result = await validateDocumentData(
+			page,
+			{
+				title: 'Home',
+				layout: [
+					{ _type: 'cta', _key: 'a', label: 'One' },
+					{ _type: 'cta', _key: 'b', _skim: 'Two' }
+				]
+			},
+			{ schemas: [cta, page] }
+		);
+		expect(result.isValid).toBe(false);
+		expect(result.structuralErrors.map((e) => e.field)).toEqual(['layout[1]']);
+		expect(result.structuralErrors[0].errors[0]).toMatch(/skimmed summary/);
+	});
+});

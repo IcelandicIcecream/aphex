@@ -23,6 +23,7 @@
 		"---",
 		"validation",
 		"conditional-fields",
+		"inherited-values",
 		"hooks"
 	]
 }

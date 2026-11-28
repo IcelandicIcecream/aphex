@@ -629,6 +629,52 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect((await adapter.listDocumentVersions(orgA.id, doc.id)).total).toBe(1);
 	});
 
+	describe('plugin storage', () => {
+		it('creates, lists, updates and deletes records, scoped to one organization', async () => {
+			const record = await adapter.createPluginRecord({
+				organizationId: orgA.id,
+				plugin: 'conformance',
+				collection: 'rule',
+				data: { from: '/old', hits: 0 }
+			});
+			expect((await adapter.getPluginRecord(orgA.id, record.id))?.data).toEqual({
+				from: '/old',
+				hits: 0
+			});
+
+			// Another organization can neither see, change nor remove it.
+			expect(await adapter.getPluginRecord(orgB.id, record.id)).toBeNull();
+			expect(await adapter.updatePluginRecord(orgB.id, record.id, { hijacked: true })).toBeNull();
+			expect(await adapter.deletePluginRecord(orgB.id, record.id)).toBe(false);
+			const listedB = await adapter.listPluginRecords({
+				organizationId: orgB.id,
+				plugin: 'conformance'
+			});
+			expect(listedB.total).toBe(0);
+
+			const updated = await adapter.updatePluginRecord(orgA.id, record.id, {
+				from: '/old',
+				hits: 1
+			});
+			expect(updated?.data).toEqual({ from: '/old', hits: 1 });
+			expect(updated?.collection).toBe('rule');
+			expect(updated?.createdAt.getTime()).toBe(record.createdAt.getTime());
+			expect((await adapter.getPluginRecord(orgA.id, record.id))?.data.hits).toBe(1);
+
+			const listed = await adapter.listPluginRecords({
+				organizationId: orgA.id,
+				plugin: 'conformance',
+				collection: 'rule'
+			});
+			expect(listed.items.map((item: { id: string }) => item.id)).toEqual([record.id]);
+
+			expect(await adapter.deletePluginRecord(orgA.id, record.id)).toBe(true);
+			expect(await adapter.getPluginRecord(orgA.id, record.id)).toBeNull();
+			expect(await adapter.deletePluginRecord(orgA.id, record.id)).toBe(false);
+			expect(await adapter.updatePluginRecord(orgA.id, record.id, {})).toBeNull();
+		});
+	});
+
 	describe('events + jobs (durable spine)', () => {
 		it('appends and reads back a domain event; isolates by org', async () => {
 			const evt = await adapter.appendEvent({
@@ -1622,6 +1668,8 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(await adapter.countAssets(orgA.id)).toBe(1);
 		expect((await adapter.countAssetsByType(orgA.id)).image).toBe(1);
 		expect(await adapter.getTotalAssetsSize(orgA.id)).toBe(1000);
+		// A number, per organization: storage limits add to it.
+		expect(await adapter.getTotalAssetsSize(orgB.id)).toBe(0);
 
 		// global lookup: no org scoping (public asset serving)
 		const global = await adapter.findAssetByIdGlobal(asset.id);

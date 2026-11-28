@@ -1,0 +1,173 @@
+---
+title: Images
+description: Render responsive, optimized images from an image field. The derivative pipeline, asset resolution, the <Image> component, and the urlFor builder — end to end.
+icon: Image
+---
+
+Aphex has a responsive image pipeline built in. You upload an original once; Aphex generates WebP derivatives at a ladder of widths **on first request**, and the `<Image>` component wires up `srcset`/`sizes` so a browser downloads the right one for its viewport and device pixel ratio.
+
+This is a how-to: from an uploaded image to an optimized `<img>` on a public page. For the config knobs see [Configuration → images](/configuration#images); for how files are stored and served see [Storage](/storage).
+
+## Mental model
+
+Three things sit between an upload and a rendered image:
+
+1. **The pipeline** generates derivatives. It's on by default — no setup. You can tune the width ladder and quality, or turn it off, in [`config.images`](/configuration#images).
+2. **Resolution** turns the stored asset _reference_ into a usable URL (plus `srcset`, `width`, `height`). This happens in your `load` function.
+3. **Rendering** emits the `<img>`. Use the `<Image>` component; reach for `urlFor` only when you need one fixed URL.
+
+Derivatives are **generated on first request, not at upload** — a width nobody asks for is never produced, changing the ladder needs no migration, and images uploaded before the pipeline existed are backfilled simply by being viewed.
+
+## 1. (Optional) Tune the pipeline
+
+The pipeline is enabled with sensible defaults, so you can skip this entirely. To customize, set `images` in your CMS config:
+
+```ts title="aphex.config.ts"
+export default createCMSConfig({
+	// …
+	images: {
+		widths: [320, 640, 960, 1280, 1920], // the ladder, in pixels
+		quality: 80 // WebP quality, 1–100 (default 80)
+	}
+});
+```
+
+- **`widths`** is a closed allowlist — a request for a width outside it serves the original rather than generating arbitrary dimensions (that allowlist is what stops a URL turning into unbounded CPU and storage). Widths at or above an asset's own width are skipped.
+- **`quality`** is WebP quality. Default 80.
+- Set `images: null` to **disable** the pipeline — `/media` then always serves the original.
+
+<Callout type="info">
+	There is no per-field or per-collection size config, by design. One global ladder means adding a
+	width is a config edit, not a migration, and two placements of the same image share one set of
+	files. The per-placement control is `sizes` at render time (below).
+</Callout>
+
+## 2. Resolve the asset in your load function
+
+An image field stores a _reference_ to the assets table, not a URL:
+
+```ts
+{ _type: 'image', asset: { _type: 'reference', _ref: 'asset-id' } }
+```
+
+`depth` resolves **reference fields** (one document pointing at another) — it does **not** turn an image field into a usable URL. For that, call `assetService.injectAssetUrls` and hand it whatever you're about to return:
+
+```ts title="src/routes/blog/[slug]/+page.server.ts"
+import { error } from '@sveltejs/kit';
+import { publicContext } from '$lib/server/cms';
+
+export const load = async ({ locals, params }) => {
+	const api = locals.aphexCMS.localAPI;
+	const ctx = await publicContext(locals);
+
+	const result = await api.collections.post.find(ctx, {
+		where: { 'slug.current': { equals: params.slug } },
+		perspective: 'published',
+		limit: 1
+	});
+
+	const post = result.docs[0];
+	if (!post) error(404, 'Post not found');
+
+	// Walks the whole object, finds every asset ref at any depth — cover image,
+	// image blocks inside Portable Text, images nested in array items — and fills
+	// each one in place. Variadic: pass as many documents as you have.
+	await locals.aphexCMS.assetService.injectAssetUrls(ctx.organizationId, post);
+
+	return { post };
+};
+```
+
+This injects everything the pipeline produces — `url`, `srcset`, `width`, `height`, default `alt` — onto each image field in place, so you render the field directly with no lookup map threaded through your components.
+
+<Callout type="warn">
+	Don't hand-roll a `{ ref: url }` resolver. It throws away `srcset`/`width`/`height` **silently** —
+	the page renders perfectly and ships full-size originals to every device. `injectAssetUrls` also
+	batches into one query (no N+1 on every public render) and fails soft: an unresolvable ref leaves
+	its image unrendered rather than throwing the whole page.
+</Callout>
+
+## 3. Render with `<Image>`
+
+```svelte title="src/routes/blog/[slug]/+page.svelte"
+<script lang="ts">
+	import { Image } from '@aphexcms/cms-core/image';
+	let { data } = $props();
+</script>
+
+<Image
+	value={data.post.coverImage}
+	alt={data.post.title}
+	sizes="(max-width: 640px) 100vw, 720px"
+	priority
+/>
+```
+
+`<Image>` takes the resolved field value as-is and emits one responsive `<img>` with `src`, `srcset`, `sizes`, intrinsic `width`/`height`, `loading="lazy"` and `decoding="async"`.
+
+| Prop       | Type              | Notes                                                                                     |
+| ---------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| `value`    | image field value | After `injectAssetUrls`. Renders nothing if there's no resolved url.                      |
+| `alt`      | `string`          | Overrides the asset's alt. Precedence: prop → asset → `''`, so `alt=""` means decorative. |
+| `sizes`    | `string`          | The rendered width hint. Defaults to `100vw` — almost always wrong, set it (see below).   |
+| `priority` | `boolean`         | Switches off lazy loading and raises fetch priority. For the LCP image only.              |
+| `class`    | `string`          | Passed to the `<img>`. Any other attributes are forwarded too.                            |
+
+It ships from `@aphexcms/cms-core/image`, a narrow entrypoint, so importing it onto a public page can't drag in the admin/editor chunks.
+
+<Callout type="warn">
+	**`sizes` is the one thing you have to get right.** Without it a browser assumes the image fills
+	the full viewport width and picks the largest candidate on a phone — which defeats the whole point
+	of a `srcset`. Describe the _rendered_ width: `sizes="400px"` for a fixed avatar,
+	`sizes="(max-width: 820px) 100vw, 516px"` for a card in a two-column grid.
+</Callout>
+
+### Why not `<img src={asset.url}>`
+
+`asset.url` is the **original** — full size, original format. It's right for a download link or an OG tag, and wrong for a rendered image: a 4 MB photo in a 400 px card is the failure mode that looks perfect and costs a hundred times what it should.
+
+## When you need one fixed URL: `urlFor`
+
+For a genuinely fixed size — an OG image, an email, a `<canvas>` source — a single string, not a responsive `<img>`, is what you want. `urlFor` snaps to the nearest generated variant that covers the requested width:
+
+```ts
+import { imageUrlBuilder } from '@aphexcms/cms-core';
+
+const urlFor = imageUrlBuilder();
+
+urlFor(post.coverImage).width(640).url(); // → /media/{id}/w640-{hash}.webp
+urlFor(post.coverImage).width(333).url(); // → the 640 rung; the ladder is a closed set
+urlFor(post.coverImage).url(); // → the original
+```
+
+Prefer `<Image>` for anything on a page — one fixed URL can't respond to viewport or device pixel ratio.
+
+## Building your own component
+
+Everything `<Image>` needs is injected onto the field value, so a custom renderer can read it directly:
+
+```ts
+post.coverImage.asset.url; // the original
+post.coverImage.asset.srcset; // "/media/{id}/w320-{hash}.webp 320w, …"
+post.coverImage.asset.width; // intrinsic dimensions, for aspect ratio
+post.coverImage.asset.height;
+```
+
+`srcset` is **absent** when there are no derivatives to offer — the pipeline is disabled, or the asset is an SVG or animated (both are served as-is, since resizing makes them worse). Fall back to `asset.url` in that case, which is exactly what `<Image>` does.
+
+## How the URLs work
+
+Every asset URL is `/media/{assetId}/{filename}` regardless of storage backend, and variants are addressed as siblings of the original:
+
+```
+/media/{assetId}/w960-{configHash}.webp
+```
+
+The `configHash` is derived from your `images` config. Edit the ladder or quality and the hash moves, so every variant URL changes automatically — safe, and needs no migration or cache purge. Requests go through Aphex's `/media` handler (access control, then a proxied read with a 1-year immutable cache on variants). See [Storage](/storage) for the full breakdown.
+
+## See also
+
+- [Configuration → images](/configuration#images) — the full `images` config reference.
+- [Storage](/storage) — upload flow, Sharp-extracted image metadata, access control, signed URLs.
+- [Frontend Integration](/frontend) — load functions, reference resolution, rendering content.
+- [Schemas → Image](/schemas/image) — the `image` field type.

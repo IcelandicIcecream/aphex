@@ -12,6 +12,10 @@
 // code in this file.
 
 import { z } from 'zod';
+import { applyPatch, PatchError } from '../local-api/patch';
+import { isRevisionConflictError } from '../db/interfaces/document';
+import type { Asset } from '../types/asset';
+import type { AssetFilters } from '../db/interfaces/asset';
 import type { CMSInstances } from '../hooks';
 import type { LocalAPIContext } from '../local-api/index';
 import type {
@@ -27,11 +31,15 @@ import {
 	RESERVED_FIELDS,
 	validateSchemaReferences
 } from '../schema-utils/validator';
+import { newUnusableFields } from '../field-validation/new-fields';
 import { validateDocumentData } from '../field-validation/utils';
 import { validateFile } from '../utils/mime-detect';
 import { fetchRemoteFile } from '../utils/fetch-remote-file';
 import { fieldWriteShape } from '../type-gen';
+import { schemaOutline } from './schema-outline';
+import { viewDocument, viewOptions } from './document-view';
 import { hasCapability, resolveCapabilities } from '../types/capabilities';
+import { hasRequiredCapabilities } from '../schema-utils/required-capabilities';
 import { contentWorkspaceTools } from '../ai/content-workspace-tools';
 import {
 	DEFAULT_BLOCK_STYLES,
@@ -40,7 +48,9 @@ import {
 } from '../components/admin/fields/richtext/block-defaults';
 
 export interface McpToolResult {
-	content: Array<{ type: 'text'; text: string }>;
+	content: Array<
+		{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
+	>;
 	isError?: boolean;
 }
 
@@ -49,6 +59,14 @@ export interface McpTool {
 	description: string;
 	/** zod raw shape describing the tool's arguments. */
 	inputSchema: z.ZodRawShape;
+	/** Whether it changes content, from its definition: counted as a change, not a read. */
+	mutates: boolean;
+	/** What clients call it ("Publish document"). */
+	title: string;
+	/** Whether a call can overwrite or remove, not only add (`AgentToolDefinition.destructive`). */
+	destructive: boolean;
+	/** Whether it reaches outside this site (`AgentToolDefinition.openWorld`). */
+	openWorld: boolean;
 	handler: (args: Record<string, unknown>) => Promise<McpToolResult>;
 }
 
@@ -65,6 +83,44 @@ export interface ContentAgentTool {
 
 const ok = (data: unknown): AgentToolResult => ({ success: true, data });
 
+/** How many documents `query_documents` returns by default, and at most. */
+const DOCUMENTS_DEFAULT = 20;
+const DOCUMENTS_MAX = 50;
+/** Characters of documents in one `query_documents` answer: a page of pages would fill a model's context. */
+const DOCUMENTS_BUDGET = 24_000;
+
+/** How many files `list_assets` returns by default, and at most. */
+const ASSETS_DEFAULT = 25;
+const ASSETS_MAX = 50;
+
+/**
+ * A file as a model needs it: what it is, what it shows, and the id to reference it by.
+ * The stored row is mostly image metadata and storage paths, several times this size.
+ */
+function assetView(asset: Asset) {
+	return {
+		id: asset.id,
+		filename: asset.originalFilename,
+		mimeType: asset.mimeType,
+		size: asset.size,
+		...(asset.width && asset.height ? { width: asset.width, height: asset.height } : {}),
+		...(asset.alt ? { alt: asset.alt } : {}),
+		...(asset.title ? { title: asset.title } : {}),
+		...(asset.description ? { description: asset.description } : {}),
+		url: asset.url
+	};
+}
+
+/**
+ * Whether the caller's organization has a type at all (`requiredCapabilities`).
+ * The Local API refuses the rest, so an agent shouldn't be told about them.
+ */
+function typeAvailable(context: LocalAPIContext) {
+	if (context.overrideAccess) return () => true;
+	const held = context.auth ? resolveCapabilities(context.auth) : new Set<string>();
+	return (schema: SchemaType | undefined) => hasRequiredCapabilities(schema, held);
+}
+
 const fail = (message: string): AgentToolResult => ({ success: false, error: message });
 
 function asString(args: Record<string, unknown>, key: string): string | null {
@@ -79,6 +135,112 @@ function asRecord(args: Record<string, unknown>, key: string): Record<string, un
 
 const perspectiveArg = (v: unknown): 'draft' | 'published' =>
 	v === 'published' ? 'published' : 'draft';
+
+/** The revision and status a saved document now has, and whether it differs from what's live. */
+function documentMeta(doc: object): {
+	revision?: number;
+	status?: string;
+	hasUnpublishedChanges?: boolean;
+} {
+	const meta = '_meta' in doc ? doc._meta : undefined;
+	if (!meta || typeof meta !== 'object') return {};
+	return {
+		...('revision' in meta && typeof meta.revision === 'number' ? { revision: meta.revision } : {}),
+		...('status' in meta && typeof meta.status === 'string' ? { status: meta.status } : {}),
+		...('hasUnpublishedChanges' in meta && typeof meta.hasUnpublishedChanges === 'boolean'
+			? { hasUnpublishedChanges: meta.hasUnpublishedChanges }
+			: {})
+	};
+}
+
+/** A read document's own fields, apart from its id and `_meta`, and the revision read. */
+function documentFields(doc: object): { data: Record<string, unknown>; revision?: number } {
+	const data: Record<string, unknown> = {};
+	let revision: number | undefined;
+	for (const [key, value] of Object.entries(doc)) {
+		if (key === '_meta') revision = documentMeta(doc).revision;
+		else if (key !== 'id') data[key] = value;
+	}
+	return { data, revision };
+}
+
+/** A document that a single read returns whole; a larger one comes skimmed unless it's asked for by part. */
+const DOCUMENT_BUDGET = 40_000;
+
+/** One document for an agent: whole when it fits, else its index and how to read the rest. */
+function readDocument(
+	doc: object,
+	args: Record<string, unknown>,
+	schema: SchemaType | undefined,
+	schemas: readonly SchemaType[]
+): Record<string, unknown> {
+	const view = viewOptions(args);
+	const seen = viewDocument(doc, view, schema, schemas);
+	if (view.skim || view.path || view.fields?.length) return seen;
+	if (JSON.stringify(seen).length <= DOCUMENT_BUDGET) return seen;
+	return {
+		...viewDocument(doc, { skim: true }, schema, schemas),
+		note: 'Too large to return whole, so it is skimmed: read the part you need with `path` or `fields`.'
+	};
+}
+
+/**
+ * What a write answers with. The agent has just sent the content, so it isn't sent
+ * back: only what saving settled (keys given to new items, values hooks filled in),
+ * skimmed, and the revision to write with next.
+ */
+function savedView<T extends { document: unknown }>(result: T, written: Record<string, unknown>) {
+	const { document, ...rest } = result;
+	if (!document || typeof document !== 'object') return result;
+	const skimmed = viewDocument(document, { skim: true });
+	return {
+		document: Object.fromEntries(
+			Object.entries(skimmed).filter(
+				([key, value]) => key in written || (!Array.isArray(value) && value !== '{…}')
+			)
+		),
+		...rest
+	};
+}
+
+/** What a read returns: fields to pick, one path, or the whole document skimmed. */
+const readShape = {
+	fields: z
+		.array(z.string())
+		.optional()
+		.describe('Only these top-level fields (id and _meta always come)'),
+	skim: z
+		.boolean()
+		.optional()
+		.describe(
+			'Cut text to its start and rich text to plain text, keeping every _key and _type: enough to find what to patch, at a fraction of the size'
+		)
+};
+
+const patchPath = z.string().describe('e.g. blocks[_key=="k3"].heading');
+/** One patch_document edit; the runtime is local-api/patch.ts. */
+const patchOperationSchema = z.discriminatedUnion('op', [
+	z.object({ op: z.literal('set'), path: patchPath, value: z.unknown() }),
+	z.object({ op: z.literal('unset'), path: patchPath }),
+	z.object({
+		op: z.literal('insert'),
+		path: patchPath.describe('An item, for before/after; the list itself, for start/end'),
+		position: z.enum(['before', 'after', 'start', 'end']),
+		items: z.array(z.unknown()).min(1)
+	}),
+	z.object({
+		op: z.literal('move'),
+		path: patchPath,
+		position: z.enum(['before', 'after']),
+		target: patchPath
+	}),
+	z.object({
+		op: z.literal('replaceText'),
+		path: patchPath,
+		find: z.string().min(1),
+		replace: z.string()
+	})
+]);
 
 interface RefEdge {
 	from: string;
@@ -198,8 +360,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'describe_cms',
+			title: 'Describe the content',
 			description:
-				'Orientation for building against this CMS: all content types and their relationships, the valid field-type vocabulary, and what this API key is allowed to do. Call this first. All data is derived live from the running config — never stale. For exact field/schema TypeScript signatures, read the SchemaType and Field types from the `@aphexcms/cms-core` package (and the real schemas in src/lib/schemaTypes/*.ts).',
+				'Orientation for building against this CMS: all content types and their relationships, the valid field-type vocabulary, and what this API key is allowed to do: the starting point for any job here. All data is derived live from the running config — never stale. For exact field/schema TypeScript signatures, read the SchemaType and Field types from the `@aphexcms/cms-core` package (and the real schemas in src/lib/schemaTypes/*.ts).',
 			mutates: false,
 			requiredCapabilities: [],
 			execution: 'server',
@@ -211,17 +374,17 @@ export const contentAgentTools: ContentAgentTool[] = [
 			const edges: RefEdge[] = [];
 			for (const s of schemas) collectReferences(s.name, s.fields, edges);
 
+			const available = typeAvailable(context);
 			const documentTypes = schemas
-				.filter((s) => s.type === 'document')
+				.filter((s) => s.type === 'document' && available(s))
 				.map((s) => ({
 					name: s.name,
 					title: s.title,
-					singleton: s.type === 'document' ? (s.singleton ?? false) : false,
-					fieldCount: s.fields.length
+					...(s.type === 'document' && s.singleton ? { singleton: true } : {})
 				}));
 			const objectTypes = schemas
-				.filter((s) => s.type === 'object')
-				.map((s) => ({ name: s.name, title: s.title, fieldCount: s.fields.length }));
+				.filter((s) => s.type === 'object' && available(s))
+				.map((s) => s.name);
 
 			const auth = context.auth;
 			const capabilities =
@@ -240,7 +403,8 @@ export const contentAgentTools: ContentAgentTool[] = [
 				organizationId: orgId,
 				documentTypes,
 				objectTypes,
-				referenceGraph: edges,
+				// 'blogPost.author -> author': an object per edge is mostly repeated keys.
+				referenceGraph: edges.map(({ from, path, to }) => `${from}.${path} -> ${to.join('|')}`),
 				validFieldTypes: VALID_FIELD_TYPES,
 				reservedFieldNames: RESERVED_FIELDS,
 				capabilities,
@@ -252,6 +416,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'list_collections',
+			title: 'List content types',
 			description:
 				'List the document collections (content types) available in this CMS, with their names and titles.',
 			mutates: false,
@@ -259,9 +424,12 @@ export const contentAgentTools: ContentAgentTool[] = [
 			execution: 'server',
 			inputSchema: z.object({})
 		},
-		execute: async (_input, { aphexCMS }: AgentToolExecutionContext) => {
+		execute: async (_input, { aphexCMS, context }: AgentToolExecutionContext) => {
 			const api = aphexCMS.localAPI;
-			const names = api.getCollectionNames();
+			const available = typeAvailable(context);
+			const names = api
+				.getCollectionNames()
+				.filter((name) => available(api.getCollectionSchema(name)));
 			const collections = names.map((name) => {
 				const schema = api.getCollectionSchema(name);
 				return { name, title: schema?.title ?? name, singleton: schema?.singleton ?? false };
@@ -272,25 +440,66 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'get_schema',
+			title: 'Get a content type',
 			description:
-				"Get the field schema for one collection, so you know the shape to use when creating or updating its documents. Returns { schema, portableText? } — `portableText` is present when the type has rich-text (block) fields and links the open Portable Text spec plus this schema's allowed styles/marks/custom block types.",
+				"Get the shape of one collection's documents, to write them: TypeScript-style `types` (the collection's own type first; `?` is optional; comments say what a field is for and what its values mean) and `values`, the shapes of Image, Ref and the other names it uses. A page builder with many block types lists them at the end instead: call again with `types` naming the blocks you'll write, e.g. ['hero', 'cta']. `portableText` is present for rich-text fields. `detail: 'full'` returns the raw schema instead, which is far larger: only for writing schema code.",
 			mutates: false,
 			requiredCapabilities: [],
 			execution: 'server',
-			inputSchema: z.object({ collection: z.string().describe('Collection name') })
+			inputSchema: z.object({
+				collection: z.string().describe('Collection name'),
+				types: z
+					.array(z.string())
+					.optional()
+					.describe(
+						"Block types to outline in full (their _type), e.g. ['hero', 'cta']; ['*'] for all of them"
+					),
+				detail: z
+					.enum(['outline', 'full'])
+					.optional()
+					.describe("'outline' (default) or 'full' for the raw schema")
+			})
 		},
-		execute: async (args: Record<string, unknown>, { aphexCMS }: AgentToolExecutionContext) => {
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
 			const api = aphexCMS.localAPI;
 			const collection = asString(args, 'collection');
 			if (!collection) return fail('Missing required string argument: collection');
 			const schema = api.getCollectionSchema(collection);
 			if (!schema) return fail(`Unknown collection: ${collection}`);
+			if (!typeAvailable(context)(schema)) {
+				return fail(`${schema.title} isn't available in this organization.`);
+			}
 			const portableText = portableTextGuide(schema);
-			const { writeShapes, shapeLegend } = buildWriteShapes(schema, aphexCMS.config.schemaTypes);
+			if (args.detail === 'full') {
+				const { writeShapes, shapeLegend } = buildWriteShapes(schema, aphexCMS.config.schemaTypes);
+				return ok({
+					schema,
+					writeShapes,
+					...(Object.keys(shapeLegend).length > 0 ? { shapeLegend } : {}),
+					...(portableText ? { portableText } : {})
+				});
+			}
+			const requested = Array.isArray(args.types)
+				? args.types.filter((t): t is string => typeof t === 'string')
+				: [];
+			const all = requested.includes('*');
+			const outline = schemaOutline(schema, aphexCMS.config.schemaTypes, {
+				only: all ? undefined : requested,
+				summarize: !all
+			});
+			if (outline.unknown.length > 0) {
+				return fail(
+					`${collection} has no block type ${outline.unknown.map((t) => `"${t}"`).join(', ')}. Call get_schema without types to list them.`
+				);
+			}
 			return ok({
-				schema,
-				writeShapes,
-				...(Object.keys(shapeLegend).length > 0 ? { shapeLegend } : {}),
+				collection,
+				...(schema.singleton ? { singleton: true } : {}),
+				types: outline.types,
+				values: outline.values,
 				...(portableText ? { portableText } : {})
 			});
 		}
@@ -298,17 +507,25 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'validate_document',
+			title: 'Check a document',
 			description:
-				'Dry-run: validate document `data` against its collection schema WITHOUT saving, using the same validator as create/update. Returns field-level errors so you can fix them before create_document/update_document.',
+				'Dry-run: validate document `data` against its collection schema WITHOUT saving, using the same validator as create/update. Returns field-level errors so you can fix them before create_document/update_document. For changes to an existing document, pass its `id` too.',
 			mutates: false,
 			requiredCapabilities: [],
 			execution: 'server',
 			inputSchema: z.object({
 				collection: z.string().describe('Collection name'),
-				data: z.record(z.string(), z.unknown()).describe('Document field values to validate')
+				data: z.record(z.string(), z.unknown()).describe('Document field values to validate'),
+				id: z
+					.string()
+					.optional()
+					.describe("The document they're for, so what it already holds isn't reported")
 			})
 		},
-		execute: async (args: Record<string, unknown>, { aphexCMS }: AgentToolExecutionContext) => {
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
 			const api = aphexCMS.localAPI;
 			const collection = asString(args, 'collection');
 			const data = asRecord(args, 'data');
@@ -317,10 +534,23 @@ export const contentAgentTools: ContentAgentTool[] = [
 			const schema = api.getCollectionSchema(collection);
 			if (!schema) return fail(`Unknown collection: ${collection}`);
 			try {
-				const result = await validateDocumentData(schema, data, {
-					schemas: aphexCMS.config.schemaTypes
-				});
-				return ok({ isValid: result.isValid, errors: result.errors });
+				const schemas = aphexCMS.config.schemaTypes;
+				// The other half of a save's check: fields this write would newly misuse.
+				const id = asString(args, 'id');
+				const col = id ? api.getCollection(collection) : undefined;
+				const previous: unknown[] = [];
+				if (id && col) {
+					for (const perspective of ['draft', 'published'] as const) {
+						const doc = await col.findByID(context, id, { perspective });
+						if (doc) previous.push(documentFields(doc).data);
+					}
+				}
+				const result = await validateDocumentData(schema, data, { schemas, stored: previous });
+				const { unknown, deprecated } = newUnusableFields(schema, data, previous, schemas);
+				const unusable = [...unknown, ...deprecated];
+				const reported = new Set(unusable.map((e) => e.field));
+				const errors = [...unusable, ...result.errors.filter((e) => !reported.has(e.field))];
+				return ok({ isValid: errors.length === 0, errors });
 			} catch (err) {
 				return fail(`Validation failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -329,6 +559,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'validate_schema',
+			title: 'Check a content type',
 			description:
 				'Validate a proposed schema definition (structure, field types, references, reserved field names) against the current CMS, WITHOUT writing a file. Use before writing a schema .ts file. Pass the schema as JSON — validation-rule functions are not needed for structural validation.',
 			mutates: false,
@@ -359,8 +590,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'query_documents',
+			title: 'Find documents',
 			description:
-				'Do not call this with `where` or `sort` until you have called get_schema for this exact collection in the current conversation. Query documents using only field names and stored shapes that schema returned. Supports filters, sorting, pagination, and draft/published perspective. Aphex slug fields are bare strings: use `where: { "slug": "home" }`, never `slug.current` or `{ current: "home" }`. Afterward, answer from the returned documents instead of explaining these parameters.',
+				'Query a collection’s documents. `where` and `sort` take the field names and stored shapes get_schema returns for that collection. Supports filters, sorting, pagination, and draft/published perspective. Aphex slug fields are bare strings: use `where: { "slug": "home" }`, never `slug.current` or `{ current: "home" }`. Returns the documents themselves, in full unless you pass `fields` or `skim`: do, unless you need the whole of them. A large answer stops early; when `hasMore`, pass `nextOffset` as `offset` for the rest.',
 			mutates: false,
 			requiredCapabilities: ['document.read'],
 			execution: 'server',
@@ -372,7 +604,10 @@ export const contentAgentTools: ContentAgentTool[] = [
 					.describe(
 						'Filter conditions (LocalAPI Where syntax). Call get_schema for this collection first and use only fields it returned. Slugs are bare strings, e.g. { "slug": "home" }; never use "slug.current".'
 					),
-				limit: z.number().optional().describe('Max results (default 50)'),
+				limit: z
+					.number()
+					.optional()
+					.describe(`Max results (default ${DOCUMENTS_DEFAULT}, max ${DOCUMENTS_MAX})`),
 				offset: z.number().optional().describe('Results to skip (default 0)'),
 				sort: z
 					.string()
@@ -381,7 +616,8 @@ export const contentAgentTools: ContentAgentTool[] = [
 				perspective: z
 					.enum(['draft', 'published'])
 					.optional()
-					.describe('Which content to read (default draft)')
+					.describe('Which content to read (default draft)'),
+				...readShape
 			})
 		},
 		execute: async (
@@ -397,8 +633,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 			// dynamic field keys; assert the parsed object into it at this external
 			// boundary rather than validating every possible filter shape.
 			const where = (asRecord(args, 'where') ?? undefined) as WhereTyped<unknown> | undefined;
-			const limit = typeof args.limit === 'number' ? args.limit : undefined;
-			const offset = typeof args.offset === 'number' ? args.offset : undefined;
+			const wanted = typeof args.limit === 'number' ? Math.floor(args.limit) : DOCUMENTS_DEFAULT;
+			const limit = Math.min(Math.max(wanted, 1), DOCUMENTS_MAX);
+			const offset = typeof args.offset === 'number' ? Math.max(Math.floor(args.offset), 0) : 0;
 			const sort = asString(args, 'sort') ?? undefined;
 			try {
 				const result = await col.find(context, {
@@ -408,7 +645,55 @@ export const contentAgentTools: ContentAgentTool[] = [
 					sort,
 					perspective: perspectiveArg(args.perspective)
 				});
-				return ok(result);
+				// A list of documents needs each one's outline, not the lists inside its lists.
+				const view = { ...viewOptions(args), flat: true };
+				const schema = api.getCollectionSchema(collection);
+				const docs: unknown[] = [];
+				let used = 0;
+				let cutShort = false;
+				let skimmedFirst = false;
+				for (const doc of result.docs) {
+					const read = (options: typeof view) =>
+						doc && typeof doc === 'object'
+							? viewDocument(doc, options, schema, aphexCMS.config.schemaTypes)
+							: doc;
+					let seen: unknown = read(view);
+					let size = JSON.stringify(seen)?.length ?? 0;
+					if (used + size > DOCUMENTS_BUDGET) {
+						// One document always comes, or the next page could never start.
+						cutShort = docs.length > 0;
+						if (cutShort) break;
+						if (!view.skim) {
+							seen = read({ ...view, skim: true });
+							size = JSON.stringify(seen)?.length ?? 0;
+							skimmedFirst = true;
+						}
+					}
+					docs.push(seen);
+					used += size;
+				}
+				const next = offset + docs.length;
+				const hasMore = docs.length > 0 && next < result.totalDocs;
+				const notes = [
+					...(skimmedFirst
+						? [
+								'The first document is too large to return whole, so it is skimmed: read it with get_document, by `path` or `fields`.'
+							]
+						: []),
+					...(cutShort
+						? [
+								'Stopped early: these documents are large. Pass `skim` or `fields` to see more at once.'
+							]
+						: [])
+				];
+				return ok({
+					docs,
+					totalDocs: result.totalDocs,
+					offset,
+					hasMore,
+					...(hasMore ? { nextOffset: next } : {}),
+					...(notes.length ? { note: notes.join(' ') } : {})
+				});
 			} catch (err) {
 				return fail(`Query failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -417,14 +702,18 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'get_document',
-			description: 'Get a single document by id from a collection.',
+			title: 'Get a document',
+			description:
+				'Get a single document by id. Read only what you need: `skim` for a page’s structure and block keys, `path` for one block, `fields` for a few fields.',
 			mutates: false,
 			requiredCapabilities: ['document.read'],
 			execution: 'server',
 			inputSchema: z.object({
 				collection: z.string().describe('Collection name'),
 				id: z.string().describe('Document id'),
-				perspective: z.enum(['draft', 'published']).optional()
+				perspective: z.enum(['draft', 'published']).optional(),
+				...readShape,
+				path: z.string().optional().describe('Read one value only, e.g. blocks[_key=="k3"]')
 			})
 		},
 		execute: async (
@@ -442,7 +731,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 					perspective: perspectiveArg(args.perspective)
 				});
 				if (!doc) return fail(`Document not found: ${collection}/${id}`);
-				return ok(doc);
+				return ok(
+					readDocument(doc, args, api.getCollectionSchema(collection), aphexCMS.config.schemaTypes)
+				);
 			} catch (err) {
 				return fail(`Get failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -451,8 +742,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'create_document',
+			title: 'Create a document',
 			description:
-				'Create a NEW document in a collection. Use this whenever the user asks for a new post, page, or other document, even if workspace tools for an already-open document are available. Pass field values in `data` (matching the collection schema). Set publish:true to publish immediately, otherwise it is saved as a draft.',
+				'Create a NEW document in a collection: a new post, page or other document. (Workspace tools only edit the document already open.) Pass field values in `data` (matching the collection schema). Set publish:true to publish immediately, otherwise it is saved as a draft.',
 			mutates: true,
 			requiredCapabilities: ['document.create'],
 			execution: 'server',
@@ -476,8 +768,11 @@ export const contentAgentTools: ContentAgentTool[] = [
 			const col = api.getCollection(collection);
 			if (!col) return fail(`Unknown collection: ${collection}`);
 			try {
-				const result = await col.create(context, data, { publish: args.publish === true });
-				return ok(result);
+				const result = await col.create(context, data, {
+					publish: args.publish === true,
+					rejectNewUnknownFields: true
+				});
+				return ok(savedView(result, data));
 			} catch (err) {
 				return fail(`Create failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -486,8 +781,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'update_document',
+			title: 'Update a document',
 			description:
-				"Update fields on an existing document. Only include the fields you want to change in `data`. Set publish:true to publish the result. Pass `expectedRevision` (from a prior get_document/update_document/publish_document call's `document._meta.revision`) to guard against overwriting a change made since you last read it — a mismatch fails the call instead of silently overwriting. If `content_patch_fields`/`content_save_draft` are also available, they target the document currently open in the admin editor — prefer those for edits to that specific document, since this tool writes straight to the database and the open editor will not reflect the change until the user reloads.",
+				"Update fields on an existing document. Only the fields in `data` change; a field is replaced whole, so for an edit inside a list or rich text use patch_document. Pass `expectedRevision` (the `_meta.revision` you last read) so a newer change isn't overwritten. Answers with the saved document skimmed. If `content_patch_fields`/`content_save_draft` are available, use those for the document open in the admin editor, which won't show this tool's write until it reloads.",
 			mutates: true,
 			requiredCapabilities: ['document.update'],
 			execution: 'server',
@@ -517,11 +813,12 @@ export const contentAgentTools: ContentAgentTool[] = [
 			try {
 				const result = await col.update(context, id, data, {
 					publish: args.publish === true,
+					rejectNewUnknownFields: true,
 					expectedRevision:
 						typeof args.expectedRevision === 'number' ? args.expectedRevision : undefined
 				});
 				if (!result) return fail(`Document not found: ${collection}/${id}`);
-				return ok(result);
+				return ok(savedView(result, data));
 			} catch (err) {
 				return fail(`Update failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -529,7 +826,86 @@ export const contentAgentTools: ContentAgentTool[] = [
 	},
 	{
 		definition: {
+			name: 'patch_document',
+			title: 'Edit a document',
+			description:
+				'Change part of a document by path, without sending the rest back: one heading in a page of blocks, a sentence in rich text, a block moved, added or removed. Prefer it to update_document for any edit inside a list or rich text. Address list items by their _key (`blocks[_key=="k3"].heading`), read from get_document. Operations apply in order, all or none. ' +
+				'`set` a value; `unset` a field or remove an item; `insert` items before/after an item, or at the start/end of a list (new items get keys); `move` an item before/after another; `replaceText` swaps one exact phrase anywhere under the path (it must occur once; in rich text, a phrase crossing bold or a link is split, so find part of it). ' +
+				'Singletons need no id. Answers with the new revision, not the document.',
+			mutates: true,
+			requiredCapabilities: ['document.update'],
+			execution: 'server',
+			inputSchema: z.object({
+				collection: z.string().describe('Collection name'),
+				id: z.string().optional().describe('Document id (leave out for a singleton)'),
+				operations: z.array(patchOperationSchema).min(1).describe('Edits, applied in order'),
+				publish: z.boolean().optional().describe('Publish after patching (default false)'),
+				expectedRevision: z
+					.number()
+					.optional()
+					.describe(
+						'The revision you last read. Leave it out and the patch applies to the latest draft, re-applied once if someone saves in between.'
+					)
+			})
+		},
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
+			const api = aphexCMS.localAPI;
+			const collection = asString(args, 'collection');
+			if (!collection) return fail('Missing required string argument: collection');
+			const col = api.getCollection(collection);
+			if (!col) return fail(`Unknown collection: ${collection}`);
+			const parsed = z.array(patchOperationSchema).min(1).safeParse(args.operations);
+			if (!parsed.success) return fail(`Invalid operations: ${parsed.error.message}`);
+			const id = asString(args, 'id') ?? col.getSingletonId(context);
+			if (!id) return fail('Missing id (only a singleton can leave it out)');
+			if (!asString(args, 'id')) await col.get(context);
+			const given = typeof args.expectedRevision === 'number' ? args.expectedRevision : undefined;
+
+			// Read, patch, write the fields it touched, guarded by the revision read. A
+			// save in between re-reads and re-applies once: paths name items by key, so
+			// the patch means the same on the newer draft.
+			for (let attempt = 0; ; attempt++) {
+				try {
+					const doc = await col.findByID(context, id, { perspective: 'draft' });
+					if (!doc) return fail(`Document not found: ${collection}/${id}`);
+					const { data, revision: read } = documentFields(doc);
+					const revision = given ?? read;
+					const { data: patched, fields } = applyPatch(data, parsed.data);
+					const changes = Object.fromEntries(
+						fields.map((field) => [field, patched[field] ?? null])
+					);
+					const result = await col.update(context, id, changes, {
+						publish: args.publish === true,
+						rejectNewUnknownFields: true,
+						expectedRevision: revision
+					});
+					if (!result) return fail(`Document not found: ${collection}/${id}`);
+					const { validation } = result;
+					const saved =
+						result.document && typeof result.document === 'object'
+							? documentMeta(result.document)
+							: {};
+					return ok({
+						id,
+						...saved,
+						changed: fields,
+						...(validation.isValid ? {} : { validation: validation.errors })
+					});
+				} catch (err) {
+					if (isRevisionConflictError(err) && given === undefined && attempt === 0) continue;
+					if (err instanceof PatchError) return fail(err.message);
+					return fail(`Patch failed: ${err instanceof Error ? err.message : String(err)}`);
+				}
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'publish_document',
+			title: 'Publish a document',
 			description:
 				"Publish a document (copies its current draft to the published perspective). Pass `expectedRevision` (from a prior read/write's `document._meta.revision`) to guard against publishing over a change made since you last read it.",
 			mutates: true,
@@ -560,7 +936,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 						typeof args.expectedRevision === 'number' ? args.expectedRevision : undefined
 				});
 				if (!doc) return fail(`Document not found: ${collection}/${id}`);
-				return ok(doc);
+				return ok({ id, ...(typeof doc === 'object' ? documentMeta(doc) : {}) });
 			} catch (err) {
 				return fail(`Publish failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -569,6 +945,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'get_singleton',
+			title: 'Get settings',
 			description:
 				'Get a singleton document (a type where exactly one exists, e.g. site settings — flagged `singleton: true` in describe_cms). No id needed; the canonical row is resolved (and lazily created empty on first access). Use this instead of get_document for singletons.',
 			mutates: false,
@@ -576,7 +953,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 			execution: 'server',
 			inputSchema: z.object({
 				collection: z.string().describe('Singleton collection name'),
-				perspective: z.enum(['draft', 'published']).optional()
+				perspective: z.enum(['draft', 'published']).optional(),
+				...readShape,
+				path: z.string().optional().describe('Read one value only, e.g. navigation[0]')
 			})
 		},
 		execute: async (
@@ -590,7 +969,16 @@ export const contentAgentTools: ContentAgentTool[] = [
 			if (!col) return fail(`Unknown collection: ${collection}`);
 			try {
 				const doc = await col.get(context, { perspective: perspectiveArg(args.perspective) });
-				return ok(doc);
+				return ok(
+					doc && typeof doc === 'object'
+						? readDocument(
+								doc,
+								args,
+								api.getCollectionSchema(collection),
+								aphexCMS.config.schemaTypes
+							)
+						: doc
+				);
 			} catch (err) {
 				// SingletonOperationError when the type isn't a singleton — surface its message.
 				return fail(err instanceof Error ? err.message : String(err));
@@ -600,6 +988,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'update_singleton',
+			title: 'Edit settings',
 			description:
 				'Update a singleton document (e.g. site settings). No id needed — the canonical row is resolved by type. Include only the fields to change in `data`. Set publish:true to publish the result. Use this instead of update_document for singletons.',
 			mutates: true,
@@ -627,9 +1016,12 @@ export const contentAgentTools: ContentAgentTool[] = [
 			try {
 				// Ensure the canonical row exists (get lazily creates it), then update.
 				await col.get(context);
-				const result = await col.update(context, id, data, { publish: args.publish === true });
+				const result = await col.update(context, id, data, {
+					publish: args.publish === true,
+					rejectNewUnknownFields: true
+				});
 				if (!result) return fail(`Failed to update singleton '${collection}'.`);
-				return ok(result);
+				return ok(savedView(result, data));
 			} catch (err) {
 				return fail(`Update failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -638,16 +1030,19 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'list_assets',
-			description:
-				'List media assets (images and files) in this organization, optionally filtered.',
+			title: 'List files',
+			description: `List media assets (images and files) in this organization, newest first. Returns ${ASSETS_DEFAULT} at a time (${ASSETS_MAX} at most) with the \`total\`; when \`hasMore\`, pass \`nextOffset\` as \`offset\` for the next page. \`search\` by name or alt text instead of reading every page.`,
 			mutates: false,
 			requiredCapabilities: ['asset.read'],
 			execution: 'server',
 			inputSchema: z.object({
-				search: z.string().optional().describe('Filter by filename/text'),
+				search: z.string().optional().describe('Matches filename, title, alt text, description'),
 				assetType: z.enum(['image', 'file']).optional(),
-				limit: z.number().optional(),
-				offset: z.number().optional()
+				limit: z
+					.number()
+					.optional()
+					.describe(`Files to return (default ${ASSETS_DEFAULT}, max ${ASSETS_MAX})`),
+				offset: z.number().optional().describe('Files to skip (default 0)')
 			})
 		},
 		execute: async (
@@ -657,16 +1052,28 @@ export const contentAgentTools: ContentAgentTool[] = [
 			if (!context.auth || !hasCapability(context.auth, 'asset.read')) {
 				return fail("Forbidden: 'asset.read' capability required.");
 			}
-			const { assetService } = aphexCMS;
+			const { assetService, databaseAdapter } = aphexCMS;
 			const orgId = context.organizationId;
 			const search = asString(args, 'search') ?? undefined;
 			const assetType =
 				args.assetType === 'image' || args.assetType === 'file' ? args.assetType : undefined;
-			const limit = typeof args.limit === 'number' ? args.limit : undefined;
-			const offset = typeof args.offset === 'number' ? args.offset : undefined;
+			const wanted = typeof args.limit === 'number' ? Math.floor(args.limit) : ASSETS_DEFAULT;
+			const limit = Math.min(Math.max(wanted, 1), ASSETS_MAX);
+			const offset = typeof args.offset === 'number' ? Math.max(Math.floor(args.offset), 0) : 0;
+			const filters: AssetFilters = { search, assetType, limit, offset };
 			try {
-				const assets = await assetService.findAssets(orgId, { search, assetType, limit, offset });
-				return ok({ assets, count: assets.length });
+				const [assets, total] = await Promise.all([
+					assetService.findAssets(orgId, filters),
+					databaseAdapter.countAssets(orgId, filters)
+				]);
+				const next = offset + assets.length;
+				const hasMore = assets.length > 0 && next < total;
+				return ok({
+					assets: assets.map(assetView),
+					total,
+					hasMore,
+					...(hasMore ? { nextOffset: next } : {})
+				});
 			} catch (err) {
 				return fail(`List assets failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
@@ -675,6 +1082,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'upload_asset',
+			title: 'Upload a file',
 			description:
 				'Upload an image or file and get back a ready-to-reference value. Provide either ' +
 				'`data` (base64 file contents) or `url` (fetched server-side — use this for an image ' +
@@ -774,7 +1182,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 
 				const ref = { _type: 'reference' as const, _ref: asset.id };
 				return ok({
-					asset,
+					asset: assetView(asset),
 					// Referenceable field values — use the one matching the target field's type.
 					imageValue: { _type: 'image', asset: ref },
 					fileValue: { _type: 'file', asset: ref }
@@ -788,7 +1196,17 @@ export const contentAgentTools: ContentAgentTool[] = [
 
 function toMcpResult(result: AgentToolResult): McpToolResult {
 	if (result.success) {
-		return { content: [{ type: 'text', text: JSON.stringify(result.data, null, 2) }] };
+		return {
+			content: [
+				// Compact: indentation is a third of a page's tokens and tells a model nothing.
+				{ type: 'text', text: JSON.stringify(result.data) },
+				...(result.images ?? []).map((image) => ({
+					type: 'image' as const,
+					data: image.data,
+					mimeType: image.mimeType
+				}))
+			]
+		};
 	}
 	return { content: [{ type: 'text', text: result.error ?? 'Tool failed' }], isError: true };
 }
@@ -819,8 +1237,17 @@ export function resolveAgentTools(
 	const pluginTools = aphexCMS.partResolver
 		.agentToolsForCapabilities(callerCapabilities)
 		.filter((t) => !coreNames.has(t.definition.name));
+	// Core tools the caller can't run aren't offered either, as with plugin tools: a
+	// model shown `publish_document` will try it and tell the user it failed. Each
+	// tool's `execute` still checks, so this only decides what's listed.
+	const held = new Set(callerCapabilities);
+	const coreTools = context.overrideAccess
+		? contentAgentTools
+		: contentAgentTools.filter((t) =>
+				(t.definition.requiredCapabilities ?? []).every((capability) => held.has(capability))
+			);
 
-	const base = [...contentAgentTools, ...pluginTools];
+	const base = [...coreTools, ...pluginTools];
 	if (opts?.documentContext) {
 		// `update_document` writes straight to the DB and bypasses the open editor. Its
 		// description already told the model to prefer the workspace tools here, but a prompt
@@ -837,7 +1264,9 @@ export function resolveAgentTools(
 					'This tool cannot create a document and must not be used for another collection or document.'
 			}
 		}));
-		return [...base.filter((t) => t.definition.name !== 'update_document'), ...workspaceTools];
+		// patch_document writes straight to the database the same way.
+		const direct = new Set(['update_document', 'patch_document']);
+		return [...base.filter((t) => !direct.has(t.definition.name)), ...workspaceTools];
 	}
 	// Defense in depth: without a live document to bridge into, a `workspace`-execution tool
 	// (core or plugin-contributed) must never be advertised — there's nothing on the other
@@ -845,18 +1274,47 @@ export function resolveAgentTools(
 	return base.filter((t) => t.definition.execution !== 'workspace');
 }
 
+/** `publish_document` → "Publish document": a tool's name in words, for clients to show. */
+export function toolTitle(name: string): string {
+	const words = name.replace(/[_-]+/g, ' ').trim();
+	return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Names of tools that only add something new, never change or remove what's there. */
+const ADDS_ONLY = /^(create|upload|add)_/;
+
 /**
  * Adapt `resolveAgentTools` into the MCP SDK's expected shape for one authenticated
  * request. All the actual tool logic lives in `contentAgentTools`/plugin parts above —
  * this is purely a transport-shape + result-shape conversion.
  */
-export function buildContentTools(deps: McpToolDeps): McpTool[] {
+export function buildContentTools(
+	deps: McpToolDeps,
+	options: {
+		/**
+		 * Called after every call of a tool that `mutates`, succeeded or not, with what it
+		 * returned: the MCP route records it in the caller's change set (`mcp/change-sets.ts`).
+		 */
+		onWrite?: (
+			name: string,
+			args: Record<string, unknown>,
+			result: AgentToolResult
+		) => Promise<void>;
+	} = {}
+): McpTool[] {
 	const { aphexCMS, context } = deps;
 	return resolveAgentTools(deps).map(({ definition, execute }) => ({
 		name: definition.name,
 		description: definition.description,
 		inputSchema: (definition.inputSchema as z.ZodObject<z.ZodRawShape>).shape,
-		handler: async (args: Record<string, unknown>) =>
-			toMcpResult(await execute(args, { aphexCMS, context }))
+		mutates: definition.mutates,
+		title: definition.title ?? toolTitle(definition.name),
+		destructive: definition.mutates && (definition.destructive ?? !ADDS_ONLY.test(definition.name)),
+		openWorld: definition.openWorld ?? false,
+		handler: async (args: Record<string, unknown>) => {
+			const result = await execute(args, { aphexCMS, context });
+			if (definition.mutates) await options.onWrite?.(definition.name, args, result);
+			return toMcpResult(result);
+		}
 	}));
 }

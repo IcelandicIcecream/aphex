@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import { getLivePreviewDocument } from './live-preview.svelte.js';
+import { getLivePreviewDocument, relatedKey } from './live-preview.svelte.js';
 import { stegaEncode, type StegaPayload } from './stega.js';
 import { mergeDerived } from './merge-derived.js';
 
@@ -71,16 +71,23 @@ export interface PreviewApi {
 	 *   field, and with `arrayIndex` the specific row, in the form pane. Use this for a
 	 *   list whose entries are references: revealing the row is what lets the author
 	 *   reorder or remove it, which opening the referenced document does not.
+	 * - **Something inside a row** (`{ field, objectPath }`) — the path from the field down,
+	 *   as `[2].image` or `[2].columns[0].parts[1]`: clicking opens each item on the way
+	 *   and lands on the field it ends at (or on the last item, when it ends on one). The
+	 *   stega the CMS adds to text carries the same path, so an image, a button or a
+	 *   card's padding can lead where the text beside it does.
 	 *
 	 * @example
 	 * // {...ve.edit({ id: post.id, type: 'blog_post' })}          → opens that post
 	 * // {...ve.edit({ field: 'items', arrayIndex: i })}           → reveals row i of `items`
+	 * // {...ve.edit({ field: 'blocks', objectPath: `[${i}].image` })} → opens block i at its image
 	 */
 	edit(target: {
 		id?: string;
 		type?: string;
 		field?: string;
 		arrayIndex?: number;
+		objectPath?: string;
 	}): Record<string, string>;
 	/**
 	 * Resolve an image field to `{ src, alt }` in one call — destructure it:
@@ -117,6 +124,12 @@ export function usePreview(): PreviewApi {
 			return ctx.currentType;
 		},
 		live<T>(fallback: T, options: { type?: string; id?: string } = {}): T {
+			// Another document, open in a stacked editor: its live snapshot.
+			const related =
+				options.type && options.id ? ctx.related[relatedKey(options.type, options.id)] : undefined;
+			if (related && !(ctx.currentType === options.type && ctx.currentId === options.id)) {
+				return mergeDerived(related as T, fallback);
+			}
 			if (options.type && ctx.currentType !== options.type) return fallback;
 			if (options.id && ctx.currentId !== options.id) return fallback;
 			if (ctx.current == null) return fallback;
@@ -150,6 +163,7 @@ export function usePreview(): PreviewApi {
 			if (target.arrayIndex != null) {
 				attrs['data-aphex-array-index'] = String(target.arrayIndex);
 			}
+			if (target.objectPath) attrs['data-aphex-object-path'] = target.objectPath;
 			return attrs;
 		},
 		image(img) {

@@ -2,13 +2,34 @@
 import { apiClient } from './client';
 import type { CMSUser } from '../types/user';
 import type { ApiResponse } from './types';
-import type { UpdateUserRequest, UpdateUserPreferencesRequest } from './schemas/user';
+import type {
+	UpdateUserRequest,
+	UpdateUserPreferencesRequest,
+	ResetPasswordRequest,
+	SecureAccountRequest
+} from './schemas/user';
 
 // Legacy shim — kept so existing call sites don't break.
 // Prefer `UpdateUserRequest` from ./schemas/user going forward.
 export type UpdateProfileData = UpdateUserRequest;
 
 export class UserApi {
+	/**
+	 * Set a new password using the token from a reset email. Needs no session.
+	 */
+	static async resetPassword(data: ResetPasswordRequest): Promise<ApiResponse<unknown>> {
+		return apiClient.post<unknown>('/user/reset-password', data);
+	}
+
+	/**
+	 * Answer the "This wasn't me" link in a security email. Needs no session.
+	 */
+	static async secureAccount(
+		data: SecureAccountRequest
+	): Promise<ApiResponse<{ passwordReset: boolean }>> {
+		return apiClient.post<{ passwordReset: boolean }>('/user/secure-account', data);
+	}
+
 	/**
 	 * Update user profile
 	 */
@@ -27,6 +48,8 @@ export class UserApi {
 }
 
 export const user = {
+	resetPassword: UserApi.resetPassword.bind(UserApi),
+	secureAccount: UserApi.secureAccount.bind(UserApi),
 	updateProfile: UserApi.updateProfile.bind(UserApi),
 	updatePreferences: UserApi.updatePreferences.bind(UserApi)
 };

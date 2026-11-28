@@ -9,8 +9,17 @@
 
 <script lang="ts">
 	import { Button } from '@aphexcms/ui/shadcn/button';
-	import type { SchemaType } from '../../types/schemas.js';
+	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
+	import type { Field, SchemaType } from '../../types/schemas.js';
 	import SchemaField from './SchemaField.svelte';
+	import FieldsetSection from './FieldsetSection.svelte';
+	import { filledCount, layoutFields } from '../../schema-utils/fieldsets';
+	import { hasRequiredCapabilities } from '../../schema-utils/required-capabilities';
+	import { findPermissions } from '../../permissions-context.svelte';
+	import { isFieldVisible } from '../../schema-utils/visibility';
+	import { getContext, setContext, tick } from 'svelte';
+	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
+	import { resolvePreviewTitle } from '../../utils/preview';
 	import { getSaveStateContext } from '../../save-state-context.svelte';
 
 	const saveState = getSaveStateContext();
@@ -30,6 +39,11 @@
 		 * either a field of the object or a field of the document.
 		 */
 		documentData?: Record<string, any>;
+		/**
+		 * Show every field's problems as soon as it opens, rather than once each is
+		 * changed: the item was opened from a row that said it needs fixing.
+		 */
+		revealErrors?: boolean;
 	}
 
 	let {
@@ -41,8 +55,59 @@
 		onOpenReference,
 		readonly = false,
 		organizationId,
-		documentData
+		documentData,
+		revealErrors = false
 	}: Props = $props();
+
+	// Fields for a feature the organization doesn't have are left out of the layout, so a
+	// fieldset holding only those draws no empty heading.
+	const permissions = findPermissions();
+
+	const fieldRefs: Record<string, SchemaField | undefined> = {};
+	let revealedFor: Record<string, any> | null = null;
+	$effect(() => {
+		if (!open) {
+			revealedFor = null;
+			return;
+		}
+		if (!revealErrors) return;
+		// Once per opening: what's typed afterwards is checked as usual, on leaving.
+		const current = value;
+		if (revealedFor && revealedFor._key === current?._key) return;
+		revealedFor = current;
+		void tick().then(() => {
+			for (const [name, ref] of Object.entries(fieldRefs)) {
+				ref?.performValidation((current ?? {})[name], documentData ?? {}, { reveal: true });
+			}
+		});
+	});
+
+	/**
+	 * The trail of modals this one is nested in (a block › a column › a box), so
+	 * the header can say where you are and step back out. Each modal hands its
+	 * children the trail with itself added; closing the modal right above an
+	 * ancestor returns to it, since the ones above that are rendered inside it.
+	 */
+	type Crumb = { label: string; typeTitle: string; close: () => void };
+	const TRAIL = 'aphex:object-modal-trail';
+	const parentTrail = getContext<(() => Crumb[]) | undefined>(TRAIL);
+	const label = $derived(resolvePreviewTitle(value ?? {}, schema, schema.name));
+	const typeTitle = $derived(
+		schema.title ?? schema.name.charAt(0).toUpperCase() + schema.name.slice(1)
+	);
+	const ancestors = $derived(parentTrail?.() ?? []);
+	let labelTipOpen = $state(false);
+	/** "Column: Our story", or just the text when it already says what it is. */
+	function crumbTip(type: string, text: string): string {
+		if (!text) return type;
+		return text.toLowerCase().startsWith(type.toLowerCase()) ? text : `${type}: ${text}`;
+	}
+	setContext(TRAIL, () => [...ancestors, { label, typeTitle, close: onClose }]);
+
+	/** Return to ancestor `index`: close the modal directly above it. */
+	function returnTo(index: number) {
+		(ancestors[index + 1]?.close ?? onClose)();
+	}
 
 	let myDepth = $state(0);
 
@@ -71,9 +136,24 @@
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape' && isTopmost()) {
+		if (e.key === 'Escape' && !e.defaultPrevented && isTopmost()) {
 			onClose();
 		}
+	}
+
+	/**
+	 * Esc closes the topmost modal wherever focus is: on the window, in the capture
+	 * phase, because the panel stops key events from bubbling and focus is often on
+	 * the page behind (after picking an item type from the Add menu). Without it Esc
+	 * fell through to the admin's own handler and closed the preview instead.
+	 * Claimed with preventDefault so that handler, and the backdrop's, leave it.
+	 * A menu or list open inside the modal keeps its own Esc.
+	 */
+	function handleWindowKeydown(e: KeyboardEvent) {
+		if (e.key !== 'Escape' || e.defaultPrevented || !open || !isTopmost()) return;
+		if (document.querySelector('[role="menu"], [role="listbox"], [role="dialog"]')) return;
+		e.preventDefault();
+		onClose();
 	}
 
 	/**
@@ -95,6 +175,8 @@
 	}
 </script>
 
+<svelte:window onkeydowncapture={handleWindowKeydown} />
+
 {#if open}
 	<div
 		class="bg-background/80 absolute inset-0 flex items-center justify-center p-4 lg:p-6"
@@ -108,18 +190,101 @@
 		<div
 			class="border-border bg-background max-h-full w-full max-w-3xl cursor-default overflow-auto rounded-lg border shadow-lg"
 			style="z-index: {panelZ}"
+			data-object-modal={myDepth}
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 		>
 			<div
 				class="border-border bg-background sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-4 py-2"
 			>
-				<span class="text-sm font-medium"
-					>Edit {schema.title ?? schema.name.charAt(0).toUpperCase() + schema.name.slice(1)}</span
-				>
+				<div class="flex min-w-0 items-center gap-1 text-sm">
+					{#if ancestors.length}
+						<Button
+							variant="ghost"
+							size="icon"
+							class="-ml-1.5 h-7 w-7 shrink-0"
+							aria-label="Back to {ancestors[ancestors.length - 1]?.label}"
+							onclick={onClose}
+						>
+							<ChevronLeft class="h-4 w-4" />
+						</Button>
+						<!-- Crumbs are cut short to fit, so each names itself in full on hover
+						     or focus, and the current one also on a tap (touch has no hover). -->
+						<Tooltip.Provider delayDuration={150}>
+							<nav
+								aria-label="Where you are"
+								class="flex min-w-0 items-center gap-1 overflow-hidden"
+							>
+								{#each ancestors as crumb, index (index)}
+									<!-- An ancestor goes by its type (Section, Column): its preview is
+									     usually a sentence of its content, and three of those truncated
+									     side by side read as nothing. The full preview is the tooltip. -->
+									<Tooltip.Root>
+										<Tooltip.Trigger
+											class="text-muted-foreground hover:text-foreground max-w-[8rem] min-w-[2.5rem] shrink-[4] truncate transition-colors {index <
+											ancestors.length - 1
+												? 'hidden sm:block'
+												: ''}"
+											onclick={() => returnTo(index)}
+										>
+											{crumb.typeTitle}
+										</Tooltip.Trigger>
+										<Tooltip.Content class="max-w-xs" style="z-index: {panelZ + 1}">
+											{crumbTip(crumb.typeTitle, crumb.label)}
+										</Tooltip.Content>
+									</Tooltip.Root>
+									<ChevronRight
+										class="text-muted-foreground/60 h-3.5 w-3.5 shrink-0 {index <
+										ancestors.length - 1
+											? 'hidden sm:block'
+											: ''}"
+									/>
+								{/each}
+								<!-- The crumbs give way first: where you are matters more than the
+								     way there, so this keeps room for a few words. -->
+								<Tooltip.Root bind:open={labelTipOpen} disableCloseOnTriggerClick>
+									<Tooltip.Trigger
+										class="min-w-[3rem] shrink cursor-default truncate text-left font-medium"
+										aria-current="location"
+										onclick={() => (labelTipOpen = !labelTipOpen)}
+									>
+										{label}
+									</Tooltip.Trigger>
+									<Tooltip.Content class="max-w-xs" style="z-index: {panelZ + 1}">
+										{crumbTip(typeTitle, label)}
+									</Tooltip.Content>
+								</Tooltip.Root>
+							</nav>
+						</Tooltip.Provider>
+					{:else}
+						<span class="truncate font-medium">{label}</span>
+					{/if}
+					<!-- With a trail, the crumbs and the label's tooltip already say what this is. -->
+					{#if ancestors.length === 0 && !label.toLowerCase().startsWith(typeTitle.toLowerCase())}
+						<span class="text-muted-foreground hidden shrink-0 text-xs sm:inline"
+							>· {typeTitle}</span
+						>
+					{/if}
+				</div>
 				<div class="flex items-center gap-2">
 					{#if saveState}
-						{#if saveState.saving}
+						<!-- The same states as the editor's own status, so a dialog never says
+						     "Auto-saved" while the document behind it can't save. -->
+						{#if saveState.conflict}
+							<span
+								class="text-destructive inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+							>
+								<span class="bg-destructive h-1.5 w-1.5 rounded-full"></span>
+								Changed elsewhere
+							</span>
+						{:else if saveState.retrying && !saveState.saving}
+							<span
+								class="inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap text-amber-600 uppercase"
+							>
+								<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+								Not saved · retrying
+							</span>
+						{:else if saveState.saving}
 							<span
 								class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
 							>
@@ -155,21 +320,37 @@
 				</div>
 			</div>
 
-			<div class="bg-background space-y-3 p-4">
+			<!-- Room between settings, and their help behind an info icon (inline on
+			     touch), so a dialog reads as controls rather than a wall of text. -->
+			<div class="bg-background space-y-5 p-4">
+				{#snippet itemField(field: Field)}
+					<SchemaField
+						bind:this={fieldRefs[field.name]}
+						{field}
+						value={(value ?? {})[field.name]}
+						{documentData}
+						siblingData={value ?? {}}
+						onUpdate={(newValue) => {
+							onUpdate({ ...value, [field.name]: newValue });
+						}}
+						onOpenReference={onOpenReference ? handleOpenReference : undefined}
+						{readonly}
+						{organizationId}
+						descriptionMode="tooltip"
+					/>
+				{/snippet}
 				{#if schema.fields}
-					{#each schema.fields as field, index (index)}
-						<SchemaField
-							{field}
-							value={(value ?? {})[field.name]}
-							{documentData}
-							siblingData={value ?? {}}
-							onUpdate={(newValue) => {
-								onUpdate({ ...value, [field.name]: newValue });
-							}}
-							onOpenReference={onOpenReference ? handleOpenReference : undefined}
-							{readonly}
-							{organizationId}
-						/>
+					<!-- Keyed by name: `fieldRefs` finds each field's component by name. -->
+					{#each layoutFields( schema.fields.filter( (field) => hasRequiredCapabilities(field, permissions?.capabilities ?? []) ), schema.fieldsets ) as item (item.kind === 'field' ? `field:${item.field.name}` : `fieldset:${item.fieldset.name}`)}
+						{#if item.kind === 'field'}
+							{@render itemField(item.field)}
+						{:else if item.fields.some((f) => isFieldVisible(f, value ?? {}, documentData))}
+							<FieldsetSection fieldset={item.fieldset} filled={filledCount(item.fields, value)}>
+								{#each item.fields as f (f.name)}
+									{@render itemField(f)}
+								{/each}
+							</FieldsetSection>
+						{/if}
 					{/each}
 				{/if}
 			</div>

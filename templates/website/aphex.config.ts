@@ -11,9 +11,11 @@ import { plugins } from './src/lib/plugins.js';
 import { authProvider } from './src/lib/server/auth';
 import { db } from './src/lib/server/db';
 import { email } from './src/lib/server/email';
-import { registerInvitationEmailHook } from './src/lib/server/email/invitation-hook';
 import { storageAdapter } from './src/lib/server/storage';
 import { cacheAdapter } from './src/lib/server/cache';
+import { siteInstructions } from './src/lib/agent/instructions';
+import { siteGuides } from './src/lib/agent/guides';
+import { sitePrompts } from './src/lib/agent/prompts';
 
 /**
  * 👀 Preview perspective — the one knob to flip while developing. Change the return:
@@ -73,7 +75,7 @@ export default createCMSConfig({
 
 	auth: {
 		provider: authProvider,
-		loginUrl: '/login' // Redirect here when unauthenticated
+		loginUrl: '/admin/login' // Redirect here when unauthenticated
 	},
 
 	security: {
@@ -137,15 +139,14 @@ export default createCMSConfig({
 	// filesystem one can't), so it's safe to leave on.
 	upload: { direct: true, maxFileSize: 200 * 1024 * 1024 },
 
+	// What an AI connected at /mcp (Claude, ChatGPT, Cursor) is told about this site,
+	// the guides it reads for bigger jobs, and the ready-made requests it offers. Edit
+	// them in src/lib/agent/ when you change the schema.
+	mcp: { instructions: siteInstructions, guides: siteGuides, prompts: sitePrompts },
+
 	customization: {
 		branding: {
 			title: 'Aphex'
 		}
-	},
-
-	// Wrap built-in handlers with side effects (e.g. send the invitation
-	// email after the invite is created). Runs BEFORE built-in routes mount.
-	api: (app) => {
-		registerInvitationEmailHook(app);
 	}
 });

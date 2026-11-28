@@ -2,11 +2,13 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
+import { PublishValidationError } from '../../../local-api/collection-api';
 import {
 	SingletonOperationError,
-	DocumentValidationError
+	DocumentValidationError,
+	ReferencedDocumentError
 } from '../../../local-api/collection-api';
-import { RevisionConflictError } from '../../../db/interfaces/index';
+import { isRevisionConflictError } from '../../../db/interfaces/index';
 import { cmsLogger } from '../../../utils/logger';
 import { updateDocumentRequest } from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
@@ -46,6 +48,13 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const document = await collection.findByID(context, id, { depth, perspective });
 			if (!document) {
 				return c.json({ success: false, error: 'Document not found' }, 404);
+			}
+
+			// `?meta=1`: only its id and _meta (the revision, when and by whom it last
+			// changed), for an open editor checking whether someone else saved it.
+			if (c.req.query('meta') === '1') {
+				const { id: docId, _meta } = document as { id: string; _meta?: unknown };
+				return c.json({ success: true, data: { id: docId, _meta } });
 			}
 
 			return c.json({ success: true, data: document });
@@ -131,7 +140,7 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				if (error instanceof PermissionError) {
 					return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
 				}
-				if (error instanceof RevisionConflictError) {
+				if (isRevisionConflictError(error)) {
 					return c.json(
 						{
 							success: false,
@@ -154,9 +163,26 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						400
 					);
 				}
+				if (error instanceof PublishValidationError) {
+					return c.json(
+						{
+							success: false,
+							error: 'Validation failed',
+							message: error.message,
+							issues: error.issues
+						},
+						400
+					);
+				}
+				// The same refusal from something that isn't the Local API (a plugin, an
+				// older adapter) still carries only a message.
 				if (error instanceof Error && error.message.includes('validation errors')) {
 					return c.json(
-						{ success: false, error: 'Validation failed', message: error.message },
+						{
+							success: false,
+							error: 'Validation failed',
+							message: error.message
+						},
 						400
 					);
 				}
@@ -198,13 +224,26 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				);
 			}
 
-			const success = await collection.delete(context, id);
+			const force = c.req.query('force') === 'true';
+			const success = await collection.delete(context, id, { force });
 			if (!success) {
 				return c.json({ success: false, error: 'Document not found' }, 404);
 			}
 
 			return c.json({ success: true, message: 'Document deleted successfully' });
 		} catch (error) {
+			// Expected, not a failure: the caller is told what still points here.
+			if (error instanceof ReferencedDocumentError) {
+				return c.json(
+					{
+						success: false,
+						error: 'Document is referenced',
+						message: error.message,
+						referencedBy: error.referencedBy
+					},
+					409
+				);
+			}
 			cmsLogger.error('Failed to delete document:', error);
 			if (error instanceof PermissionError) {
 				return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);

@@ -24,3 +24,6 @@ next-env.d.ts
 # Miscellaneous
 /static/
 /drizzle/
+
+# An old template kept byte for byte: the upgrade tool's tests recognise its files by blob id.
+packages/create-aphex/tests/fixtures/

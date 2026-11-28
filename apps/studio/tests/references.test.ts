@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { collectReferenceIds } from '../../packages/cms-core/src/lib/utils/reference-walk';
-import { db } from '$lib/server/db';
+import { db } from './helpers/db';
 import cmsConfig from './fixtures/config';
 import { TEST_ORG_ID } from './helpers/test-constants';
 

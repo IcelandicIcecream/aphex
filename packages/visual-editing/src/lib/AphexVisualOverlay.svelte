@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
-	import { setLivePreviewContext } from './live-preview.svelte.js';
+	import { relatedKey, setLivePreviewContext } from './live-preview.svelte.js';
 	import { enableAphexPreview } from './core.js';
 
 	interface Props {
@@ -30,6 +30,9 @@
 			},
 			// Re-run load functions (no full reload) when the editor signals a change to a
 			// document this page loaded server-side — e.g. after editing a referenced doc.
+			onRelatedData: (doc, meta) => {
+				preview.related[relatedKey(meta.documentType, meta.documentId)] = doc;
+			},
 			onRefresh: () => void invalidateAll()
 		});
 	});

@@ -114,6 +114,10 @@ export function linkFields({
 			type: 'reference',
 			title: 'Document to link to',
 			to: [{ type: 'page' }, { type: 'post' }],
+			// Weak: a page can go live while the page it links to is still a draft, so
+			// two pages that link to each other can both be published. The site draws a
+			// link to a page that isn't live as plain text (resolveHref returns null).
+			weak: true,
 			// Only shown for an internal link. `siblingData`, not `documentData`:
 			// these fields are spread into array rows (nav items, CTA buttons), and
 			// each row has to answer for itself rather than follow the first one.

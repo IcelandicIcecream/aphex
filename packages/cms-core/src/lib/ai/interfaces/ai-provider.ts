@@ -22,6 +22,14 @@ export interface AIMessage {
 	toolCalls?: AIToolCall[];
 	/** Present on a `tool` role message — which prior call this is the result of. */
 	toolCallId?: string;
+	/**
+	 * Opaque data the adapter that produced this assistant message needs back when the
+	 * conversation is replayed, such as a model's reasoning blocks that must be resent
+	 * unchanged. Only the adapter that wrote it reads it; every other adapter ignores it,
+	 * so a conversation can still move between providers. It round-trips through the
+	 * browser, so an adapter must check it before use, never trust it.
+	 */
+	providerState?: unknown;
 }
 
 /** A single tool invocation the model requested. */
@@ -66,8 +74,16 @@ export type AIStreamEvent =
 	| { type: 'text'; delta: string }
 	| { type: 'toolCall'; toolCall: AIToolCall }
 	| { type: 'usage'; promptTokens: number; completionTokens: number }
+	/** What to store as this response's `AIMessage.providerState`. At most once, before `done`. */
+	| { type: 'providerState'; state: unknown }
 	| { type: 'error'; message: string }
-	| { type: 'done'; finishReason: 'stop' | 'tool_calls' | 'length' | 'error' };
+	| { type: 'done'; finishReason: AIFinishReason };
+
+/**
+ * Why a response ended. `refusal`: the model declined (a provider's safety stop or
+ * content filter), so there is no answer to show and nothing to retry as-is.
+ */
+export type AIFinishReason = 'stop' | 'tool_calls' | 'length' | 'refusal' | 'error';
 
 export interface AIProviderAdapter {
 	readonly name: string;

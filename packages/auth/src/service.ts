@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, count, desc, eq, like, or, sql } from 'drizzle-orm';
 import type { AphexAuthInstance } from './instance.js';
 import type {
 	SessionAuth,
@@ -11,10 +11,12 @@ import {
 	AuthError,
 	createUserProfileWithBootstrap,
 	type BootstrapPolicy,
+	type UserSummary,
 	type CacheAdapter
 } from '@aphexcms/cms-core/server';
 import { resolveBootstrapPolicy } from './bootstrap-policy.js';
 import { cmsLogger, BUILTIN_ROLE_SEED, coarseApiKeyCapabilities } from '@aphexcms/cms-core';
+import type { ApiKeySummary } from '@aphexcms/cms-core';
 
 /**
  * Capabilities that make a key a *writing* key. Used to decide whether the
@@ -65,6 +67,22 @@ async function resolveGrantableCapabilities(
 	return [];
 }
 
+/**
+ * What a credential acting for `ownerId` in `organizationId` can ever hold: the
+ * owner's role there, or null when they're no longer a member. API keys and tokens
+ * from connected apps both go through this on every request, which is what makes
+ * removing someone, or changing their role, take effect at once.
+ */
+export async function ownerGrantableCapabilities(
+	db: DatabaseAdapter,
+	ownerId: string | null | undefined,
+	organizationId: string
+): Promise<Set<string> | null> {
+	const membership = ownerId ? await db.findUserMembership(ownerId, organizationId) : null;
+	if (!membership) return null;
+	return new Set(await resolveGrantableCapabilities(db, organizationId, membership.role));
+}
+
 // This is the new AuthService that centralizes all auth-related server operations.
 // It uses dependency injection for the DatabaseAdapter, making it more testable and decoupled.
 
@@ -104,7 +122,7 @@ export interface AuthService {
 		db: DatabaseAdapter,
 		permission?: 'read' | 'write'
 	): Promise<ApiKeyAuth>;
-	listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKey[]>;
+	listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKeySummary[]>;
 	createApiKey(
 		userId: string,
 		organizationId: string,
@@ -117,6 +135,13 @@ export interface AuthService {
 	getUserByEmail(
 		email: string
 	): Promise<{ id: string; name?: string; email: string; image?: string } | null>;
+	/** Revoke every key of one user, or every key bound to one organization. */
+	forgetApiKeys(of: { userId: string } | { organizationId: string }): Promise<void>;
+	listUsers(options: {
+		search?: string;
+		limit: number;
+		offset: number;
+	}): Promise<{ users: UserSummary[]; total: number }>;
 	changeUserName(userId: string, name: string): Promise<void>;
 	changeUserImage(userId: string, image: string | null): Promise<void>;
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
@@ -252,6 +277,9 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 
 				// 3. If no profile exists, create one (lazy sync)
 				if (!userProfile) {
+					// A deleted account's cookie still verifies for a minute (it's cached);
+					// signing in from it would write its profile back.
+					if (!(await this.getUserById(session.user.id))) return null;
 					cmsLogger.info(
 						'[AuthService]',
 						`User profile not found for ${session.user.id}. Creating one now (lazy sync).`
@@ -277,6 +305,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 					email: session.user.email,
 					name: session.user.name ?? undefined,
 					image: session.user.image ?? undefined,
+					emailVerified: session.user.emailVerified === true,
 					role: userProfile.role,
 					preferences: userProfile.preferences
 				};
@@ -453,11 +482,9 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 				// `referenceId` is the owning entity — userId here, since the plugin is
 				// left on its default `references` setting (see createApiKey below).
 				const ownerId = result.key.referenceId;
-				const membership = ownerId
-					? await db.findUserMembership(ownerId, claimedOrganizationId)
-					: null;
+				const owned = await ownerGrantableCapabilities(db, ownerId, claimedOrganizationId);
 
-				if (!membership) {
+				if (!owned) {
 					cmsLogger.warn(
 						'[AuthService]',
 						`API key ${result.key.id} rejected — owner is not a member of ${claimedOrganizationId}`
@@ -468,9 +495,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 				// A key can never grant more than its owner holds in that organization.
 				// Instance admins are intentionally *not* special-cased: a long-lived
 				// bearer token shouldn't silently carry break-glass powers.
-				const grantable = new Set(
-					await resolveGrantableCapabilities(db, claimedOrganizationId, membership.role)
-				);
+				const grantable = owned;
 
 				// Same clamp for the coarse read/write scopes.
 				const requestedPermissions: unknown[] = Array.isArray(metadata.permissions)
@@ -527,7 +552,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 			return apiKeyAuth;
 		},
 
-		async listApiKeys(_db: DatabaseAdapter, userId: string): Promise<ApiKey[]> {
+		async listApiKeys(_db: DatabaseAdapter, userId: string): Promise<ApiKeySummary[]> {
 			// Query the apikey table directly using drizzleDb (not the adapter)
 			const userApiKeys = await drizzleDb.query.apikey.findMany({
 				where: eq(apikey.referenceId, userId),
@@ -544,14 +569,36 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 				]
 			});
 
-			return userApiKeys.map((key: Record<string, unknown>) => {
-				const metadata =
-					typeof key.metadata === 'string' ? JSON.parse(key.metadata) : (key.metadata as any) || {};
+			type ApiKeyRow = {
+				id: string;
+				name: string | null;
+				metadata: unknown;
+				expiresAt: Date | null;
+				lastRequest: Date | null;
+				createdAt: Date | null;
+			};
+			return userApiKeys.map((key: ApiKeyRow): ApiKeySummary => {
+				// metadata is CLIENT-WRITABLE and may be double-encoded; parse defensively.
+				const raw =
+					typeof key.metadata === 'string'
+						? (JSON.parse(key.metadata) as unknown)
+						: (key.metadata ?? {});
+				const metadata = (raw && typeof raw === 'object' ? raw : {}) as {
+					permissions?: unknown;
+					organizationId?: unknown;
+				};
+				const permissions = (
+					Array.isArray(metadata.permissions) ? metadata.permissions : []
+				).filter(isApiKeyPermission);
 				return {
-					...key,
-					permissions: metadata.permissions || [],
-					capabilities: Array.isArray(metadata.capabilities) ? metadata.capabilities : undefined,
-					organizationId: metadata.organizationId
+					id: key.id,
+					name: key.name,
+					permissions,
+					organizationId:
+						typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
+					createdAt: key.createdAt ?? null,
+					lastRequest: key.lastRequest ?? null,
+					expiresAt: key.expiresAt ?? null
 				};
 			});
 		},
@@ -629,6 +676,41 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 
 			cmsLogger.info('[AuthService]', `Deleted API key ${keyId}`);
 			return true;
+		},
+
+		async forgetApiKeys(of): Promise<void> {
+			// A key's organization is in its metadata, as JSON text: the id is a UUID, so
+			// finding it there finds only its keys.
+			const where =
+				'userId' in of
+					? eq(apikey.referenceId, of.userId)
+					: like(apikey.metadata, `%${of.organizationId}%`);
+			const deleted: { id: string; key: string; referenceId: string | null }[] = await drizzleDb
+				.delete(apikey)
+				.where(where)
+				.returning({ id: apikey.id, key: apikey.key, referenceId: apikey.referenceId });
+			for (const row of deleted) await evictApiKeyFromCache(row);
+		},
+
+		async listUsers({ search, limit, offset }) {
+			const term = search
+				?.trim()
+				.toLowerCase()
+				.replace(/[\\%_]/g, '\\$&');
+			const matches = (column: unknown) => sql`lower(${column}) like ${`%${term}%`} escape '\\'`;
+			const where = term ? or(matches(user.email), matches(user.name)) : undefined;
+			const users: UserSummary[] = await drizzleDb
+				.select({ id: user.id, name: user.name, email: user.email, createdAt: user.createdAt })
+				.from(user)
+				.where(where)
+				.orderBy(desc(user.createdAt), desc(user.id))
+				.limit(limit)
+				.offset(offset);
+			const [row]: { total: number }[] = await drizzleDb
+				.select({ total: count() })
+				.from(user)
+				.where(where);
+			return { users, total: Number(row?.total ?? 0) };
 		},
 
 		async getUserById(

@@ -7,7 +7,7 @@
  *  - the `generate*` functions drive the ✨ Generate action and the live search
  *    preview.
  *
- * Contributes: a document action (Generate SEO), an admin tool (SEO audit), the
+ * Contributes: a document action (Generate SEO), an admin tool (the SEO dashboard), the
  * length-metered inputs, the search-result preview, a schema transform that
  * desugars the `{ type: 'seo' }` literal, and — when `collections` is set — a
  * second transform that auto-injects SEO on those types. Everything is client-plane
@@ -15,23 +15,41 @@
  */
 import { definePlugin } from '@aphexcms/cms-core';
 import type { PluginPart } from '@aphexcms/cms-core';
-import { Sparkles } from '@lucide/svelte';
+import { SearchCheck } from '@lucide/svelte';
 import GenerateSeoAction from './GenerateSeoAction.svelte';
 import SeoTool from './SeoTool.svelte';
 import MetaLengthInput from './MetaLengthInput.svelte';
 import SeoPreview from './SeoPreview.svelte';
 import { injectSeoField, expandSeoTypes } from './schema';
 import { configureSeo, type SeoGenerators } from './config';
+import { indexNowConsumer, type IndexNowOptions } from './indexnow';
+
+export { resolveSeo, type SeoHeadOptions, type SeoMeta, type SeoImage } from './head';
+export { indexNowKeyResponse, isIndexNowKey, type IndexNowOptions } from './indexnow';
+export {
+	auditDocument,
+	markDuplicates,
+	issueCounts,
+	type DocumentAudit,
+	type SeoIssue,
+	type IssueCode
+} from './audit';
+export { default as SeoHead } from './SeoHead.svelte';
 
 export interface SeoPluginOptions extends Partial<SeoGenerators> {
 	/** Document type names to auto-enable SEO on (injects the meta field group). */
 	collections?: string[];
 	/** Field group the SEO fields go in. Default `'seo'`. */
 	group?: string;
+	/**
+	 * Tell Bing and the other IndexNow engines when a page is published, so it's
+	 * crawled within minutes. Off unless set; see `IndexNowOptions`.
+	 */
+	indexNow?: IndexNowOptions;
 }
 
 export function seoPlugin(options: SeoPluginOptions = {}) {
-	const { collections, group = 'seo', ...generators } = options;
+	const { collections, group = 'seo', indexNow, ...generators } = options;
 	configureSeo(generators);
 
 	const parts: PluginPart[] = [
@@ -46,7 +64,7 @@ export function seoPlugin(options: SeoPluginOptions = {}) {
 			implements: 'aphex/admin/tool',
 			id: 'seo',
 			title: 'SEO',
-			icon: Sparkles,
+			icon: SearchCheck,
 			component: SeoTool,
 			placement: 'sidebar'
 		},
@@ -55,6 +73,8 @@ export function seoPlugin(options: SeoPluginOptions = {}) {
 		// Desugar the `{ type: 'seo' }` literal into the SEO object, everywhere.
 		{ implements: 'aphex/schema/transform', transform: expandSeoTypes }
 	];
+
+	if (indexNow) parts.push(indexNowConsumer(indexNow, collections));
 
 	if (collections && collections.length > 0) {
 		parts.push({

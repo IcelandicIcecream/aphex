@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cleanOrganizationName, ORGANIZATION_NAME_MAX } from '../../utils/organization-name';
 
 // ---------- Shared ----------
 
@@ -21,10 +22,22 @@ export const invitableRoleSchema = roleNameSchema.refine((v) => v !== 'owner', {
 
 const metadataSchema = z.record(z.string(), z.unknown());
 
+// The name made one clean line (utils/organization-name), then checked: a name of
+// only spaces or invisible characters is empty.
+const organizationNameSchema = z
+	.string()
+	.transform(cleanOrganizationName)
+	.pipe(
+		z
+			.string()
+			.min(1, 'Give the organization a name')
+			.max(ORGANIZATION_NAME_MAX, `Keep the name under ${ORGANIZATION_NAME_MAX} characters`)
+	);
+
 // ---------- POST /organizations ----------
 
 export const createOrganizationRequest = z.object({
-	name: z.string().min(1),
+	name: organizationNameSchema,
 	slug: z.string().min(1),
 	metadata: metadataSchema.nullable().optional(),
 	parentOrganizationId: z.string().optional()
@@ -34,13 +47,21 @@ export const createOrganizationRequest = z.object({
 
 export const updateOrganizationRequest = z
 	.object({
-		name: z.string().min(1).optional(),
+		name: organizationNameSchema.optional(),
 		slug: z.string().min(1).optional(),
 		metadata: metadataSchema.nullable().optional()
 	})
 	.refine((v) => v.name !== undefined || v.slug !== undefined || v.metadata !== undefined, {
 		message: 'At least one field (name, slug, metadata) is required'
 	});
+
+// ---------- PUT /organizations/[id]/capabilities ----------
+
+// The organization capabilities it should have, all of them: the route checks each
+// against `organizationCapabilities.ids`.
+export const setOrganizationCapabilitiesRequest = z.object({
+	capabilities: z.array(z.string().min(1).max(200)).max(200)
+});
 
 // ---------- POST /organizations/switch ----------
 
@@ -81,6 +102,7 @@ export type InvitableRoleSchema = z.infer<typeof invitableRoleSchema>;
 
 export type CreateOrganizationRequest = z.infer<typeof createOrganizationRequest>;
 export type UpdateOrganizationRequest = z.infer<typeof updateOrganizationRequest>;
+export type SetOrganizationCapabilitiesRequest = z.infer<typeof setOrganizationCapabilitiesRequest>;
 export type SwitchOrganizationRequest = z.infer<typeof switchOrganizationRequest>;
 export type InviteMemberRequest = z.infer<typeof inviteMemberRequest>;
 export type CancelInvitationRequest = z.infer<typeof cancelInvitationRequest>;

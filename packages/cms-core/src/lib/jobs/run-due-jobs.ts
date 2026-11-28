@@ -7,12 +7,20 @@
 // endpoint, driven by platform cron or a self-hosted poll loop) decides cadence.
 import type { DatabaseAdapter } from '../db/interfaces/index';
 import type { Logger } from '../utils/logger';
-import type { JobHandlerMap } from './types';
+import type { JobAssetService, JobHandlerMap } from './types';
+import type { LocalAPI } from '../local-api/index';
+import type { EmailAdapter } from '../email/interfaces/email';
 
 export interface RunDueJobsOptions {
 	databaseAdapter: DatabaseAdapter;
 	handlers: JobHandlerMap;
 	logger: Logger;
+	/** Handed to each handler. */
+	localAPI?: LocalAPI | null;
+	/** Handed to each handler; `null` when email isn't configured. */
+	emailAdapter?: EmailAdapter | null;
+	/** Handed to each handler, to give the images in documents it renders their URLs. */
+	assetService?: JobAssetService | null;
 	/** Identifies the lease owner in `cms_jobs.lease_owner` (for crash-recovery visibility). */
 	workerId: string;
 	/** Scope to one tenant; omit to claim across all orgs (worker context, override access). */
@@ -54,6 +62,9 @@ function backoffMs(attempts: number, base: number, max: number): number {
 
 export async function runDueJobs(options: RunDueJobsOptions): Promise<RunDueJobsResult> {
 	const { databaseAdapter, handlers, logger, workerId, organizationId } = options;
+	const localAPI = options.localAPI ?? null;
+	const emailAdapter = options.emailAdapter ?? null;
+	const assetService = options.assetService ?? null;
 	const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
 	const leaseMs = options.leaseMs ?? DEFAULT_LEASE_MS;
 	const baseBackoffMs = options.baseBackoffMs ?? DEFAULT_BASE_BACKOFF_MS;
@@ -92,7 +103,7 @@ export async function runDueJobs(options: RunDueJobsOptions): Promise<RunDueJobs
 		}
 
 		try {
-			await handler({ job, databaseAdapter, logger });
+			await handler({ job, databaseAdapter, logger, localAPI, emailAdapter, assetService });
 			await databaseAdapter.completeJob(job.organizationId, job.id);
 			result.completed++;
 		} catch (err) {

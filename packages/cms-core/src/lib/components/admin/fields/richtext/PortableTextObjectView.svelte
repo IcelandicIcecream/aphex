@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { Pencil, Trash2 } from '@lucide/svelte';
-	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../../../../utils/preview';
+	import {
+		resolvePreviewMedia,
+		resolvePreviewTitle,
+		resolvePreviewSubtitle
+	} from '../../../../utils/preview';
+	import { assets } from '../../../../api/assets';
+	import AssetImage from '../../AssetImage.svelte';
 	import type { BlockPreviewProps } from '../../../../admin/block-previews.svelte';
 
 	// Shares the block-preview contract with app-registered previews, so the node view
@@ -29,6 +35,11 @@
 		}
 		return parts.join(' - ');
 	});
+
+	// A block with a picture (a photo, a gallery's first image) shows it, so the post
+	// reads like the page it makes rather than a list of type names.
+	const mediaRef = $derived(resolvePreviewMedia(data, schema));
+	const media = $derived(mediaRef ? assets.getById(mediaRef) : null);
 </script>
 
 <div
@@ -37,13 +48,36 @@
 	class:ring-2={selected}
 >
 	<button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left" onclick={onEdit}>
-		<div
-			class="bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded text-xs font-medium uppercase"
-		>
-			{type.slice(0, 2)}
-		</div>
+		{#if media}
+			{#await media}
+				<div class="bg-muted h-16 w-24 shrink-0 animate-pulse rounded"></div>
+			{:then result}
+				{#if result.success && result.data?.url}
+					<AssetImage
+						src={result.data.url}
+						mimeType={result.data.mimeType}
+						alt=""
+						class="bg-muted h-16 w-24 shrink-0 rounded object-cover"
+					/>
+				{:else}
+					<div class="bg-muted h-16 w-24 shrink-0 rounded"></div>
+				{/if}
+			{:catch}
+				<div class="bg-muted h-16 w-24 shrink-0 rounded"></div>
+			{/await}
+		{:else}
+			<div
+				class="bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded text-xs font-medium uppercase"
+			>
+				{#if schema?.icon}
+					<schema.icon class="h-4 w-4" />
+				{:else}
+					{type.slice(0, 2)}
+				{/if}
+			</div>
+		{/if}
 		<div class="min-w-0 flex-1">
-			<div class="text-foreground text-sm font-medium capitalize">{title}</div>
+			<div class="text-foreground text-sm font-medium">{title}</div>
 			{#if subtitle}
 				<div class="text-muted-foreground truncate text-xs">{subtitle}</div>
 			{/if}

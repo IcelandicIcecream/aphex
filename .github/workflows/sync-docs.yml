@@ -5,10 +5,14 @@ name: Sync docs repo
 # accept docs-only PRs from contributors who don't have monorepo access.
 # Mirror-only: the monorepo is the source of truth; this workflow just
 # subtree-pushes whenever the docs folder changes on main.
+#
+# The experimental build's branch is mirrored too, to the mirror's `next` branch, so a
+# second deployment of it (with NEXT_PUBLIC_DOCS_CHANNEL=next) can serve docs for
+# `@next` users while main's stay the stable docs.
 
 on:
   push:
-    branches: [main]
+    branches: [main, revamp/embedded-aphex]
     paths:
       - 'docs/aphex-docs/**'
   workflow_dispatch:
@@ -41,7 +45,7 @@ jobs:
         uses: s0/git-publish-subdir-action@develop
         env:
           REPO: git@github.com:IcelandicIcecream/aphex-docs.git
-          BRANCH: main
+          BRANCH: ${{ github.ref_name == 'main' && 'main' || 'next' }}
           FOLDER: docs/aphex-docs
           SSH_PRIVATE_KEY: ${{ secrets.DOCS_REPO_DEPLOY_KEY }}
           MESSAGE: 'sync from aphex@{sha}: {msg}'

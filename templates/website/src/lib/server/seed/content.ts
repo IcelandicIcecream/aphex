@@ -81,7 +81,11 @@ export const ref = (id: string) => ({
 });
 
 /** A nav / hero / CTA link pointing at a document. */
-export const internalLink = (label: string, docId: string, appearance?: string) => ({
+export const internalLink = (
+	label: string,
+	docId: string,
+	appearance?: 'default' | 'outline' | 'link'
+) => ({
 	_type: 'linkItem' as const,
 	_key: key('l'),
 	linkType: 'reference' as const,
@@ -91,7 +95,11 @@ export const internalLink = (label: string, docId: string, appearance?: string) 
 });
 
 /** A nav / hero / CTA link pointing at a URL. */
-export const externalLink = (label: string, url: string, appearance?: string) => ({
+export const externalLink = (
+	label: string,
+	url: string,
+	appearance?: 'default' | 'outline' | 'link'
+) => ({
 	_type: 'linkItem' as const,
 	_key: key('l'),
 	linkType: 'custom' as const,

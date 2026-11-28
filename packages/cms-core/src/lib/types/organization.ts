@@ -136,7 +136,7 @@ export interface OrganizationMemberWithUser {
 
 /**
  * A pending invitation as the members settings page shows it. `inviteUrl` is
- * the accept link (`/invite/<token>`) and is present only when the caller can
+ * the accept link and is present only when the caller can
  * invite — the token is the credential, so members without `member.invite`
  * see who's pending but not the link.
  */
@@ -155,6 +155,11 @@ export interface PendingInvitationView {
  */
 export interface OrganizationTeam {
 	currentUserId: string;
+	/**
+	 * `config.memberLimits` for this organization: `used` counts members and pending
+	 * invitations. Null when it has none.
+	 */
+	memberLimit: { max: number; used: number; message: string } | null;
 	members: OrganizationMemberWithUser[];
 	invitations: PendingInvitationView[];
 	/** Roles a member can be invited as — owner is excluded (ownership is transferred, not invited). */

@@ -126,7 +126,9 @@ export function getArrayTypes(
 				type: 'object',
 				name: schemaName,
 				title: item.title || item.name || item.type,
+				description: item.description,
 				fields: item.fields,
+				fieldsets: item.fieldsets,
 				icon: item.icon,
 				preview: item.preview
 			});
@@ -134,7 +136,10 @@ export function getArrayTypes(
 			// Look it up in the schema registry
 			const schema = schemas.find((s) => s.name === item.type);
 			if (schema) {
-				availableTypes.push(schema);
+				// A reference may describe the type for this array (the insert menu shows it).
+				availableTypes.push(
+					item.description ? { ...schema, description: item.description } : schema
+				);
 			}
 		}
 	});

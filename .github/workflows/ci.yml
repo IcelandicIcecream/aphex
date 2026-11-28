@@ -49,6 +49,10 @@ jobs:
       # surfaced as noise in the next contributor's diff.
       - name: Lint & Type-check
         run: pnpm lint && pnpm check
+        # ESLint holds the whole repo's type information at once, and that passed
+        # Node's default heap (about 4 GB) when the plugins grew. The runner has 16 GB.
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Build
         run: pnpm build

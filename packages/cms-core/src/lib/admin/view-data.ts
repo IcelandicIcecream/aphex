@@ -39,6 +39,8 @@ export interface AdminLoginData {
 	view: 'login';
 	/** Verification on → sign-up shows a "check your email" step instead of redirecting. */
 	requireEmailVerification: boolean;
+	/** Social sign-in providers to offer a button for (`'google'`, …); empty when none. */
+	socialProviders: string[];
 	/** True only before anyone has signed up — reveals the claim-code field. */
 	unclaimed: boolean;
 	/** Where sign-up lands once complete (`/admin` for the bootstrap owner, else `/admin/invitations`). */

@@ -575,6 +575,7 @@ async function loadLogin(locals: App.Locals, url: URL): Promise<AdminLoginData> 
 		view: 'login',
 		organization: tenant ? { name: tenant.name, slug: tenant.slug } : null,
 		requireEmailVerification: authFeatures?.requireEmailVerification ?? false,
+		socialProviders: authFeatures?.socialProviders ?? [],
 		unclaimed,
 		// The bootstrap owner gets an organization during their first session;
 		// every later account must explicitly review pending invitations.

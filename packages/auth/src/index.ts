@@ -180,6 +180,21 @@ type AphexAuthOptions = Omit<
 	};
 
 /**
+ * The providers the login view should offer a button for: every one configured,
+ * minus any switched off with `enabled: false` (a provider given as a function
+ * can't be read without calling it, so it counts as on).
+ */
+function enabledSocialProviders(providers: AphexAuthConfig['socialProviders']): string[] {
+	return Object.entries(providers ?? {})
+		.filter(([, options]) => {
+			if (!options) return false;
+			if (typeof options === 'function') return true;
+			return options.enabled !== false;
+		})
+		.map(([name]) => name);
+}
+
+/**
  * Better Auth for `aphex.config.ts`:
  *
  * ```ts
@@ -214,7 +229,8 @@ export function aphexAuth(options: AphexAuthOptions = {}): AuthConfigInput {
 			twoFactorMethods: config.options?.twoFactorMethods ?? ['totp', 'email'],
 			allowAccountDeletion: config.options?.allowAccountDeletion ?? false,
 			requireEmailVerification: config.options?.requireEmailVerification ?? false,
-			securityEmails: config.options?.securityEmails ?? false
+			securityEmails: config.options?.securityEmails ?? false,
+			socialProviders: enabledSocialProviders(config.socialProviders)
 		}
 	};
 }

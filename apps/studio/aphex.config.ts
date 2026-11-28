@@ -183,6 +183,12 @@ export default createCMSConfig({
 		options: authOptions,
 		bootstrap: bootstrapPolicy,
 		appName: 'Aphex CMS',
+		// "Continue with Google" on the login page, shown only when both are set. In
+		// Google Cloud Console the redirect URI is `<AUTH_URL>/api/auth/callback/google`.
+		socialProviders:
+			env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+				? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } }
+				: undefined,
 		// Lets Claude, ChatGPT and other MCP clients connect to `/mcp` by signing in,
 		// picking a site and allowing access (drafts only). On in production, off in dev,
 		// where nothing outside the machine can reach it; AUTH_OAUTH=true|false overrides

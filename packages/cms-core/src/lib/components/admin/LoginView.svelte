@@ -41,7 +41,7 @@
 	let error = $state('');
 	let accountDeleted = $state(false);
 	let loading = $state(false);
-	let mode: Mode = $state(initialMode);
+	let mode = $state<Mode>(initialMode);
 	let resetSuccess = $state('');
 	let signupSuccess = $state(false);
 	let claimCode = $state('');
@@ -65,6 +65,48 @@
 	// When it hasn't, say so plainly rather than failing on submit.
 	const authReady = $derived(Boolean(authClient?.signIn));
 
+	// One button per social provider the server switched on, when the host's client
+	// can start that flow. Hidden while resetting a password, which is email-only.
+	const socialProviders = $derived(authClient?.signInSocial ? data.socialProviders : []);
+	const showSocial = $derived(mode !== 'reset-password' && socialProviders.length > 0);
+	let socialLoading = $state<string | null>(null);
+
+	const providerLabels: Record<string, string> = {
+		google: 'Google',
+		github: 'GitHub',
+		gitlab: 'GitLab',
+		microsoft: 'Microsoft',
+		apple: 'Apple',
+		linkedin: 'LinkedIn'
+	};
+	const providerLabel = (provider: string) =>
+		providerLabels[provider] ?? provider.charAt(0).toUpperCase() + provider.slice(1);
+
+	async function signInWith(provider: string) {
+		if (!authClient?.signInSocial) return;
+		error = '';
+		socialLoading = provider;
+		// The provider's page takes over the browser, so the claim code travels the
+		// same way as on sign-up: a short-lived cookie read when the account is created.
+		if (data.unclaimed && claimCode.trim()) setBootstrapCookie(claimCode.trim());
+		try {
+			const result = await authClient.signInSocial({
+				provider,
+				callbackURL: callbackUrl || '/admin',
+				newUserCallbackURL: afterSignUp,
+				errorCallbackURL: '/admin/login'
+			});
+			if (result.error) {
+				error = result.error.message || `Couldn't start sign-in with ${providerLabel(provider)}`;
+				socialLoading = null;
+			}
+			// On success the browser is already leaving for the provider.
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'An error occurred';
+			socialLoading = null;
+		}
+	}
+
 	const errorMessages: Record<string, string> = {
 		session_expired: 'Your session has expired. Please log in again.',
 		no_organization:
@@ -74,8 +116,30 @@
 			'Your access to the organization has been revoked. Please contact your administrator.',
 		no_session: 'Please log in to continue.',
 		two_factor_expired:
-			'Your two-factor code request expired. Enter your password again to get a new one.'
+			'Your two-factor code request expired. Enter your password again to get a new one.',
+		// Returned by a social sign-in that was refused when the account was created,
+		// which here almost always means sign-up is invite-only.
+		unable_to_create_user:
+			"That account can't sign up here. If you were invited, use the email address the invitation was sent to.",
+		signup_disabled:
+			"That account can't sign up here. If you were invited, use the email address the invitation was sent to.",
+		account_not_linked:
+			'An account with this email already exists. Sign in with your password, then try again.',
+		email_not_found: "The provider didn't share an email address, so you can't sign in with it.",
+		access_denied: 'Sign-in was cancelled.'
 	};
+
+	/**
+	 * A social sign-in that fails comes back as `?error=<code>`. When the sign-up policy
+	 * refuses the account (invite-only), better-auth sends the policy's own message with
+	 * its spaces turned into underscores, which is written to be shown, so show it.
+	 */
+	function messageForError(code: string): string {
+		if (errorMessages[code]) return errorMessages[code];
+		const words = code.split('_').filter(Boolean);
+		if (words.length >= 4) return words.join(' ');
+		return "Couldn't sign you in with that account. Please try again.";
+	}
 
 	// One-shot flags arrive via the redirect query (`?error=<code>`, `?deleted=1`).
 	// Show the matching message, then strip the param so a refresh doesn't repeat
@@ -83,12 +147,14 @@
 	// the client router is initialized; `afterNavigate` is the first safe moment.
 	afterNavigate(() => {
 		const errorCode = page.url.searchParams.get('error');
-		if (errorCode && errorMessages[errorCode]) error = errorMessages[errorCode];
+		if (errorCode) error = messageForError(errorCode);
+		clearBootstrapCookie();
 		if (page.url.searchParams.get('deleted') === '1') accountDeleted = true;
 
 		if (!page.url.searchParams.has('error') && !page.url.searchParams.has('deleted')) return;
 		const url = new URL(page.url);
 		url.searchParams.delete('error');
+		url.searchParams.delete('error_description');
 		url.searchParams.delete('deleted');
 		try {
 			replaceState(url, {});
@@ -310,6 +376,51 @@
 					</Button>
 				</div>
 			{:else}
+				{#if showSocial}
+					<div class="mb-4 space-y-2">
+						{#each socialProviders as provider (provider)}
+							<Button
+								type="button"
+								variant="outline"
+								class="w-full"
+								disabled={socialLoading !== null || loading}
+								onclick={() => signInWith(provider)}
+							>
+								{#if provider === 'google'}
+									<svg class="mr-2 h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+										<path
+											fill="#4285F4"
+											d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"
+										/>
+										<path
+											fill="#34A853"
+											d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"
+										/>
+										<path
+											fill="#FBBC05"
+											d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.1V7.06H2.18A11 11 0 0 0 1 12c0 1.78.43 3.45 1.18 4.94l3.66-2.84z"
+										/>
+										<path
+											fill="#EA4335"
+											d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"
+										/>
+									</svg>
+								{/if}
+								{socialLoading === provider
+									? 'Redirecting…'
+									: `Continue with ${providerLabel(provider)}`}
+							</Button>
+						{/each}
+						<div class="relative pt-2">
+							<div class="absolute inset-0 top-2 flex items-center">
+								<span class="w-full border-t"></span>
+							</div>
+							<div class="relative flex justify-center text-xs uppercase">
+								<span class="bg-card text-muted-foreground px-2">or with email</span>
+							</div>
+						</div>
+					</div>
+				{/if}
 				<form onsubmit={handleSubmit} class="space-y-4">
 					{#if resetSuccess}
 						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-3">

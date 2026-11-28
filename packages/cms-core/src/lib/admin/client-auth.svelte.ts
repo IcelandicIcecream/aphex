@@ -58,6 +58,19 @@ export interface AdminAuthClient {
 	sendVerificationEmail?(input: { email: string; callbackURL?: string }): Promise<AdminAuthResult>;
 
 	/**
+	 * Starts sign-in with a social provider (`'google'`, …). The provider's page takes
+	 * over the browser and comes back to `callbackURL`, `newUserCallbackURL` for a new
+	 * account, or `errorCallbackURL` with `?error=<code>` when sign-in was refused.
+	 * The login view shows a button per provider in `AuthFeatures.socialProviders`.
+	 */
+	signInSocial?(input: {
+		provider: string;
+		callbackURL: string;
+		newUserCallbackURL?: string;
+		errorCallbackURL?: string;
+	}): Promise<AdminAuthResult>;
+
+	/**
 	 * Ends the session. Required: the sidebar's Sign out and the invitations page call it,
 	 * and without it they'd reload the admin with the person still signed in.
 	 */

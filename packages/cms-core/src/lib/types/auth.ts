@@ -23,6 +23,11 @@ export interface AuthFeatures {
 	requireEmailVerification: boolean;
 	/** Whether people are emailed about their account's security, and owners about new owners and admins. */
 	securityEmails?: boolean;
+	/**
+	 * Social sign-in providers switched on (`'google'`, `'github'`, …). The login view
+	 * shows a "Continue with …" button for each one.
+	 */
+	socialProviders?: string[];
 }
 
 /**

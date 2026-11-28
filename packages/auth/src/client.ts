@@ -38,6 +38,7 @@ export const adminAuthClient: AdminAuthClient = {
 	signIn: (input) => authClient.signIn.email(input),
 	signUp: (input) => authClient.signUp.email(input),
 	sendVerificationEmail: (input) => authClient.sendVerificationEmail(input),
+	signInSocial: (input) => authClient.signIn.social(input),
 	signOut: () => authClient.signOut(),
 	isTwoFactorRedirect,
 

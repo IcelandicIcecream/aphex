@@ -14,6 +14,8 @@
 	import SchemaField from './SchemaField.svelte';
 	import FieldsetSection from './FieldsetSection.svelte';
 	import { filledCount, layoutFields } from '../../schema-utils/fieldsets';
+	import { hasRequiredCapabilities } from '../../schema-utils/required-capabilities';
+	import { findPermissions } from '../../permissions-context.svelte';
 	import { isFieldVisible } from '../../schema-utils/visibility';
 	import { getContext, setContext, tick } from 'svelte';
 	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
@@ -56,6 +58,10 @@
 		documentData,
 		revealErrors = false
 	}: Props = $props();
+
+	// Fields for a feature the organization doesn't have are left out of the layout, so a
+	// fieldset holding only those draws no empty heading.
+	const permissions = findPermissions();
 
 	const fieldRefs: Record<string, SchemaField | undefined> = {};
 	let revealedFor: Record<string, any> | null = null;
@@ -335,7 +341,7 @@
 				{/snippet}
 				{#if schema.fields}
 					<!-- Keyed by name: `fieldRefs` finds each field's component by name. -->
-					{#each layoutFields(schema.fields, schema.fieldsets) as item (item.kind === 'field' ? `field:${item.field.name}` : `fieldset:${item.fieldset.name}`)}
+					{#each layoutFields( schema.fields.filter( (field) => hasRequiredCapabilities(field, permissions?.capabilities ?? []) ), schema.fieldsets ) as item (item.kind === 'field' ? `field:${item.field.name}` : `fieldset:${item.fieldset.name}`)}
 						{#if item.kind === 'field'}
 							{@render itemField(item.field)}
 						{:else if item.fields.some((f) => isFieldVisible(f, value ?? {}, documentData))}

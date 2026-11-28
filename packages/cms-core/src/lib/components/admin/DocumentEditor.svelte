@@ -17,6 +17,7 @@
 	import type { Field, SchemaType } from '../../types/schemas.js';
 	import { filledCount, layoutFields } from '../../schema-utils/fieldsets';
 	import FieldsetSection from './FieldsetSection.svelte';
+	import { hasRequiredCapabilities } from '../../schema-utils/required-capabilities';
 	import { Rule } from '../../field-validation/rule';
 	import {
 		humanizeValidationMessage,
@@ -397,9 +398,18 @@
 		const role = perms.role;
 		return role !== null && list.includes(role);
 	}
+	// Fields this role can't read, and fields for a feature the organization doesn't
+	// have (`requiredCapabilities`). Left out before fieldsets are laid out, so a
+	// fieldset holding only those doesn't draw an empty heading.
 	const hiddenFieldNames = $derived(
 		new Set(
-			(schema?.fields ?? []).filter((f) => !fieldRoleAllowed(f.access?.read)).map((f) => f.name)
+			(schema?.fields ?? [])
+				.filter(
+					(f) =>
+						!fieldRoleAllowed(f.access?.read) ||
+						!hasRequiredCapabilities(f, perms.capabilities ?? [])
+				)
+				.map((f) => f.name)
 		)
 	);
 	function isFieldReadonly(fieldName: string): boolean {

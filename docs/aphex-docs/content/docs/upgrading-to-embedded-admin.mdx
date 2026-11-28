@@ -49,6 +49,7 @@ A file you added that stays keeps working as your own route, but under `/admin` 
 | `src/routes/god-mode`                                                                       | `/admin/god-mode`                          |
 | `src/routes/api/[...slug]` and the other `src/routes/api/*` folders Aphex shipped           | `/api`                                     |
 | `src/routes/media/[id]/[filename]`                                                          | `/media`                                   |
+| `src/routes/mcp` (the website template)                                                     | `/mcp`                                     |
 
 It also deletes helpers that only those routes used, such as `src/lib/auth-client.ts`, `src/lib/stores/activeTab.svelte.ts` and `src/lib/server/email/invitation-hook.ts`. A helper stays if anything left in your app still imports it.
 
@@ -59,6 +60,7 @@ It also deletes helpers that only those routes used, such as `src/lib/auth-clien
   - Removes the `api` hook that sent the invitation email. Core sends it now, so leaving the hook means invitees get two emails.
   - Points `loginUrl` at `/admin/login`, if the sign-in pages were deleted.
 - **`createAphexAuth()`:** adds `authPagesPath: '/admin'`, so password reset emails link to core's page.
+- **`src/hooks.server.ts`:** removes the template's own Better Auth hook (`svelteKitHandler`). Core's hook answers `/api/auth` now. If the hook has a shape the upgrade can't place, it tells you to remove it.
 - **`locals.auth`:** renames it to `locals.aphexAuth`, together with its declaration in `app.d.ts`. This only happens when `app.d.ts` shows that `auth` is Aphex's. Apps from before v0.3.0 used the old name.
 - **`vite.config.ts` and `app.d.ts`:** adds `aphex()` and Aphex's `locals` if either is missing.
 - **Sidebar links:** if you replace an admin layout that gave the sidebar links of its own (`navItems`, `systemNavItems`, `secondaryNavItems` or `navGroups`), they move to `sidebar` in `aphex.client.ts`, along with their icon imports. A link that reads load data, such as `href: data.bookingUrl`, can't move, because `aphex.client.ts` has no load. The upgrade lists those links so you can add them with a fixed value.

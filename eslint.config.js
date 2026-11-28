@@ -11,6 +11,8 @@ const gitignorePath = fileURLToPath(new URL('./.gitignore', import.meta.url));
 
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
+	// An old template kept byte for byte: the upgrade tool's tests recognise its files by blob id.
+	{ ignores: ['packages/create-aphex/tests/fixtures/**'] },
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs.recommended,

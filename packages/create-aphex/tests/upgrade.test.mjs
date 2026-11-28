@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { detectApp } from '../dist/init/detect.js';
 import {
 	addAuthPagesPath,
+	dropAuthHook,
 	aphexOwnsLocalsAuth,
 	blobId,
 	buildUpgradePlan,
@@ -28,9 +29,10 @@ import {
 } from '../dist/upgrade/plan.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const template = join(here, '../../../templates/base');
+// templates/base as cms-core 11 shipped it, before the templates moved to the embedded admin.
+const template = join(here, 'fixtures/v11-base');
 
-/** A copy of the parts of templates/base the upgrade looks at. */
+/** A copy of the parts of an old base template the upgrade looks at. */
 function oldApp(edit) {
 	const dir = mkdtempSync(join(tmpdir(), 'aphex-upgrade-'));
 	for (const path of [
@@ -624,4 +626,53 @@ test('patched Aphex packages are found in package.json and pnpm-workspace.yaml',
 		{ dependency: '@aphexcms/cms-core@11.3.0', file: 'patches/@aphexcms__cms-core@11.3.0.patch' },
 		{ dependency: '@aphexcms/ui@0.8.7', file: 'patches/ui.patch' }
 	]);
+});
+
+test('dropAuthHook removes the template’s Better Auth hook and the imports only it used', () => {
+	const source = `import { sequence } from '@sveltejs/kit/hooks';
+import type { Handle } from '@sveltejs/kit';
+import { svelteKitHandler } from 'better-auth/svelte-kit';
+import { building } from '$app/environment';
+import { auth } from '$lib/server/auth';
+import cmsConfig from '../aphex.config';
+
+const authHook: Handle = async ({ event, resolve }) => {
+	return svelteKitHandler({ event, resolve, auth, building });
+};
+
+const aphexHook = createCMSHook(cmsConfig);
+const seedHook: Handle = async ({ event, resolve }) => {
+	if (!building) await seed();
+	return resolve(event);
+};
+
+export const handle = sequence(authHook, aphexHook, seedHook);
+`;
+	const result = dropAuthHook(source);
+	assert.equal(result.kind, 'patched');
+	assert.ok(!result.code.includes('svelteKitHandler'));
+	assert.ok(!result.code.includes("from '$lib/server/auth'"));
+	assert.ok(result.code.includes("import { building } from '$app/environment';"));
+	assert.ok(result.code.includes('sequence(aphexHook, seedHook)'));
+	assert.equal(dropAuthHook(result.code).kind, 'unchanged');
+});
+
+test('dropAuthHook leaves a hook it can’t place for the person', () => {
+	const source = `export const handle = ({ event, resolve }) => svelteKitHandler({ event, resolve, auth });\n`;
+	assert.equal(dropAuthHook(source).kind, 'manual');
+});
+
+test('the old template’s MCP route and auth hook go', () => {
+	const dir = oldApp((dir) => {
+		mkdirSync(join(dir, 'src/routes/mcp'), { recursive: true });
+		writeFileSync(
+			join(dir, 'src/routes/mcp/+server.ts'),
+			"// MCP server endpoint — re-exported from Aphex CMS Core.\n// The implementation ships with @aphexcms/cms-core; bump the package to update it.\nexport { POST, GET, DELETE } from '@aphexcms/cms-core/routes/mcp';\n"
+		);
+	});
+	const plan = buildUpgradePlan(detectApp(dir));
+	const done = actions(plan);
+	assert.equal(done['src/routes/mcp/+server.ts'], 'delete');
+	assert.equal(done['src/hooks.server.ts'], 'update');
+	rmSync(dir, { recursive: true, force: true });
 });

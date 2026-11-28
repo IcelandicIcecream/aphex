@@ -1,0 +1,68 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@aphexcms/ui/shadcn/css';
+@source '../node_modules/@aphexcms/ui/dist/**/*.{html,js,svelte,ts}'; /*Import shadcn tailwind styles*/
+@source '../node_modules/@aphexcms/cms-core/dist/**/*.{html,js,svelte,ts}'; /*Import cms-core component styles*/
+@source '../node_modules/@aphexcms/plugin-*/dist/**/*.{html,js,svelte,ts}'; /*Any installed @aphexcms/plugin-* (Tailwind ignores node_modules by default, so this @source is required for plugin widget styles like the color-picker)*/
+
+/* Ensure full height layout.
+ *
+ * `min-height` on body, not `height`: a fixed 100% pins body to exactly one
+ * viewport, so on any page taller than the screen its background stops at the
+ * fold and the html background shows through below it — a visible seam wherever
+ * the two differ. The floor is what the admin's full-height panes need; the cap
+ * was never wanted. */
+html {
+	height: 100%;
+}
+body {
+	min-height: 100%;
+}
+
+/* Refined, thin scrollbars in place of the chunky native ones. Only on pointer
+   devices — touch keeps its native overlay scrollbars. `currentColor` adapts to
+   light/dark; the thumb is a subtle inset pill. Elements can still opt out with
+   `scrollbar-width: none` (e.g. the field group-tab bar), which wins on specificity. */
+@media (pointer: fine) {
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in oklab, currentColor 20%, transparent) transparent;
+	}
+	*::-webkit-scrollbar {
+		width: 10px;
+		height: 10px;
+	}
+	*::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	*::-webkit-scrollbar-thumb {
+		background-color: color-mix(in oklab, currentColor 20%, transparent);
+		border-radius: 9999px;
+		border: 3px solid transparent;
+		background-clip: padding-box;
+	}
+	*::-webkit-scrollbar-thumb:hover {
+		background-color: color-mix(in oklab, currentColor 34%, transparent);
+	}
+}
+
+/* Custom utility classes */
+@layer utilities {
+	.full-height-layout {
+		height: 100vh;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.admin-content-height {
+		height: calc(100vh - 3rem); /* Desktop: subtract top navbar */
+		display: flex;
+		flex-direction: column;
+	}
+
+	.admin-content-height-mobile {
+		height: calc(100vh - 6rem); /* Mobile: subtract top navbar + breadcrumb */
+		display: flex;
+		flex-direction: column;
+	}
+}

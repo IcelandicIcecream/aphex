@@ -211,6 +211,42 @@ export function removeInvitationHook(source: string): PatchResult {
 	return { kind: 'patched', code };
 }
 
+/**
+ * Removes the old templates' Better Auth hook from `src/hooks.server.ts`. Core's hook
+ * answers /api/auth now, so the template's own `svelteKitHandler` hook only runs first.
+ */
+export function dropAuthHook(source: string): PatchResult {
+	if (!source.includes('svelteKitHandler')) return { kind: 'unchanged' };
+	const hook = source.match(
+		/^const (\w+)(?:: Handle)? = async \(\{ event, resolve \}\) => \{\s*return svelteKitHandler\(\{[^}]*\}\);?\s*\};?[ \t]*\r?\n(?:[ \t]*\r?\n)?/m
+	);
+	const name = hook?.[1];
+	const inSequence = name ? new RegExp(`(sequence\\()\\s*${name}\\s*,\\s*`) : undefined;
+	if (!hook || !name || !inSequence?.test(source)) {
+		return {
+			kind: 'manual',
+			instructions:
+				"Remove the svelteKitHandler hook from src/hooks.server.ts. Core's hook answers /api/auth now."
+		};
+	}
+	let code = source.replace(hook[0], '').replace(inSequence, '$1');
+	code = code.replace(
+		/^import\s*\{\s*svelteKitHandler\s*\}\s*from\s*['"]better-auth\/svelte-kit['"];?[ \t]*\r?\n/m,
+		''
+	);
+	// The imports only that hook used.
+	const unused = (pattern: RegExp, word: string) => {
+		const rest = code.replace(pattern, '');
+		if (!new RegExp(`\\b${word}\\b`).test(rest)) code = rest;
+	};
+	unused(/^import\s*\{\s*auth\s*\}\s*from\s*['"]\$lib\/server\/auth['"];?[ \t]*\r?\n/m, 'auth');
+	unused(
+		/^import\s*\{\s*building\s*\}\s*from\s*['"]\$app\/environment['"];?[ \t]*\r?\n/m,
+		'building'
+	);
+	return { kind: 'patched', code };
+}
+
 /** Points `loginUrl` at core's sign-in page. */
 export function moveLoginUrl(source: string): PatchResult {
 	if (/loginUrl:\s*['"]\/admin\/login['"]/.test(source)) return { kind: 'unchanged' };
@@ -456,6 +492,8 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 			});
 		}
 	}
+
+	if (current('src/hooks.server.ts') !== undefined) apply('src/hooks.server.ts', dropAuthHook);
 
 	const appDts = current('src/app.d.ts');
 	if (appDts !== undefined && aphexOwnsLocalsAuth(appDts)) {

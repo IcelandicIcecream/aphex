@@ -76,6 +76,12 @@ export const ROUTE_UNITS: RouteUnit[] = [
 		servedAt: '/api (by the hook)'
 	},
 	{
+		// The website template re-exported core's MCP handler here. The hook answers /mcp now.
+		label: 'MCP route',
+		paths: ['src/routes/mcp'],
+		servedAt: '/mcp (by the hook)'
+	},
+	{
 		label: 'media route',
 		paths: ['src/routes/media/[id]/[filename]'],
 		servedAt: '/media (by the hook)'

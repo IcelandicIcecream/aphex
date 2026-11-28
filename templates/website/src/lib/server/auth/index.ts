@@ -49,6 +49,8 @@ export const {
 	service: authService,
 	provider: authProvider
 } = createAphexAuth({
+	// Core serves the password reset page under /admin.
+	authPagesPath: '/admin',
 	ipAddressHeaders,
 	database: db,
 	drizzleDb,

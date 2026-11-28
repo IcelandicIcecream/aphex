@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { detectApp } from '../dist/init/detect.js';
 import {
 	addAuthPagesPath,
+	isRegistrySpec,
 	BETTER_AUTH_RANGE,
 	dropAuthHook,
 	aphexOwnsLocalsAuth,
@@ -739,5 +740,40 @@ test('an app that builds Better Auth itself keeps its svelteKitHandler hook', ()
 	});
 	const plan = buildUpgradePlan(detectApp(dir));
 	assert.notEqual(actions(plan)['src/hooks.server.ts'], 'update');
+	rmSync(dir, { recursive: true, force: true });
+});
+
+test('packages installed from a file, a link or the workspace are left as they are', () => {
+	for (const spec of ['^12.0.0', '12.0.0-next.1', 'next', 'latest', '~1.6.25', undefined]) {
+		assert.equal(isRegistrySpec(spec), true, String(spec));
+	}
+	for (const spec of [
+		'file:vendor/a.tgz',
+		'link:../x',
+		'workspace:*',
+		'github:a/b',
+		'git+https://x',
+		'https://x/y.tgz',
+		'./vendor/a.tgz'
+	]) {
+		assert.equal(isRegistrySpec(spec), false, spec);
+	}
+	const dir = oldApp((dir) => {
+		const path = join(dir, 'package.json');
+		const pkg = JSON.parse(readFileSync(path, 'utf8'));
+		// As a real app has them: the monorepo's template says workspace:*.
+		for (const deps of [pkg.dependencies, pkg.devDependencies]) {
+			for (const name of Object.keys(deps ?? {})) {
+				if (deps[name].startsWith('workspace:')) deps[name] = '^11.3.0';
+			}
+		}
+		pkg.dependencies['@aphexcms/plugin-redirects'] =
+			'file:vendor/aphexcms-plugin-redirects-0.0.0.tgz';
+		writeFileSync(path, JSON.stringify(pkg, null, '\t'));
+	});
+	const plan = buildUpgradePlan(detectApp(dir));
+	assert.deepEqual(plan.local, ['@aphexcms/plugin-redirects']);
+	assert.ok(!plan.packages.includes('@aphexcms/plugin-redirects'));
+	assert.ok(plan.packages.includes('@aphexcms/cms-core'));
 	rmSync(dir, { recursive: true, force: true });
 });

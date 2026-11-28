@@ -61,6 +61,12 @@ export interface UpgradePlan {
 	 */
 	pins: string[];
 	/**
+	 * `@aphexcms/*` packages installed from somewhere other than npm: a vendored file, a
+	 * link, the workspace, a git URL. Left as they are, since `@latest` of a package that
+	 * was never published fails the whole install.
+	 */
+	local: string[];
+	/**
 	 * Patches the app applies to an `@aphexcms/*` package. Each is pinned to the version
 	 * installed now, so moving the package makes the install fail until it's dealt with.
 	 */
@@ -630,7 +636,14 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	const updates: UpgradeChange[] = [...edited.entries()]
 		.filter(([path, code]) => code !== read(cwd, path))
 		.map(([path, content]) => ({ path, action: 'update', content }));
-	const packages = [...app.installed].filter((name) => name.startsWith('@aphexcms/'));
+	const specs = declaredSpecs(cwd);
+	const fromNpm = (name: string) => isRegistrySpec(specs[name]);
+	const local = [...app.installed]
+		.filter((name) => name.startsWith('@aphexcms/') && !fromNpm(name))
+		.sort();
+	const packages = [...app.installed].filter(
+		(name) => name.startsWith('@aphexcms/') && fromNpm(name)
+	);
 	// The aphex.client.ts it writes takes adminAuthClient from @aphexcms/auth, which apps
 	// from before that package built themselves.
 	const needsAuth =
@@ -639,7 +652,7 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	if (needsAuth && !packages.includes('@aphexcms/auth')) packages.push('@aphexcms/auth');
 	packages.sort();
 	const pins = [...app.installed]
-		.filter((name) => BETTER_AUTH_PACKAGES.includes(name))
+		.filter((name) => BETTER_AUTH_PACKAGES.includes(name) && fromNpm(name))
 		.sort()
 		.map((name) => `${name}@${BETTER_AUTH_RANGE}`);
 	return {
@@ -648,8 +661,30 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 		staleLinks,
 		packages,
 		pins,
+		local,
 		patches: aphexPatches(cwd)
 	};
+}
+
+/** Every dependency's declared spec in package.json, by name. */
+function declaredSpecs(cwd: string): Record<string, string> {
+	try {
+		const pkg = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8')) as {
+			dependencies?: Record<string, string>;
+			devDependencies?: Record<string, string>;
+		};
+		return { ...pkg.devDependencies, ...pkg.dependencies };
+	} catch {
+		return {};
+	}
+}
+
+/** A spec npm resolves from the registry: a version, a range or a dist-tag, not a path or URL. */
+export function isRegistrySpec(spec: string | undefined): boolean {
+	if (spec === undefined) return true;
+	return !/^(file:|link:|portal:|workspace:|git\+|git:|github:|https?:|\.{0,2}\/|~\/)/.test(
+		spec.trim()
+	);
 }
 
 /** The Better Auth line `@aphexcms/auth` depends on. Keep it equal to packages/auth/package.json. */

@@ -133,6 +133,18 @@ export async function runUpgrade(cwd: string, options: InitOptions): Promise<voi
 		);
 	}
 
+	if (plan.local.length > 0) {
+		p.note(
+			[
+				...plan.local.map((name) => pc.cyan(name)),
+				'',
+				'These aren’t installed from npm (a file, a link or the workspace), so the',
+				'upgrade leaves them as they are. Update them where they come from.'
+			].join('\n'),
+			'Left as they are'
+		);
+	}
+
 	if (plan.patches.length > 0) {
 		p.note(
 			[

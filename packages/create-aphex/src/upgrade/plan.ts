@@ -520,7 +520,14 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 		}
 	}
 
-	if (current('src/hooks.server.ts') !== undefined) apply('src/hooks.server.ts', dropAuthHook);
+	// Only @aphexcms/auth's provider answers /api/auth itself (its `handle`). An app that
+	// builds Better Auth on its own still needs its svelteKitHandler hook.
+	const providerHandlesAuth =
+		/\baphexAuth\s*\(/.test(current('aphex.config.ts') ?? '') ||
+		remaining().some((path) => (current(path) ?? '').includes('createAphexAuth('));
+	if (providerHandlesAuth && current('src/hooks.server.ts') !== undefined) {
+		apply('src/hooks.server.ts', dropAuthHook);
+	}
 
 	const appDts = current('src/app.d.ts');
 	if (appDts !== undefined && aphexOwnsLocalsAuth(appDts)) {

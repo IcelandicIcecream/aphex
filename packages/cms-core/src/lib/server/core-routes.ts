@@ -7,8 +7,9 @@ const MEDIA_PATH = /^\/media\/([^/]+)\/([^/]+)$/;
 
 /**
  * The routes core answers from the hook, so a host needs no route file for them. A
- * route the host did define matched before the hook ran and wins, whether that's its
- * own `/api/orders` or an older `/api/[...slug]` that forwards here.
+ * route the host defined under the same prefix wins, whether that's its own
+ * `/api/orders` or an older `/api/[...slug]` that forwards here. One elsewhere that only
+ * matched through a parameter (`[slug]/[page]` catching `/api/organizations`) doesn't.
  */
 export async function serveCoreRoute(event: RequestEvent): Promise<Response | null> {
 	const { pathname } = event.url;
@@ -30,14 +31,19 @@ export async function serveCoreRoute(event: RequestEvent): Promise<Response | nu
 		return mcp.handle(event);
 	}
 
-	if (event.route.id !== null) return null;
-
 	const { method } = event.request;
-	if (pathname.startsWith('/.well-known/')) return serveOAuthDiscovery(event);
+	// A host route answers instead only when it lives under the same prefix: its own
+	// `/api/orders`, or an older `/api/[...slug]` that forwards here. A parameter route
+	// elsewhere that happens to match, like a site's `[school]/[personality]` page
+	// catching `/api/organizations`, mustn't take the API, the files or discovery.
+	if (pathname.startsWith('/.well-known/')) {
+		return hostRouteUnder(event.route.id, '/.well-known') ? null : serveOAuthDiscovery(event);
+	}
 	const [, id, filename] = MEDIA_PATH.exec(pathname) ?? [];
 	const isApi = pathname === '/api' || pathname.startsWith('/api/');
 	const isMedia = Boolean(id && filename && (method === 'GET' || method === 'HEAD'));
 	if (!isApi && !isMedia) return null;
+	if (hostRouteUnder(event.route.id, isApi ? '/api' : '/media')) return null;
 
 	// An address naming a tenant that doesn't exist has no API and no files. Without
 	// this, `tenant` would be null there, which reads as "no tenant", and a made-up
@@ -58,6 +64,13 @@ export async function serveCoreRoute(event: RequestEvent): Promise<Response | nu
 
 function notFound(): Response {
 	return new Response('Not found', { status: 404 });
+}
+
+/** The host's route sits under `prefix` (route groups aside), not at a parameter that matched it. */
+export function hostRouteUnder(routeId: string | null, prefix: string): boolean {
+	if (routeId === null) return false;
+	const path = routeId.replace(/\/\([^)]+\)/g, '') || '/';
+	return path === prefix || path.startsWith(`${prefix}/`);
 }
 
 /** The host's route is this exact path, not a parameter that happens to match it. */

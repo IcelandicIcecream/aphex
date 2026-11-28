@@ -728,3 +728,16 @@ test('the app’s own Better Auth packages are held to @aphexcms/auth’s line',
 	assert.ok(plan.pins.every((pin) => pin.endsWith(`@${BETTER_AUTH_RANGE}`)));
 	rmSync(dir, { recursive: true, force: true });
 });
+
+test('an app that builds Better Auth itself keeps its svelteKitHandler hook', () => {
+	const dir = oldApp((dir) => {
+		const auth = join(dir, 'src/lib/server/auth/index.ts');
+		writeFileSync(
+			auth,
+			readFileSync(auth, 'utf8').replaceAll('createAphexAuth', 'createOwnBetterAuth')
+		);
+	});
+	const plan = buildUpgradePlan(detectApp(dir));
+	assert.notEqual(actions(plan)['src/hooks.server.ts'], 'update');
+	rmSync(dir, { recursive: true, force: true });
+});

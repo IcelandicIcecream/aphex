@@ -13,6 +13,9 @@ import { db } from './src/lib/server/db';
 import { email } from './src/lib/server/email';
 import { storageAdapter } from './src/lib/server/storage';
 import { cacheAdapter } from './src/lib/server/cache';
+import { siteInstructions } from './src/lib/agent/instructions';
+import { siteGuides } from './src/lib/agent/guides';
+import { sitePrompts } from './src/lib/agent/prompts';
 
 /**
  * 👀 Preview perspective — the one knob to flip while developing. Change the return:
@@ -135,6 +138,11 @@ export default createCMSConfig({
 	// normal server-side upload when the storage adapter can't presign (the local
 	// filesystem one can't), so it's safe to leave on.
 	upload: { direct: true, maxFileSize: 200 * 1024 * 1024 },
+
+	// What an AI connected at /mcp (Claude, ChatGPT, Cursor) is told about this site,
+	// the guides it reads for bigger jobs, and the ready-made requests it offers. Edit
+	// them in src/lib/agent/ when you change the schema.
+	mcp: { instructions: siteInstructions, guides: siteGuides, prompts: sitePrompts },
 
 	customization: {
 		branding: {

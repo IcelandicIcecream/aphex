@@ -45,8 +45,19 @@ with `curl -X POST localhost:5173/api/seed`, or turn it off with `APHEX_SEED=fal
 Delete `src/lib/schemaTypes/`, `src/routes/(site)/` and `src/lib/server/seed/` once
 your own model exists — nothing else depends on them.
 
+**Built to be built by AI.** Connect Claude, ChatGPT or Cursor to `/mcp` (with an
+API key from Settings, or by signing in through the app) and say "make my site". On
+connecting, the AI is told how this site's pages work, and it reads the guides in
+`src/lib/agent/` for the bigger jobs: planning and building the site, choosing
+blocks, writing copy, writing posts. Everything it writes is a draft until you
+publish it. Change those files when you change the schema; they're how an AI learns
+what a good page looks like here.
+
 ### A few things worth knowing
 
+- **Links don't hold pages back.** Links to pages and posts are weak references, so
+  two pages that link to each other can both go live, in either order. A link to a
+  page that isn't live yet shows as plain text until it is.
 - **Reserved field names.** `type` and `publishedAt` are document columns, so a
   schema can't declare them. That's why the hero's variant picker is `variant` and
   a link's is `linkType`. See `AGENTS.md`.
@@ -118,7 +129,7 @@ about email, backups and custom domains — are at
 
 **Two things to do the moment it goes live**, however you deployed:
 
-1. **Sign up at `/login`.** The first account to sign up becomes super admin. On a
+1. **Sign up at `/admin/login`.** The first account to sign up becomes super admin. On a
    public URL that is a race, so either do it immediately or set
    `APHEX_BOOTSTRAP_EMAIL` to your address before deploying, which restricts the
    claim to you.
@@ -166,9 +177,9 @@ shown by Vite. Use `pnpm dev --host` only when you intentionally want LAN or tun
 
 ### 4. First Login
 
-1. Go to `/login` at the URL Vite printed
+1. Go to `/admin/login` at the URL Vite printed
 2. Sign up with your email and password — the first user automatically becomes the super admin with a default organization
-3. Access God Mode at `/god-mode` for instance-level administration
+3. Access God Mode at `/admin/god-mode` for instance-level administration
 
 ## Defining Content Schemas
 
@@ -293,11 +304,14 @@ APHEX_DB_AUTO_MIGRATE=false
 │   │   │   ├── page.ts       # The shared page loader
 │   │   │   ├── posts.ts      # The shared post query
 │   │   │   └── references.ts # Expanding document references for the front end
-│   │   └── utils/            # link resolution, stega cleaning, dates
+│   │   ├── agent/            # What an AI connected at /mcp is told: instructions, guides, prompts
+│   │   ├── utils/            # link resolution, stega cleaning, dates
+│   │   └── aphex.client.ts   # The admin's browser config: schemas, plugins, sidebar
 │   └── routes/
 │       ├── (site)/           # The public site
-│       ├── (protected)/admin/ # Admin panel
-│       ├── api/               # API endpoints (incl. POST /api/seed)
+│       ├── admin/[...path]/  # The admin. Core draws it, and the sign-in pages, God Mode,
+│       │                     # /api, /media and /mcp; don't edit these two files
+│       ├── api/seed/         # POST /api/seed: load the example content again
 │       └── sitemap.xml/       # Generated from the CMS
 ├── aphex.config.ts            # CMS configuration
 ├── drizzle/                   # Database migrations

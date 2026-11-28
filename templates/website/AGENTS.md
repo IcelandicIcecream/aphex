@@ -83,6 +83,21 @@ Three concerns that look similar and must stay separate:
 
 **Never put side effects in a schema hook.** Hooks transform; events react.
 
+## What an AI building the site is told
+
+`src/lib/agent/` holds what a client connected to `/mcp` reads about this site:
+`instructions.ts` (sent on every connection, so keep it short), `guides.ts`
+(read with `get_guide` when the client is on that job) and `prompts.ts`
+(ready-made requests like "Make my site"). They're wired in as `mcp` in
+`aphex.config.ts`. **Update them whenever you change the schema**: add a block and
+the `pages` guide should say what it's for, rename a field and the instructions
+must follow.
+
+Links to pages and posts are weak references (`weak: true`): a page can be
+published while a page it links to is a draft, and the site draws that link as
+plain text until it's live. Keep a reference strong when the page can't work
+without its target, like a form block's form.
+
 ## Reading content
 
 Fetch through the Local API inside `+page.server.ts`. It's the same in-process

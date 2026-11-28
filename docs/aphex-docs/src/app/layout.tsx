@@ -66,15 +66,27 @@ export default function Layout({ children }: LayoutProps<'/'>) {
 					{IS_NEXT ? (
 						<Banner id="next-docs">
 							<span>
-								Docs for the experimental build (<code>@next</code>). Install it with{' '}
-								<code>pnpm add @aphexcms/cms-core@next</code>. For the stable release, see{' '}
+								Docs for the experimental build (<code>@next</code>).{' '}
+								<a href="/whats-new" className="underline">
+									What’s new in Aphex 2
+								</a>
+								. For the stable release, see{' '}
 								<a href={STABLE_URL} className="underline">
 									docs.getaphex.com
 								</a>
 								.
 							</span>
 						</Banner>
-					) : null}
+					) : (
+						<Banner id="aphex-2">
+							<span>
+								Aphex 2 is here.{' '}
+								<a href="/whats-new" className="underline">
+									See what’s new
+								</a>
+							</span>
+						</Banner>
+					)}
 					{children}
 				</RootProvider>
 

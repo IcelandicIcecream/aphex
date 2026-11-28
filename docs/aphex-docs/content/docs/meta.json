@@ -2,9 +2,10 @@
 	"title": "Documentation",
 	"pages": [
 		"index",
-		"whats-new",
 		"getting-started",
 		"add-to-existing-app",
+		"---Aphex 2---",
+		"whats-new",
 		"upgrading-to-embedded-admin",
 		"upgrading-with-an-agent",
 		"migration-guide",

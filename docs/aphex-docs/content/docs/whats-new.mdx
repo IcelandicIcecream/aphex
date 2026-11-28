@@ -1,10 +1,8 @@
 ---
 title: What's new in Aphex 2
-description: Aphex 2 (cms-core 12) runs the whole admin from core, builds sites with AI, and serves many sites from one app. What changed, what you give up, and how to upgrade.
-icon: Rocket
+description: Aphex 2 runs the whole admin from core, builds sites with AI, and serves many sites from one app. What changed, what you give up, and how to upgrade.
+icon: Megaphone
 ---
-
-Aphex 2 is `@aphexcms/cms-core` 12. Aphex 1 is cms-core 11 and earlier. npm versions only go up, so the package is 12 while the release is called 2.
 
 The short version: **your app no longer holds a copy of the admin.** Core serves the admin, the sign-in and account pages, God Mode, `/api`, `/media` and `/mcp` from one route, and your app keeps its schemas, its site and one small client config. Upgrading mostly means deleting files, and `pnpm create aphex` does that for you.
 
@@ -82,7 +80,7 @@ In Aphex 1 you could add a page under `src/routes/(protected)/admin` and it got 
 
 ### The upgrade is one way
 
-It deletes about 60 files. Commit first, run `pnpm create aphex --dry-run` to see the plan, and keep the commit until the app works. Plugins need their 12 releases too.
+It deletes about 60 files. Commit first, run `pnpm create aphex --dry-run` to see the plan, and keep the commit until the app works. Plugins need their Aphex 2 releases too.
 
 ## Upgrade
 

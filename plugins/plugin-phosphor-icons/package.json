@@ -1,7 +1,6 @@
 {
 	"name": "@aphexcms/plugin-phosphor-icons",
 	"version": "0.1.0",
-	"private": true,
 	"description": "Phosphor icons for AphexCMS: an icon field with a searchable picker of 1,512 icons in six weights, and a component that draws the stored icon with no icon set loaded",
 	"license": "MIT",
 	"publishConfig": {

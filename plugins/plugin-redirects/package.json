@@ -1,7 +1,6 @@
 {
 	"name": "@aphexcms/plugin-redirects",
 	"version": "0.1.0",
-	"private": true,
 	"description": "Redirects plugin for AphexCMS: old addresses keep working when a page, post or section moves, plus redirects you add by hand",
 	"license": "MIT",
 	"publishConfig": {

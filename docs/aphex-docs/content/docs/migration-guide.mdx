@@ -167,7 +167,7 @@ When `email` is configured, core sends the invitation email itself every time an
 
 ### 5. The hook answers `/api` and `/media`
 
-Aphex's hook now answers `/api` and `/media` itself when no route of yours matched. Your own routes under `/api` still win.
+Aphex's hook now answers `/api` and `/media` itself. Your own routes under `/api` and `/media` still win, such as `/api/orders` or a `/api/[...slug]` you keep. A parameter route elsewhere that happens to match doesn't: a `[school]/[personality]` page matches `/api/organizations`, but the API still answers it.
 
 - **Tool:** deletes `src/routes/api/[...slug]`, `src/routes/media/[id]/[filename]` and the other API folders Aphex shipped.
 - **Find:**

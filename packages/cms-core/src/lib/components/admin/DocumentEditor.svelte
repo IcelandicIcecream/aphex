@@ -683,7 +683,12 @@
 				// block whose cards aren't a stored reference). Open that document rather
 				// than trying to resolve the field in the current one.
 				// The field goes along, so that document opens at what was clicked.
-				if (msg.documentId && msg.documentType && msg.documentId !== documentId) {
+				// Compared with the id the preview was sent (below: `fullDocument?.id ??
+				// documentId`), not the `documentId` prop alone: a singleton opens by its
+				// type with no id, so every click in its preview looked like another
+				// document and reopened it instead of going to the field.
+				const openId = fullDocument?.id ?? documentId;
+				if (msg.documentId && msg.documentType && msg.documentId !== openId) {
 					onOpenReference?.(msg.documentId, msg.documentType, {
 						fieldPath: msg.fieldPath,
 						blockIndex: msg.blockIndex,

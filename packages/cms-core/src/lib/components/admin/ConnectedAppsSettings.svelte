@@ -292,37 +292,27 @@
 							rel="noreferrer"
 							class="underline underline-offset-2">chatgpt.com</a
 						>
-						and sign in. Click your name, then <strong>Settings</strong>, then
-						<strong>Apps & Connectors</strong>.
+						and sign in. Open <strong>Plugins</strong>, click <strong>Add</strong>, then
+						<strong>Add custom MCP server</strong>.
 					{/snippet}
 					{@render step(1, g1)}
 					{#snippet g2()}
-						Scroll to <strong>Advanced settings</strong> and turn on
-						<strong>Developer mode</strong>. ChatGPT needs it for apps that aren't in its store yet,
-						like this one.
+						Give it a name, paste the address above as its URL, choose <strong>OAuth</strong> if it asks
+						how to sign in, and add it.
 					{/snippet}
 					{@render step(2, g2)}
 					{#snippet g3()}
-						Go back and click <strong>Create</strong>. Give it a name, paste the address above into
-						<strong>MCP Server URL</strong>, choose <strong>OAuth</strong> for authentication, tick
-						that you trust it, and click <strong>Create</strong>.
-					{/snippet}
-					{@render step(3, g3)}
-					{#snippet g4()}
 						A window opens here: sign in if asked, pick this site, and click
 						<strong>Allow</strong>.
 					{/snippet}
-					{@render step(4, g4)}
-					{#snippet g5()}
+					{@render step(3, g3)}
+					{#snippet g4()}
 						Start a new chat, click <strong>+</strong> under the message box, and choose your app
 						(under <strong>More</strong> if you don't see it). Then ask, for example: "What can you do
 						on my site?"
 					{/snippet}
-					{@render step(5, g5)}
+					{@render step(4, g4)}
 				</ol>
-				<p class="text-muted-foreground mt-3 text-xs">
-					Developer mode is on ChatGPT's paid plans (Plus, Pro, Business and up).
-				</p>
 			</Tabs.Content>
 		</Tabs.Root>
 

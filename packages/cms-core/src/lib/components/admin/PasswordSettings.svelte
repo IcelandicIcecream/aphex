@@ -21,6 +21,57 @@
 	 * provider-agnostic client-side seam), not a hard dependency on Better Auth.
 	 */
 
+	/**
+	 * Someone who has only signed in with Google (or another provider) has no
+	 * password to give, so the card offers to set one instead: an emailed link, the
+	 * reset flow, which adds a password beside Google. Emailed rather than set here,
+	 * so someone at an unlocked laptop can't add a way in without the inbox.
+	 */
+	let { email, signInMethods = null }: { email?: string; signInMethods?: string[] | null } =
+		$props();
+
+	const PROVIDER_NAMES: Record<string, string> = {
+		google: 'Google',
+		github: 'GitHub',
+		apple: 'Apple',
+		microsoft: 'Microsoft'
+	};
+	// Unknown (null) keeps the change-password card: most accounts have a password.
+	const noPassword = $derived(!!signInMethods && !signInMethods.includes('credential'));
+	const providerName = $derived(
+		(signInMethods ?? [])
+			.filter((method) => method !== 'credential')
+			.map((method) => PROVIDER_NAMES[method] ?? method.charAt(0).toUpperCase() + method.slice(1))
+			.join(' or ') || 'another account'
+	);
+	let linkSent = $state(false);
+
+	async function sendSetLink() {
+		if (!email) return;
+		busy = true;
+		try {
+			const response = await fetch('/api/user/request-password-reset', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					email,
+					redirectTo: `${window.location.origin}/admin/reset-password`
+				})
+			});
+			const result = await response.json().catch(() => ({}));
+			if (!response.ok || result.success === false) {
+				toast.error(result.message || 'Could not send the link');
+				return;
+			}
+			linkSent = true;
+			toast.success(`We sent a link to ${email}`);
+		} catch {
+			toast.error('Could not send the link');
+		} finally {
+			busy = false;
+		}
+	}
+
 	const auth = useAdminAuthClient();
 
 	// The minimum better-auth enforces server-side; repeated here only so the user
@@ -92,17 +143,39 @@
 
 <Card.Root>
 	<Card.Header class="flex flex-col items-start justify-between gap-4 sm:flex-row">
-		<div class="space-y-1.5">
-			<Card.Title>Password</Card.Title>
-			<Card.Description>
-				Change the password you use to sign in. You'll need your current password, and you can sign
-				out everywhere else at the same time.
-			</Card.Description>
-		</div>
-		<Button variant="outline" class="shrink-0" onclick={() => (open = true)} disabled={!auth}>
-			<KeyRound class="mr-2 h-4 w-4" />
-			Change password
-		</Button>
+		{#if noPassword}
+			<div class="space-y-1.5">
+				<Card.Title>Password</Card.Title>
+				<Card.Description>
+					{#if linkSent}
+						Check {email} for a link to choose your password. Then you can sign in with your email too.
+					{:else}
+						You sign in with {providerName}. Set a password to sign in with your email too.
+					{/if}
+				</Card.Description>
+			</div>
+			<Button
+				variant="outline"
+				class="shrink-0"
+				onclick={sendSetLink}
+				disabled={busy || !email || linkSent}
+			>
+				<KeyRound class="mr-2 h-4 w-4" />
+				{linkSent ? 'Link sent' : 'Set a password'}
+			</Button>
+		{:else}
+			<div class="space-y-1.5">
+				<Card.Title>Password</Card.Title>
+				<Card.Description>
+					Change the password you use to sign in. You'll need your current password, and you can
+					sign out everywhere else at the same time.
+				</Card.Description>
+			</div>
+			<Button variant="outline" class="shrink-0" onclick={() => (open = true)} disabled={!auth}>
+				<KeyRound class="mr-2 h-4 w-4" />
+				Change password
+			</Button>
+		{/if}
 	</Card.Header>
 </Card.Root>
 

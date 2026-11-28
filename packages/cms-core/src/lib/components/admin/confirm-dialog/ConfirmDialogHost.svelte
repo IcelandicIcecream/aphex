@@ -29,6 +29,22 @@
 						{confirmDialogState.description}
 					</AlertDialog.Description>
 				{/if}
+				{#if confirmDialogState.links?.length}
+					<ul class="space-y-1 text-sm">
+						{#each confirmDialogState.links as link (link.label)}
+							<li>
+								<button
+									type="button"
+									class="text-primary underline underline-offset-2"
+									onclick={() => {
+										resolveConfirmDialog(false);
+										link.onSelect();
+									}}>{link.label}</button
+								>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			</AlertDialog.Header>
 			<AlertDialog.Footer>
 				<AlertDialog.Cancel onclick={() => resolveConfirmDialog(false)}>

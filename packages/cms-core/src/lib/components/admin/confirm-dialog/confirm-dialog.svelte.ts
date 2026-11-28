@@ -5,6 +5,8 @@ export interface ConfirmDialogOptions {
 	confirmText?: string;
 	cancelText?: string;
 	variant?: 'default' | 'destructive';
+	/** Shortcuts under the description (open the document it names): one closes the dialog as Cancel, then runs. */
+	links?: Array<{ label: string; onSelect: () => void }>;
 }
 
 interface ConfirmDialogState extends ConfirmDialogOptions {
@@ -19,6 +21,7 @@ export const confirmDialogState = $state<ConfirmDialogState>({
 	confirmText: 'Confirm',
 	cancelText: 'Cancel',
 	variant: 'default',
+	links: undefined,
 	resolve: null
 });
 
@@ -32,6 +35,7 @@ export function confirmDialog(options: ConfirmDialogOptions): Promise<boolean> {
 		confirmDialogState.confirmText = options.confirmText ?? 'Confirm';
 		confirmDialogState.cancelText = options.cancelText ?? 'Cancel';
 		confirmDialogState.variant = options.variant ?? 'default';
+		confirmDialogState.links = options.links;
 		confirmDialogState.resolve = resolve;
 		confirmDialogState.open = true;
 	});

@@ -136,6 +136,11 @@ export type AdminSettingsData =
 			userPreferences: UserSessionPreferences | null;
 			hasChildOrganizations: boolean;
 			totpAvailable: boolean;
+			/**
+			 * How this user signs in (`'credential'` is a password, else `'google'`, …);
+			 * null when the auth provider can't say.
+			 */
+			signInMethods: string[] | null;
 			/** Apps connected to this organization over OAuth; null when OAuth is off. */
 			connectedApps: OAuthConnection[] | null;
 			/** What this user may switch on for a connected app (they hold it themselves). */

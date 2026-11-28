@@ -38,7 +38,7 @@
 	import type { CMSPlugin, DocumentActionProps } from '../../plugins/types';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import { notifyDocumentChanged } from '../../document-refresh.svelte';
-	import { collectStrongReferenceIds } from '../../utils/reference-walk';
+	import { collectReferenceIds, collectStrongReferenceIds } from '../../utils/reference-walk';
 	import { cmsLogger } from '../../utils/logger';
 	import { resolvePreviewTitle } from '../../utils/preview';
 	import { toast } from 'svelte-sonner';
@@ -2314,6 +2314,66 @@
 					description: `This uses ${titles}${remainder}, which ${one ? "isn't" : "aren't"} published yet. Publish ${one ? 'it' : 'them'} first, then publish this.`
 				});
 				return;
+			}
+		}
+
+		// Weak references (links) may point at drafts: publishing goes ahead, but the
+		// author is told first, since a link to a draft won't show on the site.
+		const strongIds = new Set(refIds);
+		const weakIds = collectReferenceIds(documentData).filter((id) => !strongIds.has(id));
+		if (weakIds.length > 0) {
+			let fetched: any[] = [];
+			try {
+				const res = await documents.getMany(weakIds);
+				if (res.success && res.data) fetched = res.data;
+			} catch {
+				// Unknown: treated as not published, so the author is still told.
+			}
+			const byId = new Map(fetched.map((d) => [d.id, d]));
+			const pending = weakIds
+				.map((id) => ({ id, doc: byId.get(id) ?? null }))
+				.filter((c) => !c.doc || (c.doc as any)._meta?.status !== 'published');
+			if (pending.length > 0) {
+				const drafts = pending.filter((c) => c.doc);
+				const gone = pending.length - drafts.length;
+				const named = drafts.slice(0, 3).map((c) => {
+					const d = c.doc as any;
+					const docSchema = schemas.find((s) => s.name === d._meta?.type) ?? null;
+					return {
+						id: c.id,
+						type: d._meta?.type as string,
+						title: resolvePreviewTitle(d, docSchema)
+					};
+				});
+				const more = drafts.length > 3 ? ` and ${drafts.length - 3} more` : '';
+				const list = named.map((n) => `“${n.title}”`).join(', ') + more;
+				const one = drafts.length === 1;
+				const title = drafts.length
+					? `${list} ${one ? "isn't" : "aren't"} published yet`
+					: `${gone === 1 ? 'A link points' : `${gone} links point`} to something that was deleted`;
+				const description = [
+					drafts.length
+						? `This links to ${one ? 'it' : 'them'}, and the link${one ? '' : 's'} won't show until ${one ? "it's" : "they're"} published.`
+						: "Those links won't show.",
+					drafts.length && gone
+						? `${gone === 1 ? 'A link points' : `${gone} links point`} to something that was deleted, too.`
+						: ''
+				]
+					.filter(Boolean)
+					.join(' ');
+				const go = await confirmDialog({
+					title,
+					description,
+					confirmText: 'Publish anyway',
+					cancelText: 'Cancel',
+					links: onOpenReference
+						? named.map((n) => ({
+								label: `Open “${n.title}”`,
+								onSelect: () => onOpenReference?.(n.id, n.type)
+							}))
+						: undefined
+				});
+				if (!go) return;
 			}
 		}
 

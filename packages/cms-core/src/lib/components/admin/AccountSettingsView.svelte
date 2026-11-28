@@ -22,6 +22,8 @@
 		userPreferences: UserSessionPreferences | null;
 		hasChildOrganizations: boolean;
 		totpAvailable: boolean;
+		/** How this user signs in (`'credential'` is a password); null when unknown. */
+		signInMethods?: string[] | null;
 		/** Null when this instance doesn't offer connecting apps. */
 		connectedApps?: OAuthConnection[] | null;
 		/** What this user may switch on for a connected app. */
@@ -35,6 +37,7 @@
 		userPreferences,
 		hasChildOrganizations,
 		totpAvailable,
+		signInMethods = null,
 		connectedApps = null,
 		connectedAppOptIns = [],
 		currentSessionId = null
@@ -59,7 +62,7 @@
 			<p class="text-muted-foreground text-sm">How you sign in and prove it's you.</p>
 		</header>
 
-		<PasswordSettings />
+		<PasswordSettings email={user.email} {signInMethods} />
 		<TwoFactorSettings {totpAvailable} />
 		<DevicesSettings {currentSessionId} />
 		{#if connectedApps}

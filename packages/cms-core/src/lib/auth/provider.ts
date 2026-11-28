@@ -86,6 +86,12 @@ export interface AuthProvider {
 
 	// Password reset
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
+	/**
+	 * How a user signs in: `'credential'` for a password, else the social provider
+	 * (`'google'`, …). Lets Account settings offer "Set a password" to someone who has
+	 * only ever used Google, instead of asking for a password they don't have.
+	 */
+	signInMethods?(userId: string): Promise<string[]>;
 	resetPassword(token: string, newPassword: string): Promise<void>;
 
 	/**

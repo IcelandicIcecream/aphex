@@ -147,6 +147,11 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 			}
 		},
 		requestPasswordReset: (email, redirectTo) => service.requestPasswordReset(email, redirectTo),
+		signInMethods: async (userId) => {
+			const context = await auth.$context;
+			const accounts = await context.internalAdapter.findAccounts(userId);
+			return [...new Set(accounts.map((account) => account.providerId))];
+		},
 		resetPassword: (token, newPassword) => service.resetPassword(token, newPassword),
 		hasPendingTwoFactor,
 		// Only when switched on: core takes its absence to mean there's no such page.

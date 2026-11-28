@@ -209,6 +209,9 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 			}
 
 			const { totpAvailable } = availableTwoFactorMethods(authFeatures, emailAdapter);
+			const signInMethods = provider?.signInMethods
+				? await provider.signInMethods(auth.user.id).catch(() => null)
+				: null;
 			const connectedApps = provider?.oauth
 				? await provider.oauth.listConnections(auth.user.id, auth.organizationId)
 				: null;
@@ -220,6 +223,7 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 				userPreferences,
 				hasChildOrganizations,
 				totpAvailable,
+				signInMethods,
 				connectedApps,
 				currentSessionId: auth.session.id,
 				connectedAppOptIns: [...resolveCapabilities(auth)].filter(isOAuthOptInCapability)

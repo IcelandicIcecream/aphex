@@ -272,6 +272,7 @@
 					userPreferences={data.userPreferences}
 					hasChildOrganizations={data.hasChildOrganizations}
 					totpAvailable={data.totpAvailable}
+					signInMethods={data.signInMethods}
 					connectedApps={data.connectedApps}
 					connectedAppOptIns={data.connectedAppOptIns}
 					currentSessionId={data.currentSessionId}

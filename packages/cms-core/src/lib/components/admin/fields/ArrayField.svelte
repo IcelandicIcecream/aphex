@@ -36,7 +36,12 @@
 	import type { ImageValue } from '../../../types/asset';
 	import { toast } from 'svelte-sonner';
 	import AssetBrowserModal from '../AssetBrowserModal.svelte';
-	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../../../utils/preview';
+	import {
+		previewReferenceFields,
+		resolvePreviewTitle,
+		resolvePreviewSubtitle,
+		withPreviewReferences
+	} from '../../../utils/preview';
 	import { documents } from '../../../api/documents';
 	import { untrack } from 'svelte';
 	import { sameValue } from '../document-merge';
@@ -203,6 +208,41 @@
 			}
 		})();
 	});
+
+	// The documents object rows' previews read through: a row `{ dish: { _ref } }`
+	// whose preview selects `dish.name` shows the dish's name, not the type's title.
+	// One batched fetch for every row, refetched when one of those documents changes.
+	const previewDocs = new SvelteMap<string, any>();
+	$effect(() => {
+		if (isReferenceArray) return;
+		const ids = new Set<string>();
+		for (const item of Array.isArray(value) ? value : []) {
+			if (!item?._type) continue;
+			for (const name of previewReferenceFields(getSchemaForType(item._type))) {
+				const id = item[name]?._ref;
+				if (typeof id === 'string' && id) ids.add(id);
+			}
+		}
+		if (ids.size === 0) return;
+		for (const id of ids) getDocumentVersion(id);
+		(async () => {
+			try {
+				const res = await documents.getMany([...ids]);
+				if (res.success && res.data) {
+					for (const doc of res.data as any[]) {
+						if (doc?.id) previewDocs.set(doc.id, doc);
+					}
+				}
+			} catch {
+				// The row shows the type's title, as it would without the reference.
+			}
+		})();
+	});
+
+	/** A row as its preview reads it: the references its preview names, loaded. */
+	function previewItem(item: any, schema: SchemaType | null): any {
+		return withPreviewReferences(item, previewReferenceFields(schema), previewDocs);
+	}
 
 	// Modal state
 	let modalOpen = $state(false);
@@ -595,13 +635,13 @@
 	function getItemTitle(item: any): string {
 		if (!item._type) return 'Unknown Item';
 		const schema = getSchemaForType(item._type);
-		return resolvePreviewTitle(item, schema, item._type);
+		return resolvePreviewTitle(previewItem(item, schema), schema, item._type);
 	}
 
 	function getItemSubtitle(item: any): string | null {
 		if (!item._type) return null;
 		const schema = getSchemaForType(item._type);
-		return resolvePreviewSubtitle(item, schema);
+		return resolvePreviewSubtitle(previewItem(item, schema), schema);
 	}
 
 	function getItemIcon(item: any): any {

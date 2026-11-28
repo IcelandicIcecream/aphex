@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { SchemaType } from '../types/schemas';
-import { previewDepth, readPath, resolvePreviewMedia } from './preview';
+import {
+	previewDepth,
+	previewReferenceFields,
+	readPath,
+	resolvePreviewMedia,
+	resolvePreviewSubtitle,
+	resolvePreviewTitle,
+	withPreviewReferences
+} from './preview';
 
 const episode: SchemaType = {
 	type: 'document',
@@ -63,5 +71,51 @@ describe('a custom block’s picture', () => {
 	it('is null for a block without one', () => {
 		expect(resolvePreviewMedia({ _type: 'callout', text: 'Hi' }, null)).toBeNull();
 		expect(resolvePreviewMedia({ _type: 'photo', image: { asset: {} } }, null)).toBeNull();
+	});
+});
+
+describe('previews through a reference', () => {
+	const row = {
+		type: 'object',
+		name: 'menuDish',
+		title: 'Dish',
+		fields: [{ name: 'dish', type: 'reference', to: [{ type: 'dish' }] }],
+		preview: { select: { title: 'dish.name', subtitle: 'dish.price' } }
+	} as never;
+
+	it('names the reference fields a preview reads through', () => {
+		expect(previewReferenceFields(row)).toEqual(['dish']);
+		expect(
+			previewReferenceFields({ fields: [], preview: { select: { title: 'name' } } } as never)
+		).toEqual([]);
+	});
+
+	it('reads the referenced document once it is loaded, and the type title until then', () => {
+		const item = { _type: 'menuDish', dish: { _type: 'reference', _ref: 'd1' } };
+		const docs = new Map([['d1', { id: 'd1', name: 'Burrata', price: '$18' }]]);
+		const loaded = withPreviewReferences(item, ['dish'], docs);
+		expect(resolvePreviewTitle(loaded, row)).toBe('Burrata');
+		expect(resolvePreviewSubtitle(loaded, row)).toBe('$18');
+		expect(resolvePreviewTitle(withPreviewReferences(item, ['dish'], new Map()), row)).toBe('Dish');
+		expect(item.dish).toEqual({ _type: 'reference', _ref: 'd1' });
+	});
+});
+
+describe('a listed value in a preview', () => {
+	it('shows the option’s title, not the stored value', () => {
+		const hero = {
+			title: 'Hero',
+			fields: [
+				{
+					name: 'variant',
+					type: 'string',
+					list: [{ title: 'Full bleed', value: 'fullBleed' }, 'plain']
+				}
+			],
+			preview: { select: { title: 'heading', subtitle: 'variant' } }
+		} as never;
+		expect(resolvePreviewSubtitle({ variant: 'fullBleed' }, hero)).toBe('Full bleed');
+		expect(resolvePreviewSubtitle({ variant: 'plain' }, hero)).toBe('plain');
+		expect(resolvePreviewSubtitle({ variant: 'gone' }, hero)).toBe('gone');
 	});
 });

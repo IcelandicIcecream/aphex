@@ -7,9 +7,26 @@ import type { PreviewConfig, SchemaType } from '../types/schemas';
  * it, so array rows and rich-text block cards share one resolver.
  */
 export type PreviewSource =
-	| { title?: string; icon?: any; preview?: PreviewConfig }
+	| { title?: string; icon?: any; preview?: PreviewConfig; fields?: readonly unknown[] }
 	| null
 	| undefined;
+
+/**
+ * A selected value as a person reads it: a field with a `list` of options shows
+ * the option's title ("Full bleed"), not the stored value (`fullBleed`). Only for
+ * a top-level field; anything else is returned as it is.
+ */
+function asListed(value: unknown, schema: PreviewSource, path: string): unknown {
+	if (typeof value !== 'string' || path.includes('.')) return value;
+	const field = (schema?.fields as { name?: string; list?: unknown }[] | undefined)?.find(
+		(f) => f?.name === path
+	);
+	if (!Array.isArray(field?.list)) return value;
+	const option = (field.list as unknown[]).find(
+		(entry) => entry && typeof entry === 'object' && (entry as { value?: unknown }).value === value
+	) as { title?: unknown } | undefined;
+	return typeof option?.title === 'string' && option.title ? option.title : value;
+}
 
 /**
  * Walk a dot-path (e.g. `seo.title`) through an object. Returns the
@@ -34,23 +51,55 @@ export function readPath(item: any, path: string): unknown {
 }
 
 /**
+ * The `reference` fields a schema's `preview.select` reads through: `dish` for
+ * `dish.name`. What a preview has to load before it can show those paths.
+ */
+export function previewReferenceFields(
+	schema: Pick<SchemaType, 'fields' | 'preview'> | null | undefined
+): string[] {
+	const select = schema?.preview?.select;
+	if (!select) return [];
+	const refs = new Set(
+		(schema?.fields ?? []).filter((f) => f.type === 'reference').map((f) => f.name)
+	);
+	const through = new Set<string>();
+	for (const path of Object.values(select)) {
+		if (typeof path !== 'string' || /^['"]/.test(path)) continue;
+		const dot = path.indexOf('.');
+		if (dot > 0 && refs.has(path.slice(0, dot))) through.add(path.slice(0, dot));
+	}
+	return [...through];
+}
+
+/**
  * How deep the list fetch must resolve for this schema's `preview.select`
  * to read what it asks for: 1 when any selected path starts at a
  * `reference` field (`voice.name`), else 0. Kept minimal on purpose — a
  * list page shouldn't pay for resolution the row never shows.
  */
 export function previewDepth(schema: SchemaType | undefined): 0 | 1 {
-	const select = schema?.preview?.select;
-	if (!select) return 0;
-	const refs = new Set(
-		(schema?.fields ?? []).filter((f) => f.type === 'reference').map((f) => f.name)
-	);
-	for (const path of Object.values(select)) {
-		if (typeof path !== 'string' || /^['"]/.test(path)) continue;
-		const dot = path.indexOf('.');
-		if (dot > 0 && refs.has(path.slice(0, dot))) return 1;
+	return previewReferenceFields(schema).length > 0 ? 1 : 0;
+}
+
+/**
+ * `item` with each reference its preview reads through (`fields`, from
+ * `previewReferenceFields`) swapped for the document it points at, where `docs`
+ * has it, so `dish.name` reads the dish's name. An array row's object holds only
+ * `{ _ref }`; a list fetched with `depth` already holds the document.
+ */
+export function withPreviewReferences<T>(
+	item: T,
+	fields: readonly string[],
+	docs: ReadonlyMap<string, unknown>
+): T {
+	if (!item || typeof item !== 'object' || fields.length === 0) return item;
+	let out: Record<string, unknown> | null = null;
+	for (const name of fields) {
+		const ref = (item as Record<string, { _ref?: unknown } | undefined>)[name]?._ref;
+		const doc = typeof ref === 'string' ? docs.get(ref) : undefined;
+		if (doc) (out ??= { ...(item as Record<string, unknown>) })[name] = doc;
 	}
-	return 0;
+	return (out ?? item) as T;
 }
 
 /**
@@ -137,7 +186,7 @@ export function resolvePreviewTitle(
 
 		const configured = schema?.preview?.select?.title;
 		if (configured) {
-			const resolved = toPreviewString(readPath(item, configured));
+			const resolved = toPreviewString(asListed(readPath(item, configured), schema, configured));
 			if (resolved) return resolved;
 		} else {
 			for (const name of DEFAULT_TITLE_FIELDS) {
@@ -159,7 +208,7 @@ export function resolvePreviewSubtitle(item: any, schema: PreviewSource): string
 	if (prepared) return toPreviewString(prepared.subtitle);
 	const configured = schema?.preview?.select?.subtitle;
 	if (!configured) return null;
-	return toPreviewString(readPath(item, configured));
+	return toPreviewString(asListed(readPath(item, configured), schema, configured));
 }
 
 /** The asset id in an image value (`{ asset: { _ref } }`), or the string when it's one. */

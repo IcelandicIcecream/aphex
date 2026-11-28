@@ -40,7 +40,11 @@ The short version: **your app no longer holds a copy of the admin.** Core serves
 ### Sign-in
 
 - **Continue with Google** (or any Better Auth provider) on core's sign-in page when you set `socialProviders`. People who signed up with Google can set a password later. See [OAuth](/authentication#oauth).
-- Security emails, two-factor pages, invitations and password reset are all in core.
+- **Security emails**, when you turn them on: a sign-in from a new browser, repeated wrong passwords, a changed password, two-factor turned off, a new API key or connected app, a new owner or admin. Each has a **This wasn't me** link that signs out every device and stops the password working. See [Security emails](/authentication#security-emails).
+- Account settings lists the signed-in devices, with Sign out for each.
+- Invitations need a confirmed email, nobody can give out more access than they hold, and only owners can remove an owner.
+- Every API key, connected app and person gets a fair rate limit, so a leaked key or a looping agent can't slow the site for everyone.
+- Two-factor pages, invitations and password reset are all in core.
 
 ### Plugins
 

@@ -96,7 +96,7 @@ Two things worth internalizing:
 | Event                | Fires when                                     | Payload                                       |
 | -------------------- | ---------------------------------------------- | --------------------------------------------- |
 | `document.published` | a document is published (any path — see below) | `documentId`, `documentType`, `publishedHash` |
-| `user.deleted`       | a user is deleted, once for each organization  | `userId`, `email`, `image`                    |
+| `user.deleted`       | a user is deleted, once for each organization  | `userId`, `image`, and `email`, always `null` |
 
 `document.published` is emitted on **every** publish path — the admin UI, Local API, REST, GraphQL, MCP, and scheduled jobs — because they all funnel through the same publish code.
 
